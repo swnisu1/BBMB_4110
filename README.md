@@ -1,19 +1,17 @@
 # BBMB 4110 — Enzyme Kinetics Fitting Tools
 
-Interactive, self-contained HTML pages for fitting and exploring enzyme kinetics data.
-Open any file in a web browser — no installation or server needed.
+Interactive tools for fitting and exploring enzyme kinetics data. Everything runs in the browser.
 
-| Page | What it does |
+**▶ Open the tools: https://swnisu1.github.io/BBMB_4110/**
+
+| Tool | What it does |
 |---|---|
-| [how-the-fitting-widgets-work.html](how-the-fitting-widgets-work.html) | Explains how the fitting widgets work |
-| [progress-curve-fitting.html](progress-curve-fitting.html) | Fit progress curves (product vs. time) |
-| [model-discrimination.html](model-discrimination.html) | Compare one- vs. two-exponential models |
-| [substrate-dependence-fitting.html](substrate-dependence-fitting.html) | Fit rate vs. [substrate] (Michaelis–Menten) |
-| [two-substrate-kinetics-explorer.html](two-substrate-kinetics-explorer.html) | Explore two-substrate kinetic mechanisms |
-| [inhibition-mechanism-fitting.html](inhibition-mechanism-fitting.html) | Fit and discriminate inhibition mechanisms |
-| [ic50-fitting.html](ic50-fitting.html) | Fit dose–response curves for IC50 |
+| [How the Fitting Widgets Work](https://swnisu1.github.io/BBMB_4110/how-the-fitting-widgets-work.html) | Start here: how the fitting tools work |
+| [Progress Curve Fitting](https://swnisu1.github.io/BBMB_4110/progress-curve-fitting.html) | Fit time courses to the integrated Michaelis–Menten equation |
+| [Model Discrimination](https://swnisu1.github.io/BBMB_4110/model-discrimination.html) | One vs. two exponentials, judged by AIC/BIC |
+| [Substrate Dependence Fitting](https://swnisu1.github.io/BBMB_4110/substrate-dependence-fitting.html) | Michaelis–Menten, Hill and substrate-inhibition fits |
+| [Two-Substrate Kinetics Explorer](https://swnisu1.github.io/BBMB_4110/two-substrate-kinetics-explorer.html) | Apparent K<sub>M</sub> of one substrate vs. the other |
+| [Inhibition Mechanism Fitting](https://swnisu1.github.io/BBMB_4110/inhibition-mechanism-fitting.html) | Competitive, uncompetitive, noncompetitive and mixed inhibition |
+| [IC50 Fitting](https://swnisu1.github.io/BBMB_4110/ic50-fitting.html) | Dose–response curves for IC<sub>50</sub> |
 
-## Viewing online
-
-Enable GitHub Pages (Settings → Pages → deploy from the `main` branch) to get a shareable
-URL for each page, e.g. `https://<user>.github.io/BBMB_4110/ic50-fitting.html`.
+The source for each tool is the matching `.html` file in this repository.
