@@ -1,0 +1,767 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>IC50 Fitting</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left; headline numbers, curve table, dose-response plots and mechanism analysis right.
+   Each substrate concentration gets its own colour (c1..c6), lowest [S] first. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --c1: #1b2330; --c2: #3347c9; --c3: #1b8a5a; --c4: #c8640a; --c5: #b23a8a; --c6: #0a8fa6;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --c1: #e4e9f1; --c2: #8d9bff; --c3: #4fc58f; --c4: #f0a04b; --c5: #e07fc0; --c6: #4cc3d9;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --c1: #e4e9f1; --c2: #8d9bff; --c3: #4fc58f; --c4: #f0a04b; --c5: #e07fc0; --c6: #4cc3d9;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; padding: 7px 8px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.row { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+.row.off { opacity: 0.4; }
+.row label { font-size: 13px; }
+.row label sub { font-size: 10px; }
+.row output { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.field { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field input, .field select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; margin-top: 8px; }
+.check input { accent-color: var(--accent); margin-top: 3px; }
+.btn { font: inherit; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 9px 12px; }
+:root[data-theme="dark"] .btn.primary { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0e1320; } }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary:disabled:hover { border-color: var(--accent); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.crv { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.crvhead { display: flex; align-items: center; gap: 8px; }
+.crvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.crvn { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.crv .x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.crv .x:hover { color: var(--warn); }
+.crvin { margin-top: 6px; }
+.crvin label { font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.crvin input { font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; min-width: 0; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; }
+tbody tr[data-g] { cursor: pointer; }
+tbody tr[data-g]:hover, tbody tr.sel { background: var(--accent-soft); }
+tbody tr.best td:first-child { font-weight: 600; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+.interp p { margin: 0 0 8px; max-width: 78ch; }
+.interp p:last-child { margin-bottom: 0; }
+ul.try { margin: 0; padding-left: 18px; }
+ul.try li { margin-bottom: 4px; }
+[hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>IC50 Fitting</h1>
+    <p>Fit dose-response data to get an IC<sub>50</sub> (or a tight-binding K<sub>i</sub>), convert it to K<sub>i</sub>, and use how the IC<sub>50</sub> shifts with substrate concentration to see which inhibition mechanism is at work. Assumes the cofactor is held at a saturating concentration.</p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2>Data source</h2>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="data" aria-pressed="true">My data</button>
+          <button type="button" data-mode="sim" aria-pressed="false">Simulate</button>
+        </div>
+      </section>
+
+      <section class="panel" id="simPanel" hidden>
+        <h2>Simulated experiment</h2>
+        <div class="field"><label for="simMech">True mechanism</label>
+          <select id="simMech"><option value="comp" selected>competitive</option><option value="uncomp">uncompetitive</option><option value="nc">noncompetitive</option><option value="mixed">mixed</option></select></div>
+        <div id="simRows"></div>
+        <div class="field" style="margin-top:10px"><label for="simS">[S] (× K<sub>m</sub>)</label><input id="simS" type="text" value="0.25, 1, 4, 16"></div>
+        <div class="field"><label for="simI">[I] (× K<sub>i</sub>)</label><input id="simI" type="text" value="0, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100"></div>
+        <div class="btns"><button type="button" class="btn" id="rerollBtn">New noise</button></div>
+        <p class="hint">Responses are % of the no-inhibitor rate at each [S]. The simulator uses standard kinetics with the inhibitor in large excess over the enzyme, so use it with the Hill model, not the tight-binding model.</p>
+      </section>
+
+      <section class="panel" id="dataPanel">
+        <h2>Your data</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop a file here</b> or click to choose
+          <span>First column [I] (include 0); each other column is the response at one substrate concentration, with [S] in the header row. Replicate columns with the same [S] are pooled. CSV, TSV or text.</span>
+          <input type="file" id="fileIn" accept=".csv,.tsv,.txt,.dat,text/*" hidden>
+        </label>
+        <details id="pasteBox">
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted dose-response table" spellcheck="false" placeholder="Copy the cells from Excel, including the header row of [S] values, and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
+        </details>
+        <h2 style="margin-top:14px">Response columns</h2>
+        <div id="curveList"></div>
+        <div class="btns"><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>Fit</h2>
+        <div id="fitRow" style="margin-bottom:12px"><button type="button" class="btn primary" id="fitBtn" style="width:100%">Fit data</button><p class="hint" id="fitHint"></p></div>
+        <div class="field"><label for="model">Model</label>
+          <select id="model"><option value="hill">Hill (IC50)</option><option value="morrison">Tight-binding (Morrison)</option></select></div>
+        <label class="check"><input type="checkbox" id="fixTop" checked> Fix top at the no-inhibitor mean</label>
+        <label class="check"><input type="checkbox" id="fixBot" checked> Fix bottom at 0</label>
+        <label class="check" id="fixHRow"><input type="checkbox" id="fixH"> Fix Hill slope at 1</label>
+        <div class="field" id="eRow" style="margin-top:10px" hidden><label for="encz">[Enzyme]</label><input id="encz" type="number" min="0" step="any" placeholder="needed for this model"></div>
+        <h2 style="margin-top:14px">Constants for K<sub>i</sub></h2>
+        <div class="field"><label for="kmIn">K<sub>m</sub> for the substrate</label><input id="kmIn" type="number" min="0" step="any" placeholder="optional"></div>
+        <div class="field"><label for="cpMech">Assume mechanism</label>
+          <select id="cpMech"><option value="comp">competitive</option><option value="uncomp">uncompetitive</option><option value="nc">noncompetitive</option></select></div>
+        <div class="field"><label for="cunit">Concentration units</label><input id="cunit" type="text" value="µM"></div>
+        <div class="field"><label for="yunit">Response units</label><input id="yunit" type="text" value="% activity"></div>
+        <p class="hint">[E], K<sub>m</sub> and [S] use the same concentration units as [I].</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+      <section class="panel" id="exportPanel">
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figures (PNG, light background, legend included)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel to make your own figures)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+      <section class="panel">
+        <h2>Fitted curves</h2>
+        <div class="tablewrap" id="tbl"></div>
+        <p class="hint">Click a row to make it the headline curve.</p>
+      </section>
+      <section class="panel plot">
+        <h3>Response vs. [I]</h3>
+        <svg id="plotA" viewBox="0 0 640 330" role="img" aria-label="Dose-response curves"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+      <section class="panel plot">
+        <h3>Residuals (data − fit)</h3>
+        <svg id="plotB" viewBox="0 0 640 170" role="img" aria-label="Residuals versus inhibitor concentration"></svg>
+      </section>
+      <section class="panel plot" id="mechPanel">
+        <h3>IC<sub>50</sub> vs. [S]: which mechanism?</h3>
+        <svg id="plotC" viewBox="0 0 640 300" role="img" aria-label="IC50 versus substrate concentration with mechanism models"></svg>
+        <div class="tablewrap" id="mechTbl" style="margin-top:8px"></div>
+        <p class="hint" id="mechHint"></p>
+      </section>
+      <section class="panel interp">
+        <h2>What this suggests</h2>
+        <div id="interp"></div>
+      </section>
+      <section class="panel">
+        <h2>Model</h2>
+        <pre class="eq" id="eq"></pre>
+      </section>
+      <section class="panel" id="tryPanel" hidden>
+        <h2>Things to try</h2>
+        <ul class="try">
+          <li>Switch the true mechanism between competitive, uncompetitive and noncompetitive and watch how the IC<sub>50</sub> moves as [S] rises.</li>
+          <li>Drop the [I] list to three or four points and see the IC<sub>50</sub> standard error grow.</li>
+          <li>Set the true K<sub>i</sub> close to the enzyme concentration and switch to the tight-binding model.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
+  var UNAME = { comp: "competitive", uncomp: "uncompetitive", nc: "noncompetitive", mixed: "mixed" };
+  function sig(x) { return String(Number(x.toPrecision(3))); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function cu() { return document.getElementById("cunit").value || "conc."; }
+  function yu() { return document.getElementById("yunit").value || "response"; }
+  function num(id) { var v = parseFloat(document.getElementById(id).value); return isFinite(v) ? v : NaN; }
+  function tq(df) { var z = 1.96; return z + (Math.pow(z, 3) + z) / (4 * df) + (5 * Math.pow(z, 5) + 16 * Math.pow(z, 3) + 3 * z) / (96 * df * df); }
+
+  var sim = { Ki: LOG(0.83), Kii: LOG(2.62), Km: LOG(12.5), h: 1, noise: 3, reps: 1, seed: 1 };
+  var state = { mode: "data", sel: 0, fitted: false };
+  var series = [];   // {name, S, I[], y[]}
+
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  // ---------- data ----------
+  function list(id) { return document.getElementById(id).value.split(/[\s,;]+/).map(parseFloat).filter(function (v) { return isFinite(v) && v >= 0; }).slice(0, 14); }
+  function simulate() {
+    var mech = document.getElementById("simMech").value, Km = Math.pow(10, sim.Km), K1 = Math.pow(10, sim.Ki), K2 = Math.pow(10, sim.Kii);
+    var Ki = mech === "uncomp" ? Infinity : K1, Kii = mech === "comp" ? Infinity : mech === "nc" ? K1 : K2;
+    var Ss = list("simS").filter(function (m) { return m > 0; }).map(function (m) { return m * Km; }).slice(0, 6), Is = list("simI").map(function (m) { return m * K1; });
+    if (!Ss.length || Is.length < 4) return null;
+    var rnd = mulberry(sim.seed * 7919 + 5), out = [];
+    Ss.forEach(function (S) {
+      for (var r = 0; r < sim.reps; r++) {
+        // fractional activity v/v0 for a mixed-type inhibitor; Hill slope applied to the inhibitor term
+        var y = Is.map(function (I) {
+          var f = (Km + S) / (Km * (1 + I / Ki) + S * (1 + I / Kii));
+          return 100 * f + sim.noise * gauss(rnd);
+        });
+        out.push({ name: "[S] = " + sig(S), S: S, I: Is.slice(), y: y });
+      }
+    });
+    return { series: out, truth: { mech: mech, Ki: K1, Kii: Kii, Km: Km } };
+  }
+  function parseTable(text, fname) {
+    var delim = null, header = null, rows = [];
+    text.split(/\r?\n/).forEach(function (ln) {
+      if (!ln.trim()) return;
+      if (!delim) delim = ln.indexOf("\t") >= 0 ? /\t/ : ln.indexOf(",") >= 0 ? /,/ : ln.indexOf(";") >= 0 ? /;/ : /\s+/;
+      var cells = ln.trim().split(delim).map(function (c) { return c.trim(); });
+      var nums = cells.map(function (c) { return c === "" ? NaN : Number(c); });
+      if (isFinite(nums[0]) && nums.slice(1).some(isFinite)) rows.push(nums);
+      else if (!rows.length) header = cells;
+    });
+    if (rows.length < 4) return [];
+    var ncol = Math.max.apply(null, rows.map(function (r) { return r.length; })), out = [];
+    for (var j = 1; j < ncol; j++) {
+      var I = [], y = [];
+      rows.forEach(function (r) { if (isFinite(r[0]) && isFinite(r[j])) { I.push(r[0]); y.push(r[j]); } });
+      if (I.length < 4) continue;
+      var h = header && header[j] !== undefined ? header[j] : "", S = NaN, mm = String(h).match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+      if (mm) S = parseFloat(mm[0]);
+      out.push({ name: h ? h : (fname || "column") + " " + j, S: S, I: I, y: y });
+    }
+    return out;
+  }
+  var EXAMPLE = (function () {
+    var rnd = mulberry(11), Km = 12.5, Ki = 0.83, Is = [0, 0.03, 0.1, 0.3, 1, 3, 10, 30, 100].map(function (m) { return m * Ki; });
+    return [3.125, 12.5, 50, 200].map(function (S) {
+      return { name: "[S] = " + S, S: S, I: Is.slice(), y: Is.map(function (I) { return 100 * (Km + S) / (Km * (1 + I / Ki) + S) + 2.5 * gauss(rnd); }) };
+    });
+  })();
+  function clone(l) { return l.map(function (s) { return { name: s.name, S: s.S, I: s.I.slice(), y: s.y.slice() }; }); }
+  function rebuildList() {
+    var host = document.getElementById("curveList");
+    if (!series.length) { host.innerHTML = '<p class="hint" style="margin:0">No data yet. Drop a file, paste from Excel, or load the example.</p>'; return; }
+    host.innerHTML = series.map(function (c, i) {
+      return '<div class="crv"><div class="crvhead"><span class="crvname" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="crvn">' + c.I.length + ' pts</span>' +
+        '<button type="button" class="x" data-del="' + i + '" aria-label="Remove column">×</button></div>' +
+        '<div class="crvin"><label>[S] for this column<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.S) ? c.S : "") + '"></label></div></div>';
+    }).join("");
+  }
+  function setSeries(l) { series = l.slice(0, 12); state.sel = 0; state.fitted = false; rebuildList(); render(); }
+
+  // ---------- Levenberg-Marquardt ----------
+  function solve(A, b) {
+    var n = b.length, M = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-300) return null;
+      var tmp = M[c]; M[c] = M[p]; M[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(), h = Math.max(1e-6, Math.abs(th[j]) * 1e-6); t2[j] += h; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / h; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 250; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    var jm = jac(best.th), A = [], a, b, i;
+    for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); for (b = 0; b < np; b++) for (i = 0; i < n; i++) A[a][b] += jm.J[i][a] * jm.J[i][b]; }
+    var inv = invert(A), s2 = best.sse / Math.max(n - np, 1);
+    best.n = n; best.np = np; best.s2 = s2;
+    best.cov = inv ? inv.map(function (r) { return r.map(function (v) { return v * s2; }); }) : null;
+    return best;
+  }
+
+  // ---------- dose-response fits ----------
+  // Hill:     y = bottom + (top - bottom) / (1 + (I/IC50)^h)
+  // Morrison: y = bottom + (top - bottom) * (1 - [EI]/E),  [EI] = ((E + I + K) - sqrt((E + I + K)^2 - 4 E I)) / 2
+  function frac(model, I, K, h, E) {
+    if (model === "hill") return 1 / (1 + Math.pow(I / K, h));
+    var q = E + I + K; return 1 - (q - Math.sqrt(Math.max(q * q - 4 * E * I, 0))) / (2 * E);
+  }
+  function fitDose(g, o) {
+    var I = g.I, y = g.y, n = I.length, pos = I.filter(function (x) { return x > 0; }).sort(function (a, b) { return a - b; });
+    if (n < 5 || pos.length < 3) return null;
+    var ctrl = y.filter(function (v, i) { return I[i] === 0; }), top0 = ctrl.length ? ctrl.reduce(function (a, b) { return a + b; }, 0) / ctrl.length : Math.max.apply(null, y);
+    var fixTop = o.fixTop && ctrl.length > 0, fixBot = o.fixBot, fixH = o.model === "morrison" ? true : o.fixH, bot0 = 0;
+    var ix = 1, iH = fixH ? -1 : ix++, iT = fixTop ? -1 : ix++, iB = fixBot ? -1 : ix++, np = ix;
+    var yr = Math.max.apply(null, y) - Math.min.apply(null, y) || 1;
+    function unpack(th) { return { K: Math.exp(th[0]), h: iH < 0 ? 1 : Math.exp(th[iH]), top: iT < 0 ? top0 : th[iT], bot: iB < 0 ? bot0 : th[iB] }; }
+    function pred(th) { var p = unpack(th); return I.map(function (x) { return p.bot + (p.top - p.bot) * frac(o.model, x, p.K, p.h, o.E); }); }
+    var lo = Math.log(pos[0] / 300), hi = Math.log(pos[pos.length - 1] * 300);
+    var clamp = function (th) { th[0] = Math.min(Math.max(th[0], lo), hi); if (iH >= 0) th[iH] = Math.min(Math.max(th[iH], Math.log(0.2)), Math.log(6)); };
+    var mid = Math.sqrt(pos[0] * pos[pos.length - 1]), med = pos[Math.floor(pos.length / 2)], starts = [];
+    [mid, med, med * 0.2, med * 5].forEach(function (k0) {
+      var th = [Math.log(k0)]; if (iH >= 0) th.push(0); if (iT >= 0) th.push(top0); if (iB >= 0) th.push(Math.min.apply(null, y));
+      starts.push(th);
+    });
+    var F = lm(pred, y, starts, clamp), p = unpack(F.th), se = F.cov ? F.cov.map(function (r, i) { return Math.sqrt(Math.max(r[i], 0)); }) : null, df = Math.max(n - np, 1), t = tq(df);
+    var out = { K: p.K, h: p.h, top: p.top, bot: p.bot, n: n, np: np, df: df, rmse: Math.sqrt(F.s2), rss: F.sse, seLn: se ? se[0] : NaN,
+      seK: se ? p.K * se[0] : NaN, lo: se ? p.K * Math.exp(-t * se[0]) : NaN, hi: se ? p.K * Math.exp(t * se[0]) : NaN,
+      seH: se && iH >= 0 ? p.h * se[iH] : NaN, hFixed: iH < 0, topFixed: iT < 0, botFixed: iB < 0, atBound: F.th[0] <= lo + 1e-3 || F.th[0] >= hi - 1e-3,
+      iT: iT, iB: iB, seTop: se && iT >= 0 ? se[iT] : NaN, seBot: se && iB >= 0 ? se[iB] : NaN };
+    out.res = I.map(function (x, i) { return y[i] - p.bot - (p.top - p.bot) * frac(o.model, x, p.K, p.h, o.E); });
+    return out;
+  }
+  function curveY(f, o, x) { return f.bot + (f.top - f.bot) * frac(o.model, x, f.K, f.h, o.E); }
+
+  // ---------- IC50 vs [S] mechanism models ----------
+  function ic50Model(key, S, Km, Ki, Kii) {
+    if (key === "comp") return Ki * (1 + S / Km);
+    if (key === "uncomp") return Ki * (1 + Km / S);
+    if (key === "nc") return Ki;
+    return (Km + S) / (Km / Ki + S / Kii);
+  }
+  function convertKi(ic, S, Km, mech) {
+    if (!(Km > 0) || !(S > 0)) return NaN;
+    return mech === "comp" ? ic / (1 + S / Km) : mech === "uncomp" ? ic / (1 + Km / S) : ic;
+  }
+  function fitMech(pts, Km) {
+    var n = pts.length, out = {}, w = pts.map(function (p) { return 1 / (p.se * p.se); });
+    ["comp", "uncomp", "nc"].forEach(function (k) {
+      var g = pts.map(function (p) { return Math.log(ic50Model(k, p.S, Km, 1, 1)); }), sw = 0, sy = 0, i;
+      for (i = 0; i < n; i++) { sw += w[i]; sy += w[i] * (pts[i].ln - g[i]); }
+      var lk = sy / sw, chi = 0; for (i = 0; i < n; i++) chi += w[i] * Math.pow(pts[i].ln - g[i] - lk, 2);
+      out[k] = { Ki: Math.exp(lk), seKi: Math.exp(lk) / Math.sqrt(sw), Kii: k === "nc" ? Math.exp(lk) : Infinity, chi: chi, np: 1 };
+      if (k === "uncomp") { out[k].Kii = out[k].Ki; out[k].Ki = Infinity; }
+      out[k].bic = chi + Math.log(n);
+    });
+    if (n >= 4) {
+      var y = pts.map(function (p, i) { return p.ln / p.se; });
+      var pred = function (th) { return pts.map(function (p) { return Math.log(ic50Model("mixed", p.S, Km, Math.exp(th[0]), Math.exp(th[1]))) / p.se; }); };
+      var y2 = pts.map(function (p) { return p.ln / p.se; }), med = pts.map(function (p) { return p.ic; }).sort(function (a, b) { return a - b; })[Math.floor(n / 2)];
+      var F = lm(pred, y2, [[Math.log(med), Math.log(med * 3)], [Math.log(med * 0.3), Math.log(med)], [Math.log(med * 3), Math.log(med * 0.3)]], function (th) { th[0] = Math.min(Math.max(th[0], Math.log(med / 1e3)), Math.log(med * 1e3)); th[1] = Math.min(Math.max(th[1], Math.log(med / 1e3)), Math.log(med * 1e3)); });
+      out.mixed = { Ki: Math.exp(F.th[0]), Kii: Math.exp(F.th[1]), chi: F.sse, np: 2, bic: F.sse + 2 * Math.log(n), seKi: F.cov ? Math.exp(F.th[0]) * Math.sqrt(Math.max(F.cov[0][0], 0)) : NaN, seKii: F.cov ? Math.exp(F.th[1]) * Math.sqrt(Math.max(F.cov[1][1], 0)) : NaN };
+    }
+    return out;
+  }
+
+  // ---------- controls ----------
+  var simDefs = [
+    { key: "Km", label: "True K<sub>m</sub>", min: -1, max: 3, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " " + cu(); } },
+    { key: "Ki", label: "True K<sub>i</sub>", min: -2, max: 2, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " " + cu(); } },
+    { key: "Kii", label: "True K<sub>ii</sub> (mixed only)", min: -2, max: 2, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " " + cu(); } },
+    { key: "noise", label: "Noise (SD, % of control)", min: 0, max: 15, step: 0.5, fmt: function (v) { return sig(v) + " %"; } },
+    { key: "reps", label: "Replicates per curve", min: 1, max: 3, step: 1, fmt: function (v) { return String(v); } }
+  ];
+  (function () {
+    var host = document.getElementById("simRows");
+    host.innerHTML = simDefs.map(function (d) {
+      return '<div class="row" id="row_' + d.key + '"><label for="in_' + d.key + '">' + d.label + '</label><output id="out_' + d.key + '"></output><input type="range" id="in_' + d.key + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"></div>';
+    }).join("");
+    simDefs.forEach(function (d) { var el = document.getElementById("in_" + d.key); el.value = sim[d.key]; el.addEventListener("input", function (e) { sim[d.key] = parseFloat(e.target.value); render(); }); });
+  })();
+  document.getElementById("modeSeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return; state.mode = b.dataset.mode; state.sel = 0;
+    Array.prototype.forEach.call(document.querySelectorAll("#modeSeg button"), function (x) { x.setAttribute("aria-pressed", x === b); }); render();
+  });
+  document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
+  var dropEl = document.getElementById("drop");
+  function readFile(f) { if (!f) return; var r = new FileReader(); r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); }; r.readAsText(f); }
+  document.getElementById("fileIn").addEventListener("change", function (e) { readFile(e.target.files[0]); e.target.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFile(e.dataTransfer.files[0]); });
+  document.getElementById("pasteBtn").addEventListener("click", function () { var box = document.getElementById("pasteText"), got = parseTable(box.value, "pasted"); if (got.length) { box.value = ""; setSeries(got); } });
+  document.getElementById("curveList").addEventListener("input", function (e) { var el = e.target; if (el.dataset.i === undefined) return; var v = parseFloat(el.value); series[+el.dataset.i].S = isFinite(v) ? v : NaN; render(); });
+  document.getElementById("curveList").addEventListener("click", function (e) { var b = e.target.closest("button[data-del]"); if (!b) return; series.splice(+b.dataset.del, 1); state.fitted = false; rebuildList(); render(); });
+  document.getElementById("exampleBtn").addEventListener("click", function () {
+    document.getElementById("cunit").value = "µM"; document.getElementById("yunit").value = "% activity"; document.getElementById("kmIn").value = 12.5; document.getElementById("cpMech").value = "comp";
+    setSeries(clone(EXAMPLE));
+  });
+  document.getElementById("clearBtn").addEventListener("click", function () { series = []; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  document.getElementById("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-g]"); if (!tr) return; state.sel = +tr.dataset.g; render(); });
+  ["simMech", "simS", "simI", "model", "fixTop", "fixBot", "fixH", "encz", "kmIn", "cpMech", "cunit", "yunit"].forEach(function (id) {
+    var el = document.getElementById(id); el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w) { return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
+  function yFrame(W, H, M, yr, xl, yl, sx) {
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); }, s = "";
+    ticksFor(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    var zy = yr[0] < 0 && yr[1] > 0 ? sy(0) : H - M.b;
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + zy + '" y2="' + zy + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sy: sy };
+  }
+
+  // ---------- render ----------
+  // Data preview shown after a file is loaded and before the student presses Fit data.
+  function previewDraw(groups) {
+    showPanels(false);
+    document.getElementById("plotA").closest("section").hidden = false;
+    var allPos = [], allY = [];
+    groups.forEach(function (g) { g.I.forEach(function (x, i) { if (x > 0) allPos.push(x); allY.push(g.y[i]); }); });
+    if (!allPos.length) { document.getElementById("plotA").closest("section").hidden = true; document.getElementById("msgs").innerHTML = '<p class="msg warn">All inhibitor concentrations are zero. Include concentrations above zero.</p>'; return; }
+    var lo = Math.min.apply(null, allPos), hi = Math.max.apply(null, allPos), x0 = Math.log10(lo) - 0.7, x1 = Math.log10(hi) + 0.15, zeroX = x0 + 0.3, M = { l: 54, r: 14, t: 12, b: 42 }, W = 640, H = 330;
+    var sx = function (I) { var lx = I > 0 ? Math.log10(I) : zeroX; return M.l + (lx - x0) / (x1 - x0) * (W - M.l - M.r); };
+    var ytop = Math.max.apply(null, allY) * 1.08, ybot = Math.min(0, Math.min.apply(null, allY)) * 1.1;
+    var fa = yFrame(W, H, M, [ybot, ytop], "", yu()), s = fa.svg;
+    s += '<text x="' + sx(0) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">0</text>';
+    for (var d = Math.ceil(Math.log10(lo) - 0.5); d <= Math.floor(x1); d++) { var px = M.l + (d - x0) / (x1 - x0) * (W - M.l - M.r); if (px > sx(0) + 14 && px < W - M.r) s += '<line x1="' + px + '" x2="' + px + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--grid)"/><text x="' + px + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(Math.pow(10, d)) + '</text>'; }
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">[I] (' + esc(cu()) + ', log scale; 0 shown at left)</text>';
+    var npts = 0;
+    groups.forEach(function (g, i) { npts += g.I.length; g.I.forEach(function (x, j) { s += '<circle cx="' + sx(x).toFixed(1) + '" cy="' + fa.sy(g.y[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[i % 6] + '" opacity="0.9"/>'; }); });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = groups.length > 1 || isFinite(groups[0].S) ? '<span>[S] (' + esc(cu()) + '):</span>' + groups.map(function (g, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + (isFinite(g.S) ? sig(g.S) : "unknown") + '</span>'; }).join("") : "";
+    document.getElementById("cards").innerHTML = "";
+    document.getElementById("msgs").innerHTML = '<p class="msg">' + npts + ' points in ' + groups.length + ' curve' + (groups.length > 1 ? "s" : "") + ' loaded. Check the data below, then press <b>Fit data</b> in the panel on the left.</p>';
+  }
+  // ---------- export: PNG figures and CSV tables ----------
+  // Published pages save through the platform's `downloads` capability (the viewer confirms); a locally opened copy downloads directly.
+  var exportTables = {};
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "pin", "ref", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "m1", "m2", "m3"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && document.getElementById(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) {
+        var cs = getComputedStyle(i);
+        if (i.classList.contains("ln") || (parseFloat(cs.borderTopWidth) > 0 && cs.backgroundColor === "rgba(0, 0, 0, 0)")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; }
+        else { item.kind = "dot"; item.color = cs.backgroundColor; }
+      }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = document.getElementById(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function exportNote(t) { var el = document.getElementById("exportMsg"); if (el) el.textContent = t; }
+  function saveFile(filename, data) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: filename, data: data }).then(function () { exportNote("Saved " + filename + "."); }, function (e) {
+          exportNote(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + (e && e.message ? ": " + e.message : "."));
+        });
+      }
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); exportNote("Downloaded " + filename + ".");
+      } catch (e) { exportNote("Saving files is not available in this view."); }
+    });
+  }
+  function setupExport(cfg) {
+    var png = document.getElementById("exportPng"), csv = document.getElementById("exportCsv");
+    png.innerHTML = cfg.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+    csv.innerHTML = cfg.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+    png.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-png]"); if (!b) return; var p = cfg.plots[+b.dataset.png], el = document.getElementById(p.svg);
+      if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+      exportNote("Preparing the figure...");
+      svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(cfg.prefix + "_" + p.file + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+    });
+    csv.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-csv]"); if (!b) return; var t = cfg.tables[+b.dataset.csv], rows = exportTables[t.key];
+      if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+      saveFile(cfg.prefix + "_" + t.file + ".csv", csvText(rows));
+    });
+  }
+
+  setupExport({ prefix: "ic50",
+    plots: [{ svg: "plotA", legend: "legendA", label: "Dose-response (PNG)", file: "dose_response" }, { svg: "plotB", legend: null, label: "Residuals (PNG)", file: "residuals" }, { svg: "plotC", legend: null, label: "IC50 vs [S] (PNG)", file: "vs_substrate" }],
+    tables: [{ key: "parameters", label: "Parameters (CSV)", file: "parameters" }, { key: "data_fit", label: "Data + fitted values (CSV)", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves (CSV)", file: "fit_curves" }, { key: "mechanism", label: "Mechanism comparison (CSV)", file: "mechanism" }] });
+  function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
+  function render() {
+    showPanels(true);
+    var simOn = state.mode === "sim", model = document.getElementById("model").value;
+    document.getElementById("fitRow").hidden = simOn; document.getElementById("fitBtn").disabled = !series.length;
+    document.getElementById("fitHint").textContent = !series.length ? "Load data to enable fitting." : state.fitted ? "Fitted. Loading new data starts a fresh fit." : "Data loaded but not yet fitted.";
+    document.getElementById("simPanel").hidden = !simOn; document.getElementById("dataPanel").hidden = simOn; document.getElementById("tryPanel").hidden = !simOn;
+    document.getElementById("fixHRow").hidden = model === "morrison"; document.getElementById("eRow").hidden = model !== "morrison";
+    simDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(sim[d.key]); });
+    var mech = document.getElementById("simMech").value;
+    document.getElementById("row_Kii").classList.toggle("off", mech !== "mixed");
+    var D = simOn ? simulate() : { series: series, truth: null };
+    var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
+    function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC", "legendA", "interp", "eq", "mechTbl"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); document.getElementById("mechPanel").hidden = true; }
+    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a file or paste from Excel in the panel on the left, or choose Load example to see how this works."); return; }
+    var E = num("encz");
+    if (model === "morrison" && !(E > 0) && (simOn || state.fitted)) { empty("Enter the enzyme concentration for the tight-binding model."); return; }
+    var o = { model: model, fixTop: document.getElementById("fixTop").checked, fixBot: document.getElementById("fixBot").checked, fixH: document.getElementById("fixH").checked, E: E };
+
+    // pool columns with the same [S]
+    var groups = [], seen = {};
+    D.series.forEach(function (s) {
+      var key = isFinite(s.S) ? String(s.S) : "NA";
+      if (!seen[key] || key === "NA" && false) { seen[key] = { S: s.S, I: [], y: [] }; groups.push(seen[key]); }
+      var g = seen[key]; s.I.forEach(function (x, i) { g.I.push(x); g.y.push(s.y[i]); });
+    });
+    groups.sort(function (a, b) { return (isFinite(a.S) ? a.S : 1e99) - (isFinite(b.S) ? b.S : 1e99); });
+    groups = groups.slice(0, 6);
+    if (!simOn && !state.fitted) { previewDraw(groups); return; }
+    var fits = groups.map(function (g) { return fitDose(g, o); });
+    if (fits.every(function (f) { return !f; })) { empty("Each curve needs at least five points with three or more inhibitor concentrations above zero."); return; }
+    if (state.sel >= groups.length || !fits[state.sel]) state.sel = fits.findIndex(function (f) { return f; });
+    var Km = num("kmIn"), cpm = document.getElementById("cpMech").value, name = model === "hill" ? "IC₅₀" : "Kᵢ,app";
+    var G = fits[state.sel], gs = groups[state.sel];
+
+    // ---- cards
+    var Kic = convertKi(G.K, gs.S, Km, cpm), tru = D.truth;
+    cards.innerHTML =
+      '<div class="card hot"><div class="k">' + name + ' (' + esc(cu()) + ')' + (groups.length > 1 && isFinite(gs.S) ? ' at [S] = ' + sig(gs.S) : '') + '</div><div class="v">' + (G.atBound ? "not defined" : sig(G.K)) + '</div><div class="s">' + (G.atBound ? "outside the [I] range" : "± " + sig(G.seK) + " SE") + '</div></div>' +
+      '<div class="card"><div class="k">95% confidence interval</div><div class="v">' + (isFinite(G.lo) && !G.atBound ? sig(G.lo) + " – " + sig(G.hi) : "—") + '</div><div class="s">' + esc(cu()) + ', df = ' + G.df + '</div></div>' +
+      (model === "hill" ? '<div class="card"><div class="k">Hill slope</div><div class="v">' + sig(G.h) + '</div><div class="s">' + (G.hFixed ? "fixed" : "± " + sig(G.seH) + " SE") + '</div></div>' : '<div class="card"><div class="k">[Enzyme]</div><div class="v">' + sig(E) + '</div><div class="s">' + esc(cu()) + ' (fixed)</div></div>') +
+      '<div class="card"><div class="k">K<sub>i</sub> (Cheng-Prusoff, ' + UNAME[cpm] + ')</div><div class="v">' + (isFinite(Kic) ? sig(Kic) : "—") + '</div><div class="s">' + (isFinite(Kic) ? esc(cu()) + (tru ? " | true " + sig(tru.Ki) : "") : "enter Kₘ and [S]") + '</div></div>';
+
+    // ---- table
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>[S] (' + esc(cu()) + ')</th><th>points</th><th>' + name + '</th><th>95% CI</th><th>' + (model === "hill" ? "Hill" : "") + '</th><th>top</th><th>bottom</th><th>RMSE</th><th>K<sub>i</sub> (CP)</th></tr></thead><tbody>' +
+      groups.map(function (g, i) {
+        var f = fits[i]; if (!f) return '<tr><td>' + (isFinite(g.S) ? sig(g.S) : "?") + '</td><td colspan="8">too few points to fit</td></tr>';
+        var ki = convertKi(f.K, g.S, Km, cpm);
+        return '<tr data-g="' + i + '" class="' + (i === state.sel ? "sel" : "") + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + (isFinite(g.S) ? sig(g.S) : "unknown") + '</td><td>' + f.n + '</td><td>' + (f.atBound ? "n/d" : sig(f.K) + " ± " + sig(f.seK)) + '</td><td>' + (isFinite(f.lo) && !f.atBound ? sig(f.lo) + " – " + sig(f.hi) : "—") + '</td><td>' + (model === "hill" ? sig(f.h) + (f.hFixed ? " (fixed)" : "") : "") + '</td><td>' + sig(f.top) + (f.topFixed ? " (fixed)" : "") + '</td><td>' + sig(f.bot) + (f.botFixed ? " (fixed)" : "") + '</td><td>' + sig(f.rmse) + '</td><td>' + (isFinite(ki) ? sig(ki) : "—") + '</td></tr>';
+      }).join("") + '</tbody></table>';
+
+    // ---- messages
+    var m = [];
+    var anyCtrl = groups.some(function (g) { return g.I.indexOf(0) >= 0; });
+    if (!anyCtrl) m.push(["warn", "There is no [I] = 0 control, so the top of the curve is fitted rather than fixed. A control makes the IC<sub>50</sub> much better determined."]);
+    if (model === "hill" && fits.some(function (f) { return f && !f.hFixed && (f.h < 0.75 || f.h > 1.3); })) m.push(["warn", "<b>A Hill slope far from 1</b> (" + fits.filter(function (f) { return f && !f.hFixed; }).map(function (f) { return sig(f.h); }).join(", ") + "). Steep slopes suggest aggregation, tight binding or cooperativity, and shallow ones suggest more than one binding class or insufficient data. The Cheng-Prusoff conversion assumes a slope of 1."]);
+    var Efit = model === "morrison" ? E : NaN;
+    if (model === "hill" && fits.some(function (f) { return f && f.K < 10 * (isFinite(E) && E > 0 ? E : 0); })) m.push(["warn", "<b>The IC<sub>50</sub> is within 10-fold of the enzyme concentration.</b> The inhibitor is being depleted by binding, so the standard equations misestimate K<sub>i</sub>. Use the tight-binding (Morrison) model."]);
+    fits.forEach(function (f, i) {
+      if (!f) return;
+      var g = groups[i], pos = g.I.map(function (x, j) { return [x, g.y[j]]; }).filter(function (p) { return p[0] > 0; }).sort(function (a, b) { return a[0] - b[0]; }), span = f.top - f.bot;
+      if (pos.length && (pos[0][1] - f.bot) / span < 0.8) m.push(["warn", "At [S] = " + (isFinite(g.S) ? sig(g.S) : "?") + " the lowest inhibitor concentration already gives well below full activity, so the upper plateau is not defined. Add lower [I] points."]);
+      if (pos.length && (pos[pos.length - 1][1] - f.bot) / span > 0.2) m.push(["warn", "At [S] = " + (isFinite(g.S) ? sig(g.S) : "?") + " the curve does not reach a lower plateau within the [I] range, so the IC<sub>50</sub> is partly extrapolated" + (f.botFixed ? " (the bottom is fixed at 0)" : "") + "."]);
+    });
+    msgs.innerHTML = m.slice(0, 6).map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // ---- plot A
+    var allPos = [], allY = [];
+    groups.forEach(function (g) { g.I.forEach(function (x, i) { if (x > 0) allPos.push(x); allY.push(g.y[i]); }); });
+    var lo = Math.min.apply(null, allPos), hi = Math.max.apply(null, allPos), x0 = Math.log10(lo) - 0.7, x1 = Math.log10(hi) + 0.15, zeroX = x0 + 0.3;
+    var M = { l: 54, r: 14, t: 12, b: 42 }, W = 640;
+    var sx = function (I) { var lx = I > 0 ? Math.log10(I) : zeroX; return M.l + (lx - x0) / (x1 - x0) * (W - M.l - M.r); };
+    function xAxis(H, label) {
+      var s = '<text x="' + sx(0) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">0</text>';
+      for (var d = Math.ceil(Math.log10(lo) - 0.5); d <= Math.floor(x1); d++) { var px = M.l + (d - x0) / (x1 - x0) * (W - M.l - M.r); if (px > sx(0) + 14 && px < W - M.r) s += '<line x1="' + px + '" x2="' + px + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--grid)"/><text x="' + px + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(Math.pow(10, d)) + '</text>'; }
+      return s + '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + label + '</text>';
+    }
+    var ytop = Math.max.apply(null, allY) * 1.08, ybot = Math.min(0, Math.min.apply(null, allY)) * 1.1;
+    var fa = yFrame(640, 330, M, [ybot, ytop], "", yu()), sA = fa.svg + xAxis(330, "[I] (" + esc(cu()) + ", log scale; 0 shown at left)");
+    sA += '<line x1="' + (sx(0) + 12) + '" x2="' + (sx(0) + 12) + '" y1="' + (M.t + 4) + '" y2="' + (330 - M.b) + '" stroke="var(--line)" stroke-dasharray="3 3"/>';
+    groups.forEach(function (g, i) {
+      var f = fits[i], col = COLORS[i % 6]; if (!f) return;
+      var pts = [], q; for (q = 0; q <= 160; q++) { var lx = Math.log10(lo) - 0.5 + (x1 - Math.log10(lo) + 0.5) * q / 160; pts.push([sx(Math.pow(10, lx)), fa.sy(curveY(f, o, Math.pow(10, lx)))]); }
+      sA += polyline(pts, col, null, i === state.sel ? 3 : 2);
+      g.I.forEach(function (x, j) { sA += '<circle cx="' + sx(x).toFixed(1) + '" cy="' + fa.sy(g.y[j]).toFixed(1) + '" r="3" fill="' + col + '" opacity="0.9"/>'; });
+      if (!f.atBound) sA += '<line x1="' + sx(f.K) + '" x2="' + sx(f.K) + '" y1="' + fa.sy(f.bot + (f.top - f.bot) / 2) + '" y2="' + (330 - M.b) + '" stroke="' + col + '" stroke-dasharray="2 3" opacity="0.7"/>';
+    });
+    document.getElementById("plotA").innerHTML = sA;
+    document.getElementById("legendA").innerHTML = (groups.length > 1 ? '<span>[S] (' + esc(cu()) + '):</span>' : '') + groups.map(function (g, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + (isFinite(g.S) ? sig(g.S) : "unknown") + '</span>'; }).join("") + '<span>dotted lines mark the ' + name + '</span>';
+
+    // ---- plot B
+    var rm = Math.max.apply(null, fits.filter(Boolean).map(function (f) { return Math.max.apply(null, f.res.map(Math.abs)); })) * 1.2 || 1;
+    var fbb = yFrame(640, 170, M, [-rm, rm], "", "residual (" + yu() + ")"), sB = fbb.svg + xAxis(170, "[I] (" + esc(cu()) + ")");
+    groups.forEach(function (g, i) { if (fits[i]) g.I.forEach(function (x, j) { sB += '<circle cx="' + sx(x).toFixed(1) + '" cy="' + fbb.sy(fits[i].res[j]).toFixed(1) + '" r="2.8" fill="' + COLORS[i % 6] + '" opacity="0.9"/>'; }); });
+    document.getElementById("plotB").innerHTML = sB;
+
+    // ---- mechanism from IC50 vs [S]
+    var pts2 = [];
+    groups.forEach(function (g, i) { var f = fits[i]; if (f && !f.atBound && isFinite(g.S) && g.S > 0 && isFinite(f.seLn) && f.seLn > 0 && f.seLn < 3) pts2.push({ S: g.S, ic: f.K, ln: Math.log(f.K), se: f.seLn, lo: f.lo, hi: f.hi, i: i }); });
+    var mechPanel = document.getElementById("mechPanel"), mech2 = null;
+    mechPanel.hidden = pts2.length < 2;
+    var interp = [];
+    if (pts2.length >= 2) {
+      var sS = pts2.map(function (p) { return p.S; });
+      var pad = Math.max.apply(null, sS) * 1.1, ymaxC = Math.max.apply(null, pts2.map(function (p) { return p.hi || p.ic; })) * 1.15, M2 = { l: 54, r: 14, t: 12, b: 42 };
+      var sxC = function (S) { return M2.l + S / pad * (640 - M2.l - M2.r); };
+      var fc = yFrame(640, 300, M2, [0, ymaxC], "", "IC₅₀ (" + esc(cu()) + ")"), sC = fc.svg;
+      ticksFor(0, pad, 6).forEach(function (t) { sC += '<text x="' + sxC(t) + '" y="' + (300 - M2.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+      sC += '<text class="ttl" x="' + ((M2.l + 640 - M2.r) / 2) + '" y="295" text-anchor="middle">[S] (' + esc(cu()) + ')</text>';
+      if (pts2.length >= 3 && Km > 0) {
+        mech2 = fitMech(pts2, Km);
+        var keys = Object.keys(mech2).sort(function (a, b) { return mech2[a].bic - mech2[b].bic; }), bmin = mech2[keys[0]].bic, tot = 0;
+        keys.forEach(function (k) { mech2[k].dB = mech2[k].bic - bmin; mech2[k].wt = Math.exp(-mech2[k].dB / 2); tot += mech2[k].wt; });
+        keys.forEach(function (k) { mech2[k].wt /= tot; });
+        var MC = { comp: "var(--c2)", uncomp: "var(--c4)", nc: "var(--c3)", mixed: "var(--c5)" };
+        keys.forEach(function (k) {
+          var lp = [], q; for (q = 1; q <= 100; q++) { var S = pad * q / 100, v = ic50Model(k, S, Km, mech2[k].Ki, mech2[k].Kii); if (isFinite(v) && v <= ymaxC * 3) lp.push([sxC(S), fc.sy(Math.min(v, ymaxC * 1.5))]); }
+          sC += polyline(lp, MC[k], k === keys[0] ? null : "5 4", k === keys[0] ? 2.4 : 1.6);
+        });
+        document.getElementById("mechTbl").innerHTML = '<table><thead><tr><th>Mechanism</th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' + keys.map(function (k, idx) {
+          var r = mech2[k]; return '<tr class="' + (idx === 0 ? "best" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px ' + (idx === 0 ? "solid" : "dashed") + ' ' + MC[k] + ';margin-right:6px;vertical-align:middle"></i>' + UNAME[k] + (idx === 0 ? " (best)" : "") + '</td><td>' + (isFinite(r.Ki) ? sig(r.Ki) + (isFinite(r.seKi) ? " ± " + sig(r.seKi) : "") : "—") + '</td><td>' + (isFinite(r.Kii) ? sig(r.Kii) + (isFinite(r.seKii) ? " ± " + sig(r.seKii) : "") : "—") + '</td><td>' + sig(r.bic) + '</td><td>' + sig(r.dB) + '</td><td>' + Math.round(100 * r.wt) + '%</td></tr>'; }).join("") + '</tbody></table>';
+        document.getElementById("mechHint").textContent = "Each model is fit to the IC₅₀ values (weighted by their uncertainty) with Kₘ fixed at " + sig(Km) + " " + cu() + ". Competitive: IC₅₀ rises linearly with [S]. Uncompetitive: IC₅₀ falls as [S] rises. Noncompetitive: IC₅₀ does not depend on [S]. With only " + pts2.length + " substrate concentrations the comparison is weak, so treat it as a pointer, and confirm with full velocity curves." + (pts2.length < 4 ? " The mixed model needs at least four [S]." : "");
+        interp.push("<b>" + UNAME[keys[0]].charAt(0).toUpperCase() + UNAME[keys[0]].slice(1) + "</b> best describes how the IC<sub>50</sub> changes with [S] (ΔBIC " + sig(mech2[keys[1]].dB) + " over " + UNAME[keys[1]] + ", " + Math.round(100 * mech2[keys[0]].wt) + "% weight). " + (keys[0] === "comp" ? "An IC<sub>50</sub> that rises with substrate is the signature of an inhibitor that competes with the substrate or otherwise excludes it, so Cheng-Prusoff with the competitive form is the right conversion." : keys[0] === "uncomp" ? "An IC<sub>50</sub> that falls as substrate rises means the inhibitor prefers the enzyme-substrate complex. Use the uncompetitive form of the conversion." : keys[0] === "nc" ? "An IC<sub>50</sub> that does not change with [S] means the inhibitor binds E and ES about equally. The IC<sub>50</sub> then equals K<sub>i</sub>." : "A mixed pattern: the inhibitor binds both E and ES with different affinities. A full velocity data set (the inhibition mechanism lab) is the better way to get both constants."));
+      } else {
+        document.getElementById("mechTbl").innerHTML = ""; document.getElementById("mechHint").textContent = pts2.length < 3 ? "Add a third substrate concentration (and enter Kₘ) to compare mechanisms by BIC." : "Enter Kₘ to compare mechanisms by BIC.";
+        sC += polyline(pts2.map(function (p) { return [sxC(p.S), fc.sy(p.ic)]; }), "var(--ref)", "4 4", 1.2);
+      }
+      pts2.forEach(function (p) { var x = sxC(p.S); sC += (isFinite(p.lo) ? '<line x1="' + x + '" x2="' + x + '" y1="' + fc.sy(p.lo) + '" y2="' + fc.sy(Math.min(p.hi, ymaxC)) + '" stroke="var(--muted)" stroke-width="1.4"/>' : "") + '<circle cx="' + x.toFixed(1) + '" cy="' + fc.sy(p.ic).toFixed(1) + '" r="4.5" fill="var(--panel)" stroke="' + COLORS[p.i % 6] + '" stroke-width="2.2"/>'; });
+      document.getElementById("plotC").innerHTML = sC;
+    }
+
+    // ---- interpretation
+    interp.unshift("The " + name + " is the inhibitor concentration that halves the rate under these particular conditions" + (model === "hill" ? ", so it depends on [S] and is not a constant of the inhibitor." : ". The tight-binding fit accounts for the inhibitor being used up by binding the enzyme, so K<sub>i,app</sub> is closer to a true constant at this [S]."));
+    if (isFinite(Kic) && gs.S > 0) interp.push("With K<sub>m</sub> = " + sig(Km) + " " + esc(cu()) + " and [S] = " + sig(gs.S) + " " + esc(cu()) + " (" + sig(gs.S / Km) + " × K<sub>m</sub>), the " + UNAME[cpm] + " conversion gives K<sub>i</sub> = " + sig(Kic) + " " + esc(cu()) + (cpm === "comp" ? ", so the IC<sub>50</sub> is " + sig(1 + gs.S / Km) + "-fold above K<sub>i</sub>" : cpm === "uncomp" ? ", so the IC<sub>50</sub> is " + sig(1 + Km / gs.S) + "-fold above K<sub>i</sub>" : "") + ". Measuring at [S] well below K<sub>m</sub> makes a competitive IC<sub>50</sub> close to K<sub>i</sub>; for ADH, remember the cofactor must also be saturating for the constants to be clean.");
+    document.getElementById("interp").innerHTML = interp.map(function (t) { return "<p>" + t + "</p>"; }).join("");
+
+    // ---- equations
+    exportTables = (function () {
+      var tp = [["S", "points", model === "hill" ? "IC50" : "Ki_app", "SE", "CI95_low", "CI95_high", "Hill_slope", "SE_Hill", "top", "bottom", "RMSE", "Ki_Cheng_Prusoff"]];
+      var td = [["S", "I", "response_observed", "fit", "residual"]], tc = [["S", "I", "fit"]];
+      groups.forEach(function (g, i) {
+        var f = fits[i]; if (!f) return;
+        tp.push([g.S, f.n, f.K, f.seK, f.lo, f.hi, f.h, f.seH, f.top, f.bot, f.rmse, convertKi(f.K, g.S, Km, cpm)]);
+        g.I.forEach(function (x, j) { td.push([g.S, x, g.y[j], curveY(f, o, x), f.res[j]]); });
+        var pos = g.I.filter(function (x) { return x > 0; }), lo = Math.min.apply(null, pos) / 3, hi = Math.max.apply(null, pos) * 3;
+        tc.push([g.S, 0, curveY(f, o, 0)]);
+        for (var q = 0; q <= 120; q++) { var x = lo * Math.pow(hi / lo, q / 120); tc.push([g.S, x, curveY(f, o, x)]); }
+      });
+      var out = { parameters: tp, data_fit: td, curves: tc };
+      if (mech2) {
+        var tm = [["mechanism", "Ki", "SE_Ki", "Kii", "SE_Kii", "BIC", "delta_BIC", "BIC_weight"]];
+        Object.keys(mech2).sort(function (a, b) { return mech2[a].bic - mech2[b].bic; }).forEach(function (k) { var r = mech2[k]; tm.push([UNAME[k], r.Ki, r.seKi, r.Kii, r.seKii, r.bic, r.dB, r.wt]); });
+        out.mechanism = tm;
+      }
+      return out;
+    })();
+    document.getElementById("eq").textContent = (model === "hill"
+      ? "response = bottom + (top − bottom) / ( 1 + ([I]/IC50)^h )\n"
+      : "response = bottom + (top − bottom) · (1 − [EI]/[E])\n[EI] = ( ([E]+[I]+Ki,app) − sqrt( ([E]+[I]+Ki,app)² − 4[E][I] ) ) / 2      (Morrison)\n") +
+      "\nCheng-Prusoff (Hill slope 1):\n  competitive      Ki = IC50 / (1 + [S]/Km)\n  uncompetitive    Ki = IC50 / (1 + Km/[S])\n  noncompetitive   Ki = IC50\n\nIC50 as a function of [S] (used for the mechanism comparison):\n  mixed            IC50 = (Km + [S]) / ( Km/Ki + [S]/Kii )\n\nCurves are fit by nonlinear least squares; 95% intervals use the standard error of ln(IC50) and a t distribution.";
+  }
+  rebuildList(); render();
+})();
+</script>
+
+</body></html>

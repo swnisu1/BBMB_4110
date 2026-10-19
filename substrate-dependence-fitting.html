@@ -1,0 +1,731 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Substrate Dependence Fitting</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left; best-model readouts, dataset table, model comparison and plots right.
+   Each dataset (WT, mutant, substrate...) gets its own colour (c1..c6). */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; padding: 7px 8px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.row { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+.row.off { opacity: 0.4; }
+.row label { font-size: 13px; }
+.row label sub { font-size: 10px; }
+.row output { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.field { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field input, .field select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.btn { font: inherit; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 9px 12px; }
+:root[data-theme="dark"] .btn.primary { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0e1320; } }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary:disabled:hover { border-color: var(--accent); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.crv { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.crvhead { display: flex; align-items: center; gap: 8px; }
+.crvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.crvn { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.crv .x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.crv .x:hover { color: var(--warn); }
+.crvin { margin-top: 6px; }
+.crvin label { font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.crvin input { font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; min-width: 0; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; font-family: var(--font); }
+tbody tr[data-k], tbody tr[data-d] { cursor: pointer; }
+tbody tr[data-k]:hover, tbody tr[data-d]:hover, tbody tr.sel { background: var(--accent-soft); }
+tbody tr.best td:first-child { font-weight: 600; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+.interp p { margin: 0 0 8px; max-width: 78ch; }
+.interp p:last-child { margin-bottom: 0; }
+ul.try { margin: 0; padding-left: 18px; }
+ul.try li { margin-bottom: 4px; }
+[hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Substrate Dependence Fitting</h1>
+    <p>Fit initial-velocity data to Michaelis-Menten, Hill (cooperative) and substrate-inhibition models. BIC says which model the data support. Load several datasets, such as WT and mutant or different substrates, and compare them side by side.</p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2>Data source</h2>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="data" aria-pressed="true">My data</button>
+          <button type="button" data-mode="sim" aria-pressed="false">Simulate</button>
+        </div>
+      </section>
+
+      <section class="panel" id="simPanel" hidden>
+        <h2>Simulated experiment</h2>
+        <div class="field"><label for="simModel">True model</label>
+          <select id="simModel"><option value="mm">Michaelis-Menten</option><option value="hill">Hill</option><option value="si" selected>Substrate inhibition</option></select></div>
+        <div id="simRows"></div>
+        <div class="field" style="margin-top:10px"><label for="simS">[S] (× K)</label><input id="simS" type="text" value="0.1, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64"></div>
+        <div class="btns"><button type="button" class="btn" id="rerollBtn">New noise</button></div>
+      </section>
+
+      <section class="panel" id="dataPanel">
+        <h2>Your data</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop one or more files here</b> or click to choose
+          <span>One file per dataset (for example wt.csv and mutant.csv: [S] in the first column, velocity in the second), or one file with a column per dataset and the names in the header row. Rows may repeat for replicates. Each load adds to the datasets already listed; use Clear to start over.</span>
+          <input type="file" id="fileIn" multiple accept=".csv,.tsv,.txt,.dat,text/*" hidden>
+        </label>
+        <details id="pasteBox">
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted velocity table" spellcheck="false" placeholder="Copy the cells from Excel, including the header row of dataset names, and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
+        </details>
+        <h2 style="margin-top:14px">Datasets</h2>
+        <div id="curveList"></div>
+        <div class="btns"><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>Fit</h2>
+        <div id="fitRow" style="margin-bottom:12px"><button type="button" class="btn primary" id="fitBtn" style="width:100%">Fit data</button><p class="hint" id="fitHint"></p></div>
+        <div class="field"><label for="wmode">Error model</label>
+          <select id="wmode"><option value="const">constant (unweighted)</option><option value="prop">proportional (weights 1/v)</option></select></div>
+        <div class="field"><label for="cunit">Concentration units</label><input id="cunit" type="text" value="µM"></div>
+        <div class="field"><label for="vunit">Rate units</label><input id="vunit" type="text" value="µM/s"></div>
+        <p class="hint">k<sub>cat</sub> is computed as V<sub>max</sub>/[E] when you enter an enzyme concentration (nM) for a dataset, assuming V<sub>max</sub> in µM/s.</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+      <section class="panel" id="exportPanel">
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figures (PNG, light background, legend included)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel to make your own figures)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+      <section class="panel" id="dsPanel">
+        <h2>Datasets</h2>
+        <div class="tablewrap" id="dsTbl"></div>
+        <p class="hint">Click a row to look at that dataset in detail.</p>
+      </section>
+      <section class="panel">
+        <h2>Model comparison for <span id="dsName"></span></h2>
+        <div class="tablewrap" id="tbl"></div>
+        <p class="hint">Click a row to show that model in the plots. BIC = n ln(RSS/n) + (k + 1) ln(n); lower is better. The weight is the approximate probability of each model (ΔBIC above 10 is very strong evidence).</p>
+      </section>
+      <section class="panel plot">
+        <div class="plothead">
+          <h3>Velocity vs. [S]</h3>
+          <div class="toggles">
+            <select id="showSel" aria-label="Datasets to show in the plot" title="Choose which dataset to show" style="font:inherit;font-size:12.5px;padding:4px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg);max-width:200px"></select>
+            <div class="seg small" id="xSeg"><button type="button" data-x="lin" aria-pressed="true">linear [S]</button><button type="button" data-x="log" aria-pressed="false">log [S]</button></div>
+          </div>
+        </div>
+        <svg id="plotA" viewBox="0 0 640 330" role="img" aria-label="Velocity versus substrate with fitted models"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+      <section class="panel plot">
+        <h3>Residuals (data − fit)</h3>
+        <svg id="plotB" viewBox="0 0 640 170" role="img" aria-label="Residuals versus substrate"></svg>
+      </section>
+      <section class="panel plot">
+        <h3>Eadie-Hofstee plot</h3>
+        <svg id="plotC" viewBox="0 0 640 300" role="img" aria-label="Eadie-Hofstee plot"></svg>
+        <p class="hint">v against v/[S]. Michaelis-Menten data fall on a straight line, cooperativity bends the points into a hump, and substrate inhibition curls the high-[S] points back. It is a good way to see departures from a hyperbola but a poor way to get the constants.</p>
+      </section>
+      <section class="panel interp">
+        <h2>What this suggests</h2>
+        <div id="interp"></div>
+      </section>
+      <section class="panel">
+        <h2>Models</h2>
+        <pre class="eq" id="eq"></pre>
+      </section>
+      <section class="panel" id="tryPanel" hidden>
+        <h2>Things to try</h2>
+        <ul class="try">
+          <li>Simulate substrate inhibition, then cut the [S] list so the highest value is only 4 × K. Can BIC still find it?</li>
+          <li>Simulate a Hill model with n = 1.5 and add noise. How large does n need to be to beat Michaelis-Menten?</li>
+          <li>Raise the proportional noise and compare the constant and proportional error models.</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
+  var MN = { mm: "Michaelis-Menten", hill: "Hill", si: "Substrate inhibition" }, MCOL = { mm: "var(--m1)", hill: "var(--m2)", si: "var(--m3)" };
+  function sig(x) { return String(Number(x.toPrecision(3))); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function cu() { return document.getElementById("cunit").value || "conc."; }
+  function vu() { return document.getElementById("vunit").value || "rate"; }
+
+  var sim = { V: 2, K: LOG(15), n: 1.8, Ksi: LOG(450), noise: 5, floor: 0.01, reps: 2, seed: 1 };
+  var state = { mode: "data", d: 0, model: "auto", show: "all", x: "lin", fitted: false };
+  var sets = [];    // {name, E, S[], v[]}
+
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  // ---------- rate equations ----------
+  function rate(key, p, S) {
+    if (key === "mm") return p.V * S / (p.K + S);
+    if (key === "hill") { var a = Math.pow(S, p.n); return p.V * a / (Math.pow(p.K, p.n) + a); }
+    return p.V * S / (p.K + S + S * S / p.Ksi);
+  }
+
+  // ---------- data ----------
+  function list(id) { return document.getElementById(id).value.split(/[\s,;]+/).map(parseFloat).filter(function (v) { return isFinite(v) && v > 0; }).slice(0, 20); }
+  function simulate() {
+    var K = Math.pow(10, sim.K), key = document.getElementById("simModel").value, p = { V: sim.V, K: K, n: sim.n, Ksi: Math.pow(10, sim.Ksi) };
+    var Ss = list("simS").map(function (m) { return m * K; });
+    if (Ss.length < 5) return null;
+    var rnd = mulberry(sim.seed * 7919 + 9), S = [], v = [];
+    Ss.forEach(function (s) { for (var r = 0; r < sim.reps; r++) { var t = rate(key, p, s); S.push(s); v.push(t + (sim.noise / 100 * t + sim.floor) * gauss(rnd)); } });
+    return { sets: [{ name: "simulated", E: NaN, S: S, v: v }], truth: { key: key, p: p } };
+  }
+  function parseTable(text, fname) {
+    var delim = null, header = null, rows = [];
+    text.split(/\r?\n/).forEach(function (ln) {
+      if (!ln.trim()) return;
+      if (!delim) delim = ln.indexOf("\t") >= 0 ? /\t/ : ln.indexOf(",") >= 0 ? /,/ : ln.indexOf(";") >= 0 ? /;/ : /\s+/;
+      var cells = ln.trim().split(delim).map(function (c) { return c.trim(); });
+      var nums = cells.map(function (c) { return c === "" ? NaN : Number(c); });
+      if (isFinite(nums[0]) && nums.slice(1).some(isFinite)) rows.push(nums);
+      else if (!rows.length) header = cells;
+    });
+    if (rows.length < 5) return [];
+    var ncol = Math.max.apply(null, rows.map(function (r) { return r.length; })), out = [];
+    for (var j = 1; j < ncol; j++) {
+      var S = [], v = [];
+      rows.forEach(function (r) { if (isFinite(r[0]) && r[0] > 0 && isFinite(r[j])) { S.push(r[0]); v.push(r[j]); } });
+      if (S.length < 5) continue;
+      var nm = ncol === 2 && fname && fname !== "pasted" ? fname : (header && header[j] ? header[j] : (fname || "dataset") + " " + j);
+      out.push({ name: nm, E: NaN, S: S, v: v });
+    }
+    return out;
+  }
+  var EXAMPLE = (function () {
+    var rnd = mulberry(21), Ss = [2, 5, 10, 20, 50, 100, 200, 400, 800, 1600, 2400], out = [];
+    [["WT", "si", { V: 2, K: 15, Ksi: 500 }, 4], ["mutant", "mm", { V: 0.8, K: 60 }, 8]].forEach(function (d) {
+      var S = [], v = [];
+      Ss.forEach(function (s) { for (var r = 0; r < 2; r++) { var t = rate(d[1], d[2], s); S.push(s); v.push(t + (0.04 * t + 0.012) * gauss(rnd)); } });
+      out.push({ name: d[0], E: d[3], S: S, v: v });
+    });
+    return out;
+  })();
+  function clone(l) { return l.map(function (s) { return { name: s.name, E: s.E, S: s.S.slice(), v: s.v.slice() }; }); }
+  function rebuildList() {
+    var host = document.getElementById("curveList");
+    if (!sets.length) { host.innerHTML = '<p class="hint" style="margin:0">No data yet. Drop a file, paste from Excel, or load the example.</p>'; return; }
+    host.innerHTML = sets.map(function (c, i) {
+      return '<div class="crv"><div class="crvhead"><i style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + COLORS[i % 6] + '"></i><span class="crvname" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="crvn">' + c.S.length + ' pts</span>' +
+        '<button type="button" class="x" data-del="' + i + '" aria-label="Remove dataset">×</button></div>' +
+        '<div class="crvin"><label>[Enzyme] (nM), optional<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.E) ? c.E : "") + '"></label></div></div>';
+    }).join("");
+  }
+  function setSets(l) { sets = l.slice(0, 6); state.d = 0; state.model = "auto"; state.fitted = false; rebuildList(); render(); }
+
+  // ---------- Levenberg-Marquardt ----------
+  function solve(A, b) {
+    var n = b.length, M = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-300) return null;
+      var tmp = M[c]; M[c] = M[p]; M[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(); t2[j] += 1e-6; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / 1e-6; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 250; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    var jm = jac(best.th), A = [], a, b, i;
+    for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); for (b = 0; b < np; b++) for (i = 0; i < n; i++) A[a][b] += jm.J[i][a] * jm.J[i][b]; }
+    var inv = invert(A), s2 = best.sse / Math.max(n - np, 1);
+    best.n = n; best.np = np; best.s2 = s2;
+    best.cov = inv ? inv.map(function (r) { return r.map(function (v) { return v * s2; }); }) : null;
+    return best;
+  }
+
+  // ---------- fits ----------
+  function weightsFor(v, mode) { var vmax = Math.max.apply(null, v.map(Math.abs)), fl = 0.03 * vmax; return v.map(function (x) { return mode === "prop" ? 1 / Math.max(Math.abs(x), fl) : 1; }); }
+  function fitModel(key, d, wmode) {
+    var n = d.v.length, w = weightsFor(d.v, wmode), yW = d.v.map(function (x, i) { return x * w[i]; }), np = key === "mm" ? 2 : 3;
+    var srt = d.S.slice().sort(function (a, b) { return a - b; }), minS = srt[0], maxS = srt[n - 1], medS = srt[Math.floor(n / 2)], vmax = Math.max.apply(null, d.v);
+    function unpack(th) { return { V: Math.exp(th[0]), K: Math.exp(th[1]), n: key === "hill" ? Math.exp(th[2]) : 1, Ksi: key === "si" ? Math.exp(th[2]) : Infinity }; }
+    function pred(th) { var p = unpack(th); return d.S.map(function (s, i) { return w[i] * rate(key, p, s); }); }
+    var KSIMAX = Math.log(1e4 * maxS);
+    var clamp = function (th) {
+      th[0] = Math.min(Math.max(th[0], Math.log(1e-6 * vmax)), Math.log(1e3 * vmax));
+      th[1] = Math.min(Math.max(th[1], Math.log(1e-3 * minS)), Math.log(1e3 * maxS));
+      if (key === "hill") th[2] = Math.min(Math.max(th[2], Math.log(0.3)), Math.log(8));
+      if (key === "si") th[2] = Math.min(Math.max(th[2], Math.log(0.1 * minS)), KSIMAX);
+    };
+    var starts = [];
+    [0.3, 1, 3].forEach(function (kf) {
+      var base = [Math.log(vmax * 1.2), Math.log(medS * kf)];
+      if (key === "mm") starts.push(base);
+      else if (key === "hill") { starts.push(base.concat([0])); starts.push(base.concat([Math.log(2)])); }
+      else { starts.push(base.concat([Math.log(maxS)])); starts.push(base.concat([Math.log(maxS * 5)])); }
+    });
+    var F = lm(pred, yW, starts, clamp), p = unpack(F.th), se = F.cov ? F.cov.map(function (r, i) { return Math.sqrt(Math.max(r[i], 0)); }) : null;
+    var res = { key: key, V: p.V, K: p.K, n: p.n, Ksi: p.Ksi, np: np, nn: n, rss: F.sse, rmse: Math.sqrt(F.s2), bic: n * Math.log(F.sse / n) + (np + 1) * Math.log(n),
+      seV: se ? p.V * se[0] : NaN, seK: se ? p.K * se[1] : NaN, seN: se && key === "hill" ? p.n * se[2] : NaN, seKsi: se && key === "si" ? p.Ksi * se[2] : NaN,
+      noSI: key === "si" && p.Ksi > 50 * maxS, maxS: maxS, cov: F.cov };
+    if (se) {
+      res.seSpec = (p.V / p.K) * Math.sqrt(Math.max(F.cov[0][0] + F.cov[1][1] - 2 * F.cov[0][1], 0));
+    }
+    return res;
+  }
+
+  // ---------- controls ----------
+  var simDefs = [
+    { key: "V", label: "True V<sub>max</sub>", min: 0.1, max: 20, step: 0.1, fmt: function (v) { return sig(v) + " " + vu(); } },
+    { key: "K", label: "True K<sub>m</sub> (or K<sub>0.5</sub>)", min: -1, max: 3, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " " + cu(); } },
+    { key: "n", label: "True Hill coefficient n", min: 0.5, max: 4, step: 0.05, fmt: function (v) { return sig(v); } },
+    { key: "Ksi", label: "True K<sub>si</sub>", min: 0, max: 5, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " " + cu(); } },
+    { key: "noise", label: "Noise, proportional", min: 0, max: 20, step: 0.5, fmt: function (v) { return sig(v) + " %"; } },
+    { key: "floor", label: "Noise, constant (SD)", min: 0, max: 0.2, step: 0.005, fmt: function (v) { return sig(v) + " " + vu(); } },
+    { key: "reps", label: "Replicates per [S]", min: 1, max: 4, step: 1, fmt: function (v) { return String(v); } }
+  ];
+  (function () {
+    var host = document.getElementById("simRows");
+    host.innerHTML = simDefs.map(function (d) {
+      return '<div class="row" id="row_' + d.key + '"><label for="in_' + d.key + '">' + d.label + '</label><output id="out_' + d.key + '"></output><input type="range" id="in_' + d.key + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"></div>';
+    }).join("");
+    simDefs.forEach(function (d) { var el = document.getElementById("in_" + d.key); el.value = sim[d.key]; el.addEventListener("input", function (e) { sim[d.key] = parseFloat(e.target.value); render(); }); });
+  })();
+  function bindSeg(id, attr, setter) {
+    document.getElementById(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return; setter(b.dataset[attr]);
+      Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (x) { x.setAttribute("aria-pressed", x === b); }); render();
+    });
+  }
+  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.d = 0; state.model = "auto"; });
+  document.getElementById("showSel").addEventListener("change", function (e) { var v = e.target.value; if (v === "all") state.show = "all"; else { state.show = "one"; state.d = +v; state.model = "auto"; } render(); });
+  bindSeg("xSeg", "x", function (v) { state.x = v; });
+  document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
+  var dropEl = document.getElementById("drop");
+  // Several files can be loaded at once (for example WT and mutant); each file or column becomes a dataset, added to those already loaded.
+  function addSets(list) {
+    var seen = {}; sets.forEach(function (s) { seen[s.name] = true; });
+    list.forEach(function (s) { var n = s.name, i = 2; while (seen[n]) n = s.name + " (" + i++ + ")"; s.name = n; seen[n] = true; });
+    setSets(sets.concat(list));
+  }
+  function readFiles(files) {
+    var list = Array.prototype.slice.call(files || []); if (!list.length) return;
+    var got = [], pending = list.length;
+    function done() { if (--pending === 0) { var all = [].concat.apply([], got.filter(Boolean)); if (all.length) addSets(all); } }
+    list.forEach(function (f, k) { var r = new FileReader(); r.onload = function () { got[k] = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); done(); }; r.onerror = done; r.readAsText(f); });
+  }
+  document.getElementById("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
+
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });
+  document.getElementById("pasteBtn").addEventListener("click", function () { var box = document.getElementById("pasteText"), got = parseTable(box.value, "pasted"); if (got.length) { box.value = ""; addSets(got); } });
+  document.getElementById("curveList").addEventListener("input", function (e) { var el = e.target; if (el.dataset.i === undefined) return; var v = parseFloat(el.value); sets[+el.dataset.i].E = isFinite(v) ? v : NaN; render(); });
+  document.getElementById("curveList").addEventListener("click", function (e) { var b = e.target.closest("button[data-del]"); if (!b) return; sets.splice(+b.dataset.del, 1); state.d = 0; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("exampleBtn").addEventListener("click", function () { document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s"; setSets(clone(EXAMPLE)); });
+  document.getElementById("clearBtn").addEventListener("click", function () { sets = []; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  document.getElementById("dsTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-d]"); if (!tr) return; state.d = +tr.dataset.d; state.model = "auto"; render(); });
+  document.getElementById("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-k]"); if (!tr) return; state.model = state.model === tr.dataset.k ? "auto" : tr.dataset.k; render(); });
+  ["simModel", "simS", "wmode", "cunit", "vunit"].forEach(function (id) { var el = document.getElementById(id); el.addEventListener("input", function () { if (id === "simModel" || id === "simS") state.model = "auto"; render(); }); el.addEventListener("change", render); });
+
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w) { return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
+  var M = { l: 54, r: 14, t: 12, b: 42 };
+  function frame(W, H, xr, yr, xl, yl, xlog) {
+    var sx = function (x) { return xlog ? M.l + (Math.log10(x) - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r) : M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); }, s = "";
+    ticksFor(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    if (xlog) { for (var d = Math.ceil(xr[0]); d <= Math.floor(xr[1]); d++) { var px = sx(Math.pow(10, d)); s += '<line x1="' + px + '" x2="' + px + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--grid)"/><text x="' + px + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(Math.pow(10, d)) + '</text>'; } }
+    else ticksFor(xr[0], xr[1], 6).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+    var zy = yr[0] < 0 && yr[1] > 0 ? sy(0) : H - M.b;
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + zy + '" y2="' + zy + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+  function par(f) { return { V: f.V, K: f.K, n: f.n, Ksi: f.Ksi }; }
+  function paramStr(f) {
+    if (f.key === "hill") return "n = " + sig(f.n) + (isFinite(f.seN) ? " ± " + sig(f.seN) : "");
+    if (f.key === "si") return f.noSI ? "no inhibition" : "Kₛᵢ = " + sig(f.Ksi) + (isFinite(f.seKsi) ? " ± " + sig(f.seKsi) : "");
+    return "—";
+  }
+
+  // ---------- render ----------
+  // Dataset selector for the main plot: "All datasets" or one named dataset. Works before and after fitting.
+  function syncShowSel(names) {
+    var sel = document.getElementById("showSel"), multi = names.length > 1, key = names.join("|");
+    sel.hidden = !multi;
+    if (sel.dataset.key !== key) { sel.innerHTML = '<option value="all">All datasets</option>' + names.map(function (n, i) { return '<option value="' + i + '">' + esc(n) + '</option>'; }).join(""); sel.dataset.key = key; }
+    if (state.d >= names.length) state.d = 0;
+    sel.value = !multi || state.show === "all" ? "all" : String(state.d);
+  }
+  // Data preview shown after a file is loaded and before the student presses Fit data.
+  function previewDraw(D) {
+    showPanels(false);
+    document.getElementById("plotA").closest("section").hidden = false;
+    syncShowSel(D.sets.map(function (d) { return d.name; }));
+    var vis = D.sets.map(function (d, i) { return { d: d, i: i }; }).filter(function (e) { return D.sets.length < 2 || state.show === "all" || e.i === state.d; });
+    var xlog = state.x === "log", Smin = Math.min.apply(null, vis.map(function (e) { return Math.min.apply(null, e.d.S); })), Smax = Math.max.apply(null, vis.map(function (e) { return Math.max.apply(null, e.d.S); }));
+    var vmax = Math.max.apply(null, vis.map(function (e) { return Math.max.apply(null, e.d.v); })), vmin = Math.min(0, Math.min.apply(null, vis.map(function (e) { return Math.min.apply(null, e.d.v); })));
+    var xr = xlog ? [Math.floor(Math.log10(Smin) - 0.2), Math.ceil(Math.log10(Smax) + 0.1)] : [0, Smax * 1.05];
+    var fa = frame(640, 330, xr, [vmin, vmax * 1.1], "[S] (" + esc(cu()) + (xlog ? ", log scale" : "") + ")", "v (" + esc(vu()) + ")", xlog), s = fa.svg, npts = 0;
+    D.sets.forEach(function (d) { npts += d.S.length; });
+    vis.forEach(function (e) { e.d.S.forEach(function (x, j) { s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(e.d.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[e.i % 6] + '" opacity="0.9"/>'; }); });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = vis.map(function (e) { return '<span><i style="background:' + COLORS[e.i % 6] + '"></i>' + esc(e.d.name) + '</span>'; }).join("");
+    document.getElementById("cards").innerHTML = "";
+    document.getElementById("msgs").innerHTML = '<p class="msg">' + D.sets.length + ' dataset' + (D.sets.length > 1 ? "s" : "") + ' (' + npts + ' points) loaded. Check the data below, then press <b>Fit data</b> in the panel on the left.</p>';
+  }
+  // ---------- export: PNG figures and CSV tables ----------
+  // Published pages save through the platform's `downloads` capability (the viewer confirms); a locally opened copy downloads directly.
+  var exportTables = {};
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "pin", "ref", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "m1", "m2", "m3"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && document.getElementById(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) {
+        var cs = getComputedStyle(i);
+        if (i.classList.contains("ln") || (parseFloat(cs.borderTopWidth) > 0 && cs.backgroundColor === "rgba(0, 0, 0, 0)")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; }
+        else { item.kind = "dot"; item.color = cs.backgroundColor; }
+      }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = document.getElementById(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function exportNote(t) { var el = document.getElementById("exportMsg"); if (el) el.textContent = t; }
+  function saveFile(filename, data) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: filename, data: data }).then(function () { exportNote("Saved " + filename + "."); }, function (e) {
+          exportNote(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + (e && e.message ? ": " + e.message : "."));
+        });
+      }
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); exportNote("Downloaded " + filename + ".");
+      } catch (e) { exportNote("Saving files is not available in this view."); }
+    });
+  }
+  function setupExport(cfg) {
+    var png = document.getElementById("exportPng"), csv = document.getElementById("exportCsv");
+    png.innerHTML = cfg.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+    csv.innerHTML = cfg.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+    png.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-png]"); if (!b) return; var p = cfg.plots[+b.dataset.png], el = document.getElementById(p.svg);
+      if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+      exportNote("Preparing the figure...");
+      svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(cfg.prefix + "_" + p.file + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+    });
+    csv.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-csv]"); if (!b) return; var t = cfg.tables[+b.dataset.csv], rows = exportTables[t.key];
+      if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+      saveFile(cfg.prefix + "_" + t.file + ".csv", csvText(rows));
+    });
+  }
+
+  setupExport({ prefix: "substrate_dependence",
+    plots: [{ svg: "plotA", legend: "legendA", label: "Fit plot (PNG)", file: "fit" }, { svg: "plotB", legend: null, label: "Residuals (PNG)", file: "residuals" }, { svg: "plotC", legend: null, label: "Eadie-Hofstee (PNG)", file: "eadie_hofstee" }],
+    tables: [{ key: "parameters", label: "Parameters (CSV)", file: "parameters" }, { key: "data_fit", label: "Data + fitted values (CSV)", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves (CSV)", file: "fit_curves" }] });
+  function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
+  function render() {
+    showPanels(true);
+    var simOn = state.mode === "sim";
+    document.getElementById("fitRow").hidden = simOn; document.getElementById("fitBtn").disabled = !sets.length;
+    document.getElementById("fitHint").textContent = !sets.length ? "Load data to enable fitting." : state.fitted ? "Fitted. Loading new data starts a fresh fit." : "Data loaded but not yet fitted.";
+    document.getElementById("simPanel").hidden = !simOn; document.getElementById("dataPanel").hidden = simOn; document.getElementById("tryPanel").hidden = !simOn;
+    simDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(sim[d.key]); });
+    var smodel = document.getElementById("simModel").value;
+    document.getElementById("row_n").classList.toggle("off", smodel !== "hill"); document.getElementById("row_Ksi").classList.toggle("off", smodel !== "si");
+    var D = simOn ? simulate() : { sets: sets, truth: null };
+    var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
+    function empty(t) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + t + '</p>'; ["dsTbl", "tbl", "plotA", "plotB", "plotC", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); document.getElementById("dsName").textContent = ""; }
+    if (!D || !D.sets || !D.sets.length) { empty(simOn ? "Give at least five [S] values." : "No data loaded yet. Drop a file or paste from Excel in the panel on the left, or choose Load example to see how this works."); return; }
+    if (!simOn && !state.fitted) { previewDraw(D); return; }
+    var wmode = document.getElementById("wmode").value, keys = ["mm", "hill", "si"], all = [];
+    D.sets.forEach(function (d) {
+      var fits = {}; keys.forEach(function (k) { fits[k] = fitModel(k, d, wmode); });
+      var bmin = Math.min.apply(null, keys.map(function (k) { return fits[k].bic; })), tot = 0;
+      keys.forEach(function (k) { fits[k].dB = fits[k].bic - bmin; fits[k].wt = Math.exp(-fits[k].dB / 2); tot += fits[k].wt; });
+      keys.forEach(function (k) { fits[k].wt /= tot; });
+      var ranked = keys.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; });
+      all.push({ d: d, fits: fits, ranked: ranked, best: ranked[0] });
+    });
+    if (state.d >= all.length) state.d = 0;
+    syncShowSel(all.map(function (a) { return a.d.name; }));
+    var cur = all[state.d], d = cur.d, fits = cur.fits, best = cur.best, selKey = state.model === "auto" ? best : state.model, F = fits[selKey], truth = D.truth;
+    document.getElementById("dsName").textContent = d.name;
+
+    // ---- cards
+    var runner = fits[cur.ranked[1]], E = d.E, kcat = E > 0 ? F.V / (E / 1000) : NaN;
+    var third = selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE' + (truth && truth.key === "hill" ? " | true " + sig(truth.p.n) : "") + '</div></div>'
+      : selKey === "si" ? '<div class="card"><div class="k">K<sub>si</sub> (' + esc(cu()) + ')</div><div class="v">' + (F.noSI ? "not detected" : sig(F.Ksi)) + '</div><div class="s">' + (F.noSI ? "beyond the [S] range" : "± " + sig(F.seKsi) + " SE | Sₒₚₜ " + sig(Math.sqrt(F.K * F.Ksi))) + (truth && truth.key === "si" ? " | true " + sig(truth.p.Ksi) : "") + '</div></div>'
+      : '<div class="card"><div class="k">V<sub>max</sub>/K<sub>m</sub></div><div class="v">' + sig(F.V / F.K) + '</div><div class="s">' + (isFinite(F.seSpec) ? "± " + sig(F.seSpec) + " SE" : "") + (isFinite(kcat) ? " | kᶜᵃᵗ/Kₘ " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹" : "") + '</div></div>';
+    cards.innerHTML =
+      '<div class="card hot"><div class="k">' + (selKey === best ? "Best model (BIC)" : "Showing (best: " + MN[best] + ")") + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">weight ' + Math.round(100 * F.wt) + '%' + (selKey === best ? ' | ΔBIC to next ' + sig(runner.dB) : ' | ΔBIC ' + sig(F.dB)) + '</div></div>' +
+      '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + (isFinite(kcat) ? ' | kᶜᵃᵗ ' + sig(kcat) + ' s⁻¹' : '') + (truth ? " | true " + sig(truth.p.V) : "") + '</div></div>' +
+      '<div class="card"><div class="k">' + (selKey === "hill" ? "K<sub>0.5</sub>" : "K<sub>m</sub>") + ' (' + esc(cu()) + ')</div><div class="v">' + sig(F.K) + '</div><div class="s">± ' + sig(F.seK) + ' SE' + (truth ? " | true " + sig(truth.p.K) : "") + '</div></div>' + third;
+
+    // ---- dataset table
+    document.getElementById("dsPanel").hidden = all.length < 2;
+    document.getElementById("dsTbl").innerHTML = '<table><thead><tr><th>Dataset</th><th>best model</th><th>ΔBIC to next</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>V<sub>max</sub>/K</th></tr></thead><tbody>' + all.map(function (a, i) {
+      var f = a.fits[a.best];
+      return '<tr data-d="' + i + '" class="' + (i === state.d ? "sel" : "") + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + '</td><td>' + MN[a.best] + '</td><td>' + sig(a.fits[a.ranked[1]].dB) + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.V / f.K) + '</td></tr>';
+    }).join("") + '</tbody></table>';
+
+    // ---- model table
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' + cur.ranked.map(function (k) {
+      var f = fits[k];
+      return '<tr data-k="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px solid ' + MCOL[k] + ';margin-right:6px;vertical-align:middle"></i>' + MN[k] + (k === best ? " (best)" : "") + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+    }).join("") + '</tbody></table>';
+
+    // ---- messages
+    var m = [];
+    var altMode = wmode === "const" ? "prop" : "const", altB = keys.map(function (k) { return [k, fitModel(k, d, altMode).bic]; }).sort(function (a, b) { return a[1] - b[1]; })[0][0];
+    if (selKey === best && runner.dB < 2) m.push(["warn", "<b>The data cannot separate " + MN[best] + " from " + MN[cur.ranked[1]] + "</b> (ΔBIC = " + sig(runner.dB) + "). More points or replicates, especially at the highest and lowest [S], would help."]);
+    else if (selKey === best && runner.dB < 6) m.push(["", MN[best] + " is favoured over " + MN[cur.ranked[1]] + " (ΔBIC = " + sig(runner.dB) + ") but the evidence is only moderate."]);
+    else if (selKey === best) m.push(["", MN[best] + " is strongly favoured (ΔBIC = " + sig(runner.dB) + " over " + MN[cur.ranked[1]] + ")."]);
+    if (altB !== best) m.push(["warn", "<b>The best model depends on the error model.</b> With " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error the best model is " + MN[altB] + ". Check whether the residual scatter grows with v before deciding."]);
+    var maxS = Math.max.apply(null, d.S), minS = Math.min.apply(null, d.S);
+    if (maxS < 3 * F.K && selKey !== "si") m.push(["warn", "The highest [S] is only " + sig(maxS / F.K) + " × K, so the curve may not be close to saturation and V<sub>max</sub> and K are poorly separated. Go to at least 5 × K if solubility allows."]);
+    if (minS > 0.5 * F.K) m.push(["warn", "The lowest [S] is " + sig(minS / F.K) + " × K, so there is little data in the linear region that defines V<sub>max</sub>/K."]);
+    var big = [["V<sub>max</sub>", F.seV / F.V], ["K", F.seK / F.K], ["n", F.seN / F.n], ["K<sub>si</sub>", F.noSI ? NaN : F.seKsi / F.Ksi]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
+    if (big.length) m.push(["warn", "Poorly determined (SE over 50% of the value): " + big.map(function (x) { return x[0]; }).join(", ") + "."]);
+    msgs.innerHTML = m.slice(0, 5).map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // ---- plot A
+    var xlog = state.x === "log", showAll = state.show === "all" && all.length > 1;
+    var dsList = showAll ? all : [cur], Smin = Math.min.apply(null, dsList.map(function (a) { return Math.min.apply(null, a.d.S); })), Smax = Math.max.apply(null, dsList.map(function (a) { return Math.max.apply(null, a.d.S); }));
+    var vtop = Math.max.apply(null, dsList.map(function (a) { return Math.max.apply(null, a.d.v); })) * 1.1;
+    var xr = xlog ? [Math.floor(Math.log10(Smin) - 0.2), Math.ceil(Math.log10(Smax) + 0.1)] : [0, Smax * 1.05];
+    var fa = frame(640, 330, xr, [Math.min(0, Math.min.apply(null, dsList.map(function (a) { return Math.min.apply(null, a.d.v); }))), vtop], "[S] (" + esc(cu()) + (xlog ? ", log scale" : "") + ")", "v (" + esc(vu()) + ")", xlog), sA = fa.svg;
+    var grid = []; for (var q = 0; q <= 220; q++) grid.push(xlog ? Math.pow(10, xr[0] + (xr[1] - xr[0]) * q / 220) : xr[1] * q / 220 + 1e-9);
+    function curveOf(f, key) { return polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(key, par(f), S))]; }), null, null, 0); }
+    if (showAll) {
+      all.forEach(function (a, i) { var k = i === state.d ? selKey : a.best, f = a.fits[k], col = COLORS[i % 6];
+        sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(f), S))]; }), col, null, i === state.d ? 3 : 2.2);
+        a.d.S.forEach(function (x, j) { sA += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(a.d.v[j]).toFixed(1) + '" r="3" fill="' + col + '" opacity="0.85"/>'; }); });
+    } else {
+      keys.forEach(function (k) { if (k === selKey) return; sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(fits[k]), S))]; }), MCOL[k], "5 4", 1.5); });
+      sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(selKey, par(F), S))]; }), MCOL[selKey], null, 2.8);
+      d.S.forEach(function (x, j) { sA += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(d.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
+      if (selKey === "si" && !F.noSI) { var so = Math.sqrt(F.K * F.Ksi), vo = rate("si", par(F), so); if (so >= (xlog ? Math.pow(10, xr[0]) : 0) && so <= (xlog ? Math.pow(10, xr[1]) : xr[1])) sA += '<line x1="' + fa.sx(so) + '" x2="' + fa.sx(so) + '" y1="' + fa.sy(vo) + '" y2="' + (330 - M.b) + '" stroke="var(--muted)" stroke-dasharray="2 3"/><circle cx="' + fa.sx(so) + '" cy="' + fa.sy(vo) + '" r="4.5" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/>'; }
+    }
+    document.getElementById("plotA").innerHTML = sA;
+    document.getElementById("legendA").innerHTML = showAll
+      ? all.map(function (a, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + ' (' + MN[i === state.d ? selKey : a.best].toLowerCase() + ')</span>'; }).join("")
+      : keys.map(function (k) { return '<span><i class="ln" style="border-color:' + MCOL[k] + (k === selKey ? "" : ";border-top-style:dashed") + '"></i>' + MN[k] + '</span>'; }).join("") + (selKey === "si" && !F.noSI ? '<span>open dot: optimum [S]</span>' : '');
+
+    // ---- plot B
+    var res = d.S.map(function (S, j) { return d.v[j] - rate(selKey, par(F), S); }), rm = Math.max.apply(null, res.map(Math.abs)) * 1.2 || 0.05;
+    var fb = frame(640, 170, xr, [-rm, rm], "[S] (" + esc(cu()) + (xlog ? ", log scale" : "") + ")", "residual", xlog), sB = fb.svg;
+    d.S.forEach(function (x, j) { sB += '<circle cx="' + fb.sx(x).toFixed(1) + '" cy="' + fb.sy(res[j]).toFixed(1) + '" r="3" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
+    document.getElementById("plotB").innerHTML = sB;
+
+    // ---- Eadie-Hofstee
+    var hx = d.S.map(function (S, j) { return d.v[j] / S; }), xmaxE = Math.max.apply(null, hx) * 1.08, ymaxE = Math.max.apply(null, d.v) * 1.1;
+    var fe = frame(640, 300, [0, xmaxE], [0, ymaxE], "v / [S] (" + esc(vu()) + " per " + esc(cu()) + ")", "v (" + esc(vu()) + ")", false), sE = fe.svg, sg = [];
+    for (q = 1; q <= 300; q++) sg.push(Smax * 1.3 * Math.pow(q / 300, 3) + Smin * 0.3);
+    keys.forEach(function (k) { var pts = sg.map(function (S) { return [fe.sx(rate(k, par(fits[k]), S) / S), fe.sy(rate(k, par(fits[k]), S))]; }).filter(function (p) { return p[0] >= M.l - 1 && p[0] <= 626 && p[1] >= M.t - 1 && p[1] <= 300 - M.b + 1; });
+      if (pts.length > 1) sE += polyline(pts, MCOL[k], k === selKey ? null : "5 4", k === selKey ? 2.6 : 1.4); });
+    d.S.forEach(function (x, j) { sE += '<circle cx="' + fe.sx(hx[j]).toFixed(1) + '" cy="' + fe.sy(d.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
+    document.getElementById("plotC").innerHTML = sE;
+
+    // ---- interpretation
+    var tx = [];
+    if (selKey === "mm") tx.push("<b>Michaelis-Menten.</b> A single hyperbola describes the data: one kind of binding site, no detectable cooperativity or substrate inhibition over this [S] range. K<sub>m</sub> = " + sig(F.K) + " " + esc(cu()) + (isFinite(kcat) ? ", k<sub>cat</sub> = " + sig(kcat) + " s⁻¹, k<sub>cat</sub>/K<sub>m</sub> = " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹." : "."));
+    else if (selKey === "hill") tx.push("<b>Hill.</b> The curve is " + (F.n > 1 ? "sigmoidal" : "more gradual than a hyperbola") + " (n = " + sig(F.n) + " ± " + sig(F.seN) + "). " + (F.n > 1.2 ? "A Hill coefficient above 1 means substrate binding to one site raises affinity at another, which requires an oligomer. The Hill coefficient is a lower bound on the number of interacting sites, so n near 2 fits a dimer and n up to 4 a tetramer. If the enzyme exists as a mixture of oligomeric states, the apparent cooperativity can partly reflect that mixture, so it is worth knowing the oligomeric state under assay conditions." : F.n < 0.85 ? "A Hill coefficient below 1 suggests negative cooperativity or two classes of site (or two enzyme forms), so check whether a mixture of oligomers could contribute." : "A value near 1 means the Hill model has little to add over Michaelis-Menten."));
+    else tx.push("<b>Substrate inhibition.</b> The rate rises, peaks near [S] = " + (F.noSI ? "—" : sig(Math.sqrt(F.K * F.Ksi)) + " " + esc(cu())) + " and then falls (K<sub>si</sub> = " + (F.noSI ? "beyond the data" : sig(F.Ksi) + " " + esc(cu())) + "). The usual explanation is a second substrate molecule binding the enzyme-substrate complex to make an unproductive ESS. Check for artifacts before reading mechanism into it: co-solvent or ionic strength rising with [S], a contaminant in the stock, depletion of cofactor, or substrate absorbance at the detection wavelength.");
+    tx.push("BIC picks among these three equations only; it does not prove a mechanism. For poorly soluble substrates the highest [S] may be limited, so a model that needs data beyond the solubility limit (substrate inhibition, or saturation itself) cannot be tested and the widget will say so.");
+    document.getElementById("interp").innerHTML = tx.map(function (t) { return "<p>" + t + "</p>"; }).join("");
+
+    exportTables = (function () {
+      var tp = [["dataset", "model", "Vmax", "SE_Vmax", "K (Km or K0.5)", "SE_K", "n (Hill)", "SE_n", "Ksi", "SE_Ksi", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best_model"]];
+      var td = [["dataset", "S", "v_observed", "fit_MichaelisMenten", "fit_Hill", "fit_SubstrateInhibition", "residual_best_model"]], tc = [["dataset", "S", "v_MichaelisMenten", "v_Hill", "v_SubstrateInhibition"]];
+      all.forEach(function (a) {
+        keys.forEach(function (k) { var f = a.fits[k]; tp.push([a.d.name, MN[k], f.V, f.seV, f.K, f.seK, k === "hill" ? f.n : "", k === "hill" ? f.seN : "", k === "si" ? f.Ksi : "", k === "si" ? f.seKsi : "", f.rmse, f.bic, f.dB, f.wt, k === a.best ? "yes" : ""]); });
+        a.d.S.forEach(function (S, j) { td.push([a.d.name, S, a.d.v[j], rate("mm", par(a.fits.mm), S), rate("hill", par(a.fits.hill), S), rate("si", par(a.fits.si), S), a.d.v[j] - rate(a.best, par(a.fits[a.best]), S)]); });
+        var smax = Math.max.apply(null, a.d.S) * 1.05;
+        for (var q = 0; q <= 150; q++) { var S = smax * q / 150; tc.push([a.d.name, S, rate("mm", par(a.fits.mm), S), rate("hill", par(a.fits.hill), S), rate("si", par(a.fits.si), S)]); }
+      });
+      return { parameters: tp, data_fit: td, curves: tc };
+    })();
+    document.getElementById("eq").textContent = "Michaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n\nEach dataset is fit separately by nonlinear least squares" + (wmode === "prop" ? " (weights 1/v)" : "") + ".\nBIC = n ln(RSS/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
+  }
+  document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
+  rebuildList(); render();
+})();
+</script>
+
+</body></html>

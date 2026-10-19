@@ -1,0 +1,784 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Inhibition Mechanism Fitting</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left; readouts, model table, plots and interpretation right. Stacks on phones.
+   Each inhibitor concentration gets its own colour (c1..c8), lowest [I] first. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --c1: #1b2330; --c2: #3347c9; --c3: #1b8a5a; --c4: #c8640a; --c5: #b23a8a; --c6: #0a8fa6; --c7: #7a6a1a; --c8: #8a3a3a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --c1: #e4e9f1; --c2: #8d9bff; --c3: #4fc58f; --c4: #f0a04b; --c5: #e07fc0; --c6: #4cc3d9; --c7: #d6c35a; --c8: #e08a8a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --c1: #e4e9f1; --c2: #8d9bff; --c3: #4fc58f; --c4: #f0a04b; --c5: #e07fc0; --c6: #4cc3d9; --c7: #d6c35a; --c8: #e08a8a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; padding: 7px 8px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.row { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+.row.off { opacity: 0.4; }
+.row label { font-size: 13px; }
+.row label sub { font-size: 10px; }
+.row output { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.field { display: grid; grid-template-columns: 1fr 120px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field input, .field select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.btn { font: inherit; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 9px 12px; }
+:root[data-theme="dark"] .btn.primary { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0e1320; } }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary:disabled:hover { border-color: var(--accent); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.crv { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.crvhead { display: flex; align-items: center; gap: 8px; }
+.crvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.crvn { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.crv .x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.crv .x:hover { color: var(--warn); }
+.crvin { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 6px; }
+.crvin label { font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.crvin input { font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; min-width: 0; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; font-family: var(--font); }
+tbody tr { cursor: pointer; }
+tbody tr:hover { background: var(--accent-soft); }
+tbody tr.sel { background: var(--accent-soft); }
+tbody tr.best td:first-child { font-weight: 600; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+.interp p { margin: 0 0 8px; max-width: 78ch; }
+.interp p:last-child { margin-bottom: 0; }
+ul.try { margin: 0; padding-left: 18px; }
+ul.try li { margin-bottom: 4px; }
+[hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Inhibition Mechanism Fitting</h1>
+    <p>Fit initial-velocity data collected at several inhibitor concentrations to competitive, uncompetitive, noncompetitive and mixed inhibition, and let BIC say which model the data support. Assumes the cofactor is held at a saturating concentration.</p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2>Data source</h2>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="data" aria-pressed="true">My data</button>
+          <button type="button" data-mode="sim" aria-pressed="false">Simulate</button>
+        </div>
+      </section>
+
+      <section class="panel" id="simPanel" hidden>
+        <h2>Simulated experiment</h2>
+        <div class="field"><label for="simMech">True mechanism</label>
+          <select id="simMech"><option value="comp">competitive</option><option value="uncomp">uncompetitive</option><option value="nc">noncompetitive</option><option value="mixed" selected>mixed</option></select></div>
+        <div id="simRows"></div>
+        <div class="field" style="margin-top:10px"><label for="simS">[S] (× K<sub>m</sub>)</label><input id="simS" type="text" value="0.1, 0.2, 0.5, 1, 2, 4, 8"></div>
+        <div class="field"><label for="simI">[I] (× reference K)</label><input id="simI" type="text" value="0, 0.5, 1, 2, 4"></div>
+        <div class="btns"><button type="button" class="btn" id="rerollBtn">New noise</button></div>
+        <p class="hint">The reference K is K<sub>i</sub> for competitive, noncompetitive and mixed inhibition, and K<sub>ii</sub> for uncompetitive.</p>
+      </section>
+
+      <section class="panel" id="dataPanel">
+        <h2>Your data</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop a file here</b> or click to choose
+          <span>First column [S]; each other column is the velocity at one inhibitor concentration. Put the [I] values in the header row. CSV, TSV or text.</span>
+          <input type="file" id="fileIn" accept=".csv,.tsv,.txt,.dat,text/*" hidden>
+        </label>
+        <details id="pasteBox">
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted velocity table" spellcheck="false" placeholder="Copy the cells from Excel, including the header row of [I] values, and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
+        </details>
+        <h2 style="margin-top:14px">Inhibitor series</h2>
+        <div id="curveList"></div>
+        <div class="btns"><button type="button" class="btn" id="templateBtn">Download template</button><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
+        <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
+      </section>
+
+      <section class="panel">
+        <h2>Fit</h2>
+        <div id="fitRow" style="margin-bottom:12px"><button type="button" class="btn primary" id="fitBtn" style="width:100%">Fit data</button><p class="hint" id="fitHint"></p></div>
+        <div class="field"><label for="wmode">Error model</label>
+          <select id="wmode"><option value="const">constant (unweighted)</option><option value="prop">proportional (weights 1/v)</option></select></div>
+        <div class="field"><label for="cunit">Concentration units</label><input id="cunit" type="text" value="µM"></div>
+        <div class="field"><label for="vunit">Rate units</label><input id="vunit" type="text" value="µM/s"></div>
+        <p class="hint">Units are labels only. Use the same concentration unit for [S] and [I].</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+      <section class="panel" id="exportPanel">
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figures (PNG, light background, legend included)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel to make your own figures)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+      <section class="panel">
+        <h2>Model comparison</h2>
+        <div class="tablewrap" id="tbl"></div>
+        <p class="hint">Click a row to show that model in the plots. BIC = n ln(RSS/n) + k ln(n); lower is better. The weight is the approximate probability of each model among those compared (Δ BIC above 10 is very strong evidence).</p>
+      </section>
+      <section class="panel plot">
+        <h3>Velocity vs. [S]</h3>
+        <svg id="plotA" viewBox="0 0 640 320" role="img" aria-label="Velocity versus substrate with fits at each inhibitor concentration"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+      <section class="panel plot">
+        <h3>Residuals (data − fit)</h3>
+        <svg id="plotB" viewBox="0 0 640 170" role="img" aria-label="Residuals versus substrate"></svg>
+      </section>
+      <section class="panel plot">
+        <div class="plothead">
+          <h3 id="diagTitle">Apparent constants vs. [I]</h3>
+          <div class="seg small" id="diagSeg">
+            <button type="button" data-d="app" aria-pressed="true">Apparent V<sub>max</sub>, K<sub>m</sub></button>
+            <button type="button" data-d="lb" aria-pressed="false">Lineweaver-Burk</button>
+          </div>
+        </div>
+        <div class="two" id="appBox"><svg id="plotC1" viewBox="0 0 320 250" role="img" aria-label="Apparent Vmax versus inhibitor"></svg><svg id="plotC2" viewBox="0 0 320 250" role="img" aria-label="Apparent Km versus inhibitor"></svg></div>
+        <svg id="plotD" viewBox="0 0 640 320" role="img" aria-label="Lineweaver-Burk plot" hidden></svg>
+        <p class="hint" id="diagHint"></p>
+      </section>
+      <section class="panel interp">
+        <h2>What this suggests</h2>
+        <div id="interp"></div>
+      </section>
+      <section class="panel">
+        <h2>Model</h2>
+        <pre class="eq" id="eq"></pre>
+      </section>
+      <section class="panel" id="tryPanel" hidden>
+        <h2>Things to try</h2>
+        <ul class="try">
+          <li>Choose a competitive mechanism, then drop the highest [S] values. Can BIC still tell competitive from mixed?</li>
+          <li>Raise the noise and watch ΔBIC shrink. At what noise level does the true mechanism stop winning?</li>
+          <li>Use only [I] = 0 and 1 × K. How many inhibitor concentrations do you need to separate the mechanisms?</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)", "var(--c8)"];
+  var UNAME = { comp: "Competitive", uncomp: "Uncompetitive", nc: "Noncompetitive", mixed: "Mixed" };
+  function sig(x) { return String(Number(x.toPrecision(3))); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function cu() { return document.getElementById("cunit").value || "conc."; }
+  function vu() { return document.getElementById("vunit").value || "rate"; }
+  function fmtC(v) { return sig(v) + " " + cu(); }
+
+  var sim = { V: 1.6, Km: LOG(12.5), K1: LOG(0.83), K2: LOG(2.62), noise: 6, floor: 0.02, reps: 1, seed: 1 };
+  var state = { mode: "data", sel: "auto", diag: "app", fitted: false };
+  var series = [];   // {name, I, S[], v[]}
+
+  // ---------- random numbers ----------
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  // ---------- rate equation ----------
+  // v = Vmax S / ( Km (1 + I/Ki) + S (1 + I/Kii) ); Ki or Kii = Infinity means no binding to that form.
+  function vel(V, Km, Ki, Kii, S, I) { return V * S / (Km * (1 + I / Ki) + S * (1 + I / Kii)); }
+
+  // ---------- simulation ----------
+  function list(id) { return document.getElementById(id).value.split(/[\s,;]+/).map(parseFloat).filter(function (v) { return isFinite(v) && v >= 0; }).slice(0, 12); }
+  function simulate() {
+    var mech = document.getElementById("simMech").value, Km = Math.pow(10, sim.Km), K1 = Math.pow(10, sim.K1), K2 = Math.pow(10, sim.K2);
+    var Ki = mech === "uncomp" ? Infinity : K1, Kii = mech === "comp" ? Infinity : mech === "nc" ? K1 : K2, ref = mech === "uncomp" ? K2 : K1;
+    var Ss = list("simS").filter(function (m) { return m > 0; }).map(function (m) { return m * Km; }), Is = list("simI").map(function (m) { return m * ref; });
+    if (!Ss.length || !Is.length) return null;
+    var rnd = mulberry(sim.seed * 7919 + 3), out = [];
+    Is.forEach(function (I) {
+      for (var r = 0; r < sim.reps; r++) {
+        var v = Ss.map(function (S) { var t = vel(sim.V, Km, Ki, Kii, S, I); return t + (sim.noise / 100 * t + sim.floor) * gauss(rnd); });
+        out.push({ name: "[I] = " + sig(I), I: I, S: Ss.slice(), v: v });
+      }
+    });
+    return { series: out, truth: { V: sim.V, Km: Km, Ki: Ki, Kii: Kii, mech: mech } };
+  }
+
+  // ---------- user data ----------
+  function parseTable(text, fname) {
+    var delim = null, header = null, rows = [];
+    text.split(/\r?\n/).forEach(function (ln) {
+      if (!ln.trim()) return;
+      if (!delim) delim = ln.indexOf("\t") >= 0 ? /\t/ : ln.indexOf(",") >= 0 ? /,/ : ln.indexOf(";") >= 0 ? /;/ : /\s+/;
+      var cells = ln.trim().split(delim).map(function (c) { return c.trim(); });
+      var nums = cells.map(function (c) { return c === "" ? NaN : Number(c); });
+      if (isFinite(nums[0]) && nums.slice(1).some(isFinite)) rows.push(nums);
+      else if (!rows.length) header = cells;
+    });
+    if (rows.length < 3) return [];
+    var ncol = Math.max.apply(null, rows.map(function (r) { return r.length; })), out = [];
+    for (var j = 1; j < ncol; j++) {
+      var S = [], v = [];
+      rows.forEach(function (r) { if (isFinite(r[0]) && isFinite(r[j])) { S.push(r[0]); v.push(r[j]); } });
+      if (S.length < 3) continue;
+      var h = header && header[j] !== undefined ? header[j] : "", I = NaN, mm = String(h).match(/-?\d*\.?\d+(?:[eE][-+]?\d+)?/);
+      if (mm) I = parseFloat(mm[0]);
+      out.push({ name: h ? h : (fname || "series") + " " + j, I: I, S: S, v: v });
+    }
+    return out;
+  }
+  var EXAMPLE = (function () {
+    var S = [1, 2, 4, 8, 16, 32, 64], I = [0, 0.6, 1.2, 2.4, 4.8];
+    var V = [
+      [0.106099, 0.163015, -0.00192987, 0.032887, 0.0275593], [0.245678, 0.0944671, 0.0324651, 0.0725847, 0.0689894],
+      [0.442628, 0.224395, 0.193149, 0.141506, 0.0241838], [0.577698, 0.374546, 0.322277, 0.209701, 0.125262],
+      [0.922712, 0.63458, 0.479616, 0.345482, 0.185483], [1.1378, 0.830337, 0.67229, 0.467438, 0.307942],
+      [1.35036, 1.04093, 0.830516, 0.564394, 0.402923]];
+    return I.map(function (iv, j) { return { name: "[I] = " + iv, I: iv, S: S.slice(), v: V.map(function (r) { return r[j]; }) }; });
+  })();
+
+  function rebuildList() {
+    var host = document.getElementById("curveList");
+    if (!series.length) { host.innerHTML = '<p class="hint" style="margin:0">No data yet. Drop a file, paste from Excel, or load the example.</p>'; return; }
+    host.innerHTML = series.map(function (c, i) {
+      return '<div class="crv"><div class="crvhead"><span class="crvname" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="crvn">' + c.S.length + ' pts</span>' +
+        '<button type="button" class="x" data-del="' + i + '" aria-label="Remove series">×</button></div>' +
+        '<div class="crvin"><label>[I] for this series<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.I) ? c.I : "") + '"></label></div></div>';
+    }).join("");
+  }
+  function setSeries(list) { series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
+
+  // ---------- Levenberg-Marquardt (generic, log-parameter space) ----------
+  function solve(A, b) {
+    var n = b.length, M = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-300) return null;
+      var tmp = M[c]; M[c] = M[p]; M[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(); t2[j] += 1e-6; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / 1e-6; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 200; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    var jm = jac(best.th), A = [], a, b, i;
+    for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); for (b = 0; b < np; b++) for (i = 0; i < n; i++) A[a][b] += jm.J[i][a] * jm.J[i][b]; }
+    var inv = invert(A), s2 = best.sse / Math.max(n - np, 1);
+    best.n = n; best.np = np; best.s2 = s2;
+    best.cov = inv ? inv.map(function (r) { return r.map(function (v) { return v * s2; }); }) : null;
+    return best;
+  }
+
+  // ---------- global fits of the four mechanisms ----------
+  function weightsFor(v, mode) {
+    var vmax = Math.max.apply(null, v.map(Math.abs)), fl = 0.03 * vmax;
+    return v.map(function (x) { return mode === "prop" ? 1 / Math.max(Math.abs(x), fl) : 1; });
+  }
+  function fitModel(key, P, wmode) {
+    var n = P.v.length, w = weightsFor(P.v, wmode), yW = P.v.map(function (x, i) { return x * w[i]; });
+    var pos = P.I.filter(function (x) { return x > 0; }).sort(function (a, b) { return a - b; }), medI = pos[Math.floor(pos.length / 2)], maxI = pos[pos.length - 1], minI = pos[0];
+    var Ssort = P.S.slice().sort(function (a, b) { return a - b; }), medS = Ssort[Math.floor(n / 2)], minS = Ssort[0], maxS = Ssort[n - 1];
+    var vmax = Math.max.apply(null, P.v), np = key === "mixed" ? 4 : 3;
+    function unpack(th) {
+      var K1 = Math.exp(th[2]), K2 = key === "mixed" ? Math.exp(th[3]) : NaN;
+      return { V: Math.exp(th[0]), Km: Math.exp(th[1]),
+        Ki: key === "comp" || key === "nc" || key === "mixed" ? K1 : Infinity,
+        Kii: key === "uncomp" ? K1 : key === "nc" ? K1 : key === "mixed" ? K2 : Infinity };
+    }
+    function pred(th) { var p = unpack(th); return P.S.map(function (S, i) { return w[i] * vel(p.V, p.Km, p.Ki, p.Kii, S, P.I[i]); }); }
+    var KUP = Math.log(1e3 * maxI), KLO = Math.log(1e-3 * minI);
+    var clamp = function (th) {
+      th[0] = Math.min(Math.max(th[0], Math.log(1e-6 * vmax)), Math.log(1e3 * vmax));
+      th[1] = Math.min(Math.max(th[1], Math.log(1e-3 * minS)), Math.log(1e3 * maxS));
+      for (var j = 2; j < np; j++) th[j] = Math.min(Math.max(th[j], KLO), KUP);
+    };
+    var starts = [];
+    [0.3, 1, 3].forEach(function (kf) {
+      var base = [Math.log(vmax * 1.2), Math.log(medS * kf)];
+      if (key === "mixed") { starts.push(base.concat([Math.log(medI * kf), Math.log(3 * medI * kf)])); starts.push(base.concat([Math.log(3 * medI * kf), Math.log(medI * kf / 3)])); }
+      else starts.push(base.concat([Math.log(medI * kf)]));
+    });
+    var F = lm(pred, yW, starts, clamp), p = unpack(F.th), se = F.cov ? F.cov.map(function (r, i) { return Math.sqrt(Math.max(r[i], 0)); }) : null;
+    var res = { key: key, V: p.V, Km: p.Km, Ki: p.Ki, Kii: p.Kii, np: np, n: n, rss: F.sse, rmse: Math.sqrt(F.s2),
+      seV: se ? p.V * se[0] : NaN, seKm: se ? p.Km * se[1] : NaN, seKi: NaN, seKii: NaN, hitKi: false, hitKii: false, cov: F.cov,
+      bic: n * Math.log(F.sse / n) + (np + 1) * Math.log(n) };
+    if (key === "comp" || key === "nc") res.seKi = se ? p.Ki * se[2] : NaN;
+    if (key === "nc") res.seKii = res.seKi;
+    if (key === "uncomp") res.seKii = se ? p.Kii * se[2] : NaN;
+    if (key === "mixed") { res.seKi = se ? p.Ki * se[2] : NaN; res.seKii = se ? p.Kii * se[3] : NaN; res.hitKi = F.th[2] >= KUP - 1e-3; res.hitKii = F.th[3] >= KUP - 1e-3; }
+    return res;
+  }
+  // separate Michaelis-Menten fit at one inhibitor concentration (model-free apparent constants)
+  function fitMM(S, v, wmode) {
+    if (S.length < 3) return null;
+    var w = weightsFor(v, wmode), yW = v.map(function (x, i) { return x * w[i]; }), vmax = Math.max.apply(null, v), srt = S.slice().sort(function (a, b) { return a - b; }), med = srt[Math.floor(S.length / 2)];
+    function pred(th) { return S.map(function (s, i) { return w[i] * Math.exp(th[0]) * s / (Math.exp(th[1]) + s); }); }
+    var F = lm(pred, yW, [[Math.log(Math.max(vmax, 1e-9) * 1.2), Math.log(med)], [Math.log(Math.max(vmax, 1e-9) * 2), Math.log(med * 4)]],
+      function (th) { th[0] = Math.min(Math.max(th[0], Math.log(1e-6 * Math.max(vmax, 1e-9))), Math.log(1e3 * Math.max(vmax, 1e-9))); th[1] = Math.min(Math.max(th[1], Math.log(srt[0] * 1e-3)), Math.log(srt[srt.length - 1] * 20)); });
+    var V = Math.exp(F.th[0]), K = Math.exp(F.th[1]), se = F.cov ? F.cov.map(function (r, i) { return Math.sqrt(Math.max(r[i], 0)); }) : null;
+    return { V: V, Km: K, seV: se ? V * se[0] : NaN, seKm: se ? K * se[1] : NaN };
+  }
+
+  // ---------- controls ----------
+  var simDefs = [
+    { key: "V", label: "True V<sub>max</sub>", min: 0.1, max: 20, step: 0.1, fmt: function (v) { return sig(v) + " " + vu(); } },
+    { key: "Km", label: "True K<sub>m</sub>", min: -1, max: 3, step: 0.01, fmt: function (v) { return fmtC(Math.pow(10, v)); } },
+    { key: "K1", label: "True K<sub>i</sub> (K<sub>ia</sub> for E)", min: -2, max: 2, step: 0.01, fmt: function (v) { return fmtC(Math.pow(10, v)); } },
+    { key: "K2", label: "True K<sub>ii</sub> (for ES)", min: -2, max: 2, step: 0.01, fmt: function (v) { return fmtC(Math.pow(10, v)); } },
+    { key: "noise", label: "Noise, proportional", min: 0, max: 20, step: 0.5, fmt: function (v) { return sig(v) + " %"; } },
+    { key: "floor", label: "Noise, constant (SD)", min: 0, max: 0.2, step: 0.005, fmt: function (v) { return sig(v) + " " + vu(); } },
+    { key: "reps", label: "Replicates per condition", min: 1, max: 3, step: 1, fmt: function (v) { return String(v); } }
+  ];
+  (function () {
+    var host = document.getElementById("simRows");
+    host.innerHTML = simDefs.map(function (d) {
+      return '<div class="row" id="row_' + d.key + '"><label for="in_' + d.key + '">' + d.label + '</label><output id="out_' + d.key + '"></output>' +
+        '<input type="range" id="in_' + d.key + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"></div>';
+    }).join("");
+    simDefs.forEach(function (d) {
+      var el = document.getElementById("in_" + d.key); el.value = sim[d.key];
+      el.addEventListener("input", function (e) { sim[d.key] = parseFloat(e.target.value); render(); });
+    });
+  })();
+
+  function bindSeg(id, attr, setter) {
+    document.getElementById(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      setter(b.dataset[attr]);
+      Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (x) { x.setAttribute("aria-pressed", x === b); });
+      render();
+    });
+  }
+  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.sel = "auto"; });
+  bindSeg("diagSeg", "d", function (v) { state.diag = v; });
+  document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
+  var dropEl = document.getElementById("drop");
+  function readFile(f) {
+    if (!f) return; var r = new FileReader();
+    r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); };
+    r.readAsText(f);
+  }
+  document.getElementById("fileIn").addEventListener("change", function (e) { readFile(e.target.files[0]); e.target.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFile(e.dataTransfer.files[0]); });
+  document.getElementById("pasteBtn").addEventListener("click", function () {
+    var box = document.getElementById("pasteText"), got = parseTable(box.value, "pasted");
+    if (got.length) { box.value = ""; setSeries(got); }
+  });
+  document.getElementById("curveList").addEventListener("input", function (e) {
+    var el = e.target; if (el.dataset.i === undefined) return;
+    var v = parseFloat(el.value); series[+el.dataset.i].I = isFinite(v) ? v : NaN; state.sel = "auto"; render();
+  });
+  document.getElementById("curveList").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-del]"); if (!b) return;
+    series.splice(+b.dataset.del, 1); state.fitted = false; rebuildList(); render();
+  });
+  document.getElementById("exampleBtn").addEventListener("click", function () {
+    document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
+    setSeries(EXAMPLE.map(function (s) { return { name: s.name, I: s.I, S: s.S.slice(), v: s.v.slice() }; }));
+  });
+  document.getElementById("clearBtn").addEventListener("click", function () { series = []; state.fitted = false; rebuildList(); render(); });
+  // Template: the example data written out in the layout the parser expects, so the format can be seen rather than read.
+  document.getElementById("templateBtn").addEventListener("click", function () {
+    var note = document.getElementById("tmplMsg");
+    var rows = [["[S] (" + cu() + ")"].concat(EXAMPLE.map(function (s) { return "[I] = " + s.I; }))];
+    EXAMPLE[0].S.forEach(function (S, j) { rows.push([S].concat(EXAMPLE.map(function (s) { return Number(s.v[j].toPrecision(3)); }))); });
+    note.textContent = "Preparing the template...";
+    saveFile("inhibition_mechanism_template.csv", csvText(rows)).then(function () {
+      var m = document.getElementById("exportMsg");
+      note.textContent = (m && m.textContent) || "Template saved.";
+      if (m) m.textContent = "";
+    });
+  });
+  document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  document.getElementById("tbl").addEventListener("click", function (e) {
+    var tr = e.target.closest("tr[data-key]"); if (!tr) return;
+    state.sel = state.sel === tr.dataset.key ? "auto" : tr.dataset.key; render();
+  });
+  ["simMech", "simS", "simI", "wmode", "cunit", "vunit"].forEach(function (id) {
+    var el = document.getElementById(id); el.addEventListener("input", function () { if (id !== "wmode" && id !== "cunit" && id !== "vunit") state.sel = "auto"; render(); }); el.addEventListener("change", render);
+  });
+
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w) {
+    return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' +
+      pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>';
+  }
+  function frame(W, H, M, xr, yr, xl, yl, nx, ny) {
+    var sx = function (x) { return M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); };
+    var s = "";
+    ticksFor(yr[0], yr[1], ny || 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    ticksFor(xr[0], xr[1], nx || 6).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+    var zx = xr[0] < 0 && xr[1] > 0 ? sx(0) : M.l, zy = yr[0] < 0 && yr[1] > 0 ? sy(0) : H - M.b;
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + zy + '" y2="' + zy + '" stroke="var(--muted)"/><line x1="' + zx + '" x2="' + zx + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+  function errbar(x, y, se, sy, color) { return isFinite(se) ? '<line x1="' + x + '" x2="' + x + '" y1="' + sy(y - se) + '" y2="' + sy(y + se) + '" stroke="' + color + '" stroke-width="1.4"/>' : ""; }
+
+  // ---------- render ----------
+  // Data preview shown after a file is loaded and before the student presses Fit data.
+  function previewDraw(P, uniq) {
+    showPanels(false);
+    document.getElementById("plotA").closest("section").hidden = false;
+    var Smax = Math.max.apply(null, P.S), vmaxD = Math.max.apply(null, P.v), vminD = Math.min(0, Math.min.apply(null, P.v));
+    var fa = frame(640, 320, { l: 54, r: 14, t: 12, b: 42 }, [0, Smax * 1.05], [vminD, vmaxD * 1.1], "[S] (" + cu() + ")", "v (" + vu() + ")"), s = fa.svg;
+    P.S.forEach(function (x, j) { s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(P.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[uniq.indexOf(P.I[j]) % 8] + '" opacity="0.9"/>'; });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = '<span>[I] (' + esc(cu()) + '):</span>' + uniq.map(function (I, i) { return '<span><i style="background:' + COLORS[i % 8] + '"></i>' + sig(I) + '</span>'; }).join("");
+    document.getElementById("cards").innerHTML = "";
+    document.getElementById("msgs").innerHTML = '<p class="msg">' + P.v.length + ' points at ' + uniq.length + ' inhibitor concentrations loaded. Check the data below, then press <b>Fit data</b> in the panel on the left.</p>';
+  }
+  // ---------- export: PNG figures and CSV tables ----------
+  // Published pages save through the platform's `downloads` capability (the viewer confirms); a locally opened copy downloads directly.
+  var exportTables = {};
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "pin", "ref", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "m1", "m2", "m3"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && document.getElementById(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) {
+        var cs = getComputedStyle(i);
+        if (i.classList.contains("ln") || (parseFloat(cs.borderTopWidth) > 0 && cs.backgroundColor === "rgba(0, 0, 0, 0)")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; }
+        else { item.kind = "dot"; item.color = cs.backgroundColor; }
+      }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = document.getElementById(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function exportNote(t) { var el = document.getElementById("exportMsg"); if (el) el.textContent = t; }
+  function saveFile(filename, data) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: filename, data: data }).then(function () { exportNote("Saved " + filename + "."); }, function (e) {
+          exportNote(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + (e && e.message ? ": " + e.message : "."));
+        });
+      }
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); exportNote("Downloaded " + filename + ".");
+      } catch (e) { exportNote("Saving files is not available in this view."); }
+    });
+  }
+  function setupExport(cfg) {
+    var png = document.getElementById("exportPng"), csv = document.getElementById("exportCsv");
+    png.innerHTML = cfg.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+    csv.innerHTML = cfg.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+    png.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-png]"); if (!b) return; var p = cfg.plots[+b.dataset.png], el = document.getElementById(p.svg);
+      if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+      exportNote("Preparing the figure...");
+      svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(cfg.prefix + "_" + p.file + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+    });
+    csv.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-csv]"); if (!b) return; var t = cfg.tables[+b.dataset.csv], rows = exportTables[t.key];
+      if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+      saveFile(cfg.prefix + "_" + t.file + ".csv", csvText(rows));
+    });
+  }
+
+  setupExport({ prefix: "inhibition_mechanism",
+    plots: [{ svg: "plotA", legend: "legendA", label: "Velocity vs [S] (PNG)", file: "velocity_vs_S" }, { svg: "plotB", legend: null, label: "Residuals (PNG)", file: "residuals" }, { svg: "plotC1", legend: null, label: "Apparent Vmax (PNG)", file: "apparent_Vmax" }, { svg: "plotC2", legend: null, label: "Apparent Km (PNG)", file: "apparent_Km" }, { svg: "plotD", legend: null, label: "Lineweaver-Burk (PNG)", file: "lineweaver_burk" }],
+    tables: [{ key: "parameters", label: "Parameters (CSV)", file: "parameters" }, { key: "data_fit", label: "Data + fitted values (CSV)", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves (CSV)", file: "fit_curves" }] });
+  function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
+  function paramTxt(v, se, hit) { return !isFinite(v) ? "—" : hit ? "→ ∞" : sig(v) + (isFinite(se) ? " ± " + sig(se) : ""); }
+
+  function render() {
+    showPanels(true);
+    var simOn = state.mode === "sim";
+    document.getElementById("fitRow").hidden = simOn; document.getElementById("fitBtn").disabled = !series.length;
+    document.getElementById("fitHint").textContent = !series.length ? "Load data to enable fitting." : state.fitted ? "Fitted. Loading new data starts a fresh fit." : "Data loaded but not yet fitted.";
+    document.getElementById("simPanel").hidden = !simOn; document.getElementById("dataPanel").hidden = simOn; document.getElementById("tryPanel").hidden = !simOn;
+    simDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(sim[d.key]); });
+    var mech = document.getElementById("simMech").value;
+    document.getElementById("row_K1").classList.toggle("off", mech === "uncomp");
+    document.getElementById("row_K2").classList.toggle("off", mech !== "uncomp" && mech !== "mixed");
+
+    var D = simOn ? simulate() : { series: series, truth: null };
+    var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
+    function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC1", "plotC2", "plotD", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); }
+    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a file or paste from Excel in the panel on the left, or choose Load example to see how this works."); return; }
+    var ok = D.series.filter(function (s) { return isFinite(s.I) && s.I >= 0 && s.S.length >= 3; }), skipped = D.series.length - ok.length;
+    var P = { S: [], I: [], v: [] };
+    ok.forEach(function (s) { s.S.forEach(function (x, j) { if (x > 0 && isFinite(s.v[j])) { P.S.push(x); P.I.push(s.I); P.v.push(s.v[j]); } }); });
+    var uniq = P.I.filter(function (x, i) { return P.I.indexOf(x) === i; }).sort(function (a, b) { return a - b; });
+    if (P.v.length < 8 || uniq.length < 2 || uniq[uniq.length - 1] <= 0) { empty(skipped ? "Enter [I] for each series (use 0 for the no-inhibitor series)." : "Need velocities at two or more inhibitor concentrations, including at least one above zero."); return; }
+    if (!simOn && !state.fitted) { previewDraw(P, uniq); return; }
+    var wmode = document.getElementById("wmode").value;
+
+    var keys = ["comp", "uncomp", "nc", "mixed"], fits = {};
+    keys.forEach(function (k) { fits[k] = fitModel(k, P, wmode); });
+    var bmin = Math.min.apply(null, keys.map(function (k) { return fits[k].bic; })), tot = 0;
+    keys.forEach(function (k) { fits[k].dB = fits[k].bic - bmin; fits[k].wt = Math.exp(-fits[k].dB / 2); tot += fits[k].wt; });
+    keys.forEach(function (k) { fits[k].wt /= tot; });
+    var ranked = keys.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; }), best = ranked[0];
+    var selKey = state.sel === "auto" ? best : state.sel, F = fits[selKey], truth = D.truth;
+    // does the winner change under the other error model?
+    var altMode = wmode === "const" ? "prop" : "const", altBics = keys.map(function (k) { return [k, fitModel(k, P, altMode).bic]; }).sort(function (a, b) { return a[1] - b[1]; }), altBest = altBics[0][0];
+
+    // ---- cards
+    var tru = function (v) { return truth && isFinite(v) ? " | true " + sig(v) : ""; };
+    var runner = fits[ranked[1]];
+    cards.innerHTML =
+      '<div class="card hot"><div class="k">' + (selKey === best ? "Best model (BIC)" : "Showing (best: " + UNAME[best] + ")") + '</div><div class="v">' + UNAME[selKey] + '</div><div class="s">weight ' + Math.round(100 * F.wt) + '%' + (selKey === best ? ' | ΔBIC to next ' + sig(runner.dB) : ' | ΔBIC ' + sig(F.dB)) + '</div></div>' +
+      '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + tru(truth && truth.V) + '</div></div>' +
+      '<div class="card"><div class="k">K<sub>m</sub> (' + esc(cu()) + ')</div><div class="v">' + sig(F.Km) + '</div><div class="s">± ' + sig(F.seKm) + ' SE' + tru(truth && truth.Km) + '</div></div>' +
+      '<div class="card"><div class="k">K<sub>i</sub> (binds E)</div><div class="v">' + (isFinite(F.Ki) && !F.hitKi ? sig(F.Ki) : F.hitKi ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKi) && !F.hitKi ? "± " + sig(F.seKi) + " SE" : "") + tru(truth && truth.Ki) + '</div></div>' +
+      '<div class="card"><div class="k">K<sub>ii</sub> (binds ES)</div><div class="v">' + (isFinite(F.Kii) && !F.hitKii ? sig(F.Kii) : F.hitKii ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKii) && !F.hitKii ? "± " + sig(F.seKii) + " SE" : "") + tru(truth && truth.Kii) + '</div></div>';
+
+    // ---- table
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K<sub>m</sub></th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' +
+      ranked.map(function (k) {
+        var f = fits[k];
+        return '<tr data-key="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td>' + UNAME[k] + (k === best ? " (best)" : "") + '</td><td>' + sig(f.V) + '</td><td>' + sig(f.Km) + '</td><td>' + paramTxt(f.Ki, f.seKi, f.hitKi) + '</td><td>' + paramTxt(f.Kii, f.seKii, f.hitKii) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+      }).join("") + '</tbody></table>';
+
+    // ---- messages
+    var m = [];
+    if (skipped) m.push(["warn", skipped + " series ha" + (skipped > 1 ? "ve" : "s") + " no [I] value (or too few points) and " + (skipped > 1 ? "are" : "is") + " not in the fit."]);
+    if (uniq[0] > 0) m.push(["warn", "There is no series at [I] = 0. Without a no-inhibitor control, V<sub>max</sub> and K<sub>m</sub> are poorly anchored."]);
+    if (uniq.length < 4) m.push(["warn", "Only " + uniq.length + " inhibitor concentrations. Telling the mechanisms apart is much easier with four or five, spanning about 0.3 to 5 × K<sub>i</sub>."]);
+    if (selKey === best && runner.dB < 2) m.push(["warn", "<b>The data cannot separate " + UNAME[best] + " from " + UNAME[ranked[1]] + "</b> (ΔBIC = " + sig(runner.dB) + "). Collect more points, replicates, or inhibitor concentrations near K<sub>i</sub>."]);
+    else if (selKey === best && runner.dB < 6) m.push(["", UNAME[best] + " is favoured over " + UNAME[ranked[1]] + " (ΔBIC = " + sig(runner.dB) + ") but the evidence is only moderate."]);
+    else if (selKey === best) m.push(["", UNAME[best] + " is strongly favoured (ΔBIC = " + sig(runner.dB) + " over " + UNAME[ranked[1]] + ")."]);
+    if (altBest !== best) m.push(["warn", "<b>The best model depends on the error model.</b> With " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error the best model is " + UNAME[altBest] + ". Look at the residuals: scatter that is the same size at all velocities means constant error, scatter that grows with v means proportional error. Choose the error model before comparing mechanisms."]);
+    if (F.key === "mixed" && (F.hitKi || F.hitKii)) m.push(["warn", "In the mixed fit, " + (F.hitKi ? "K<sub>i</sub>" : "K<sub>ii</sub>") + " ran to infinity, so the data describe " + (F.hitKi ? "uncompetitive" : "competitive") + " inhibition. Compare the " + (F.hitKi ? "uncompetitive" : "competitive") + " row."]);
+    var big = [["V<sub>max</sub>", F.seV / F.V], ["K<sub>m</sub>", F.seKm / F.Km], ["K<sub>i</sub>", F.seKi / F.Ki], ["K<sub>ii</sub>", F.seKii / F.Kii]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
+    if (big.length && !F.hitKi && !F.hitKii) m.push(["warn", "Poorly determined (SE over 50% of the value): " + big.map(function (x) { return x[0]; }).join(", ") + "."]);
+    msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // ---- plot A
+    var colorOf = function (I) { return COLORS[uniq.indexOf(I) % 8]; };
+    var Smax = Math.max.apply(null, P.S), vmaxD = Math.max.apply(null, P.v), vminD = Math.min(0, Math.min.apply(null, P.v));
+    var fa = frame(640, 320, { l: 54, r: 14, t: 12, b: 42 }, [0, Smax * 1.05], [vminD, Math.max(vmaxD, F.V * 0.9) * 1.05], "[S] (" + cu() + ")", "v (" + vu() + ")");
+    var s = fa.svg, sg = [];
+    for (var i = 0; i <= 160; i++) sg.push(Smax * 1.05 * i / 160);
+    uniq.forEach(function (I) { s += polyline(sg.map(function (x) { return [fa.sx(x), fa.sy(vel(F.V, F.Km, F.Ki, F.Kii, x, I))]; }), colorOf(I), null, 2.2); });
+    P.S.forEach(function (x, j) { s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(P.v[j]).toFixed(1) + '" r="3" fill="' + colorOf(P.I[j]) + '" opacity="0.9"/>'; });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = '<span>[I] (' + esc(cu()) + '):</span>' + uniq.map(function (I) { return '<span><i style="background:' + colorOf(I) + '"></i>' + sig(I) + '</span>'; }).join("") + '<span>lines: ' + UNAME[selKey].toLowerCase() + ' fit</span>';
+
+    // ---- plot B
+    var res = P.S.map(function (x, j) { return P.v[j] - vel(F.V, F.Km, F.Ki, F.Kii, x, P.I[j]); });
+    var rm = Math.max.apply(null, res.map(Math.abs)) * 1.2 || 0.05;
+    var fb = frame(640, 170, { l: 54, r: 14, t: 10, b: 38 }, [0, Smax * 1.05], [-rm, rm], "[S] (" + cu() + ")", "residual");
+    s = fb.svg;
+    P.S.forEach(function (x, j) { s += '<circle cx="' + fb.sx(x).toFixed(1) + '" cy="' + fb.sy(res[j]).toFixed(1) + '" r="2.8" fill="' + colorOf(P.I[j]) + '" opacity="0.9"/>'; });
+    document.getElementById("plotB").innerHTML = s;
+
+    // ---- diagnostic plots
+    var app = document.getElementById("appBox"), lb = document.getElementById("plotD");
+    app.hidden = state.diag !== "app"; lb.toggleAttribute("hidden", state.diag !== "lb");
+    document.getElementById("diagTitle").textContent = state.diag === "app" ? "Apparent constants vs. [I]" : "Lineweaver-Burk (double reciprocal)";
+    var Imax = uniq[uniq.length - 1];
+    if (state.diag === "app") {
+      var ind = uniq.map(function (I) { var S = [], v = []; P.I.forEach(function (x, j) { if (x === I) { S.push(P.S[j]); v.push(P.v[j]); } }); return { I: I, f: fitMM(S, v, wmode) }; });
+      var Va = function (I) { return F.V / (1 + I / F.Kii); }, Ka = function (I) { return F.Km * (1 + I / F.Ki) / (1 + I / F.Kii); };
+      var ig = []; for (i = 0; i <= 80; i++) ig.push(Imax * 1.05 * i / 80);
+      function panel(id, fn, key, seKey, label, color) {
+        var vals = ind.filter(function (d) { return d.f; }).map(function (d) { return d.f[key] + (isFinite(d.f[seKey]) ? d.f[seKey] : 0); }).concat(ig.map(fn));
+        var top = Math.min(Math.max.apply(null, vals), 8 * Math.max.apply(null, ig.map(fn))) * 1.08;
+        var fr = frame(320, 250, { l: 50, r: 10, t: 12, b: 42 }, [0, Imax * 1.05], [0, top], "[I] (" + cu() + ")", label, 5, 5), t = fr.svg;
+        t += polyline(ig.map(function (x) { return [fr.sx(x), fr.sy(fn(x))]; }), "var(--accent)", null, 2.4);
+        ind.forEach(function (d) { if (!d.f || d.f[key] > top) return; t += errbar(fr.sx(d.I), d.f[key], d.f[seKey], fr.sy, "var(--muted)") + '<circle cx="' + fr.sx(d.I).toFixed(1) + '" cy="' + fr.sy(d.f[key]).toFixed(1) + '" r="4" fill="var(--panel)" stroke="' + color + '" stroke-width="2"/>'; });
+        document.getElementById(id).innerHTML = t;
+      }
+      panel("plotC1", Va, "V", "seV", "apparent Vₘₐₓ (" + vu() + ")", "var(--pin)");
+      panel("plotC2", Ka, "Km", "seKm", "apparent Kₘ (" + cu() + ")", "var(--pin)");
+      document.getElementById("diagHint").textContent = "Dots: separate Michaelis-Menten fits at each [I] with their own error bars. Line: the " + UNAME[selKey].toLowerCase() + " model. Competitive: Vₘₐₓ flat, Kₘ rises. Uncompetitive: both fall together. Noncompetitive: Vₘₐₓ falls, Kₘ flat. Mixed: Vₘₐₓ falls and Kₘ shifts.";
+    } else {
+      var xs = P.S.map(function (x) { return 1 / x; }), xmax = Math.max.apply(null, xs) * 1.05, xmin = -1.4 / F.Km;
+      if (xmin < -xmax) xmin = -xmax;
+      var lineY = function (I, x) { return (1 + I / F.Kii) / F.V + (F.Km / F.V) * (1 + I / F.Ki) * x; };
+      var ytop = Math.max.apply(null, uniq.map(function (I) { return lineY(I, xmax); })) * 1.1, ybot = Math.min(0, Math.min.apply(null, uniq.map(function (I) { return lineY(I, xmin); }))) * 1.1;
+      var fd = frame(640, 320, { l: 54, r: 14, t: 12, b: 42 }, [xmin, xmax], [ybot, ytop], "1/[S] (1/" + cu() + ")", "1/v (1/" + vu() + ")"), t2 = fd.svg, off = 0;
+      uniq.forEach(function (I) { t2 += polyline([[fd.sx(xmin), fd.sy(lineY(I, xmin))], [fd.sx(xmax), fd.sy(lineY(I, xmax))]], colorOf(I), null, 2); });
+      P.S.forEach(function (x, j) { var yy = 1 / P.v[j]; if (P.v[j] > 0 && yy <= ytop && yy >= ybot) t2 += '<circle cx="' + fd.sx(1 / x).toFixed(1) + '" cy="' + fd.sy(yy).toFixed(1) + '" r="3" fill="' + colorOf(P.I[j]) + '" opacity="0.9"/>'; else off++; });
+      lb.innerHTML = t2;
+      document.getElementById("diagHint").textContent = "Lines are the " + UNAME[selKey].toLowerCase() + " fit. Competitive lines meet on the y axis, uncompetitive lines are parallel, noncompetitive lines meet on the x axis, mixed lines meet to the left of the y axis. " +
+        (off ? off + " point" + (off > 1 ? "s are" : " is") + " off scale or not positive and not drawn. " : "") + "Reciprocal plots magnify the error in the smallest velocities, so use this plot to see the pattern and the global fit to get the constants.";
+    }
+
+    // ---- interpretation
+    var alpha = F.Kii / F.Ki, txt = [];
+    if (selKey === "comp") txt.push("<b>Competitive.</b> The inhibitor binds only the free enzyme (K<sub>i</sub> = " + fmtC(F.Ki) + "). V<sub>max</sub> is unchanged and the apparent K<sub>m</sub> rises with [I]. This is what an inhibitor that competes with the substrate for the active site would do, but any inhibitor that blocks substrate binding gives the same pattern, so it does not by itself prove the binding site.");
+    else if (selKey === "uncomp") txt.push("<b>Uncompetitive.</b> The inhibitor binds only the enzyme-substrate complex (K<sub>ii</sub> = " + fmtC(F.Kii) + "), so apparent V<sub>max</sub> and K<sub>m</sub> fall by the same factor. The inhibitor needs bound substrate to bind, as for a ligand that recognizes a conformation or surface that exists only in ES, or a product-like species in a later step.");
+    else if (selKey === "nc") txt.push("<b>Noncompetitive.</b> The inhibitor binds free enzyme and ES equally (K<sub>i</sub> = K<sub>ii</sub> = " + fmtC(F.Ki) + "). Apparent V<sub>max</sub> falls and K<sub>m</sub> is unchanged. This suggests a site distinct from the substrate site that does not communicate with it, so substrate binding neither helps nor hinders the inhibitor.");
+    else {
+      txt.push("<b>Mixed.</b> The inhibitor binds both E (K<sub>i</sub> = " + (F.hitKi ? "∞" : fmtC(F.Ki)) + ") and ES (K<sub>ii</sub> = " + (F.hitKii ? "∞" : fmtC(F.Kii)) + "). The ratio K<sub>ii</sub>/K<sub>i</sub> = " + (isFinite(alpha) ? sig(alpha) : "—") + " measures how much substrate binding changes inhibitor binding.");
+      if (isFinite(alpha)) txt.push(alpha > 1.5 ? "Because K<sub>ii</sub> is larger than K<sub>i</sub>, the inhibitor prefers the free enzyme: competitive-leaning mixed inhibition. Substrate binding weakens inhibitor binding, as with a partly overlapping or allosterically coupled site." : alpha < 0.67 ? "Because K<sub>ii</sub> is smaller than K<sub>i</sub>, the inhibitor prefers the ES complex: uncompetitive-leaning mixed inhibition. Substrate binding strengthens inhibitor binding." : "K<sub>i</sub> and K<sub>ii</sub> are close, so this is nearly noncompetitive.");
+    }
+    txt.push("Steady-state kinetics gives the pattern, not the binding site. For a two-substrate enzyme such as ADH the pattern also depends on which substrate was varied and on the cofactor being truly saturating; with sub-saturating cofactor the constants are apparent values. Structural data, binding assays or competition with a known ligand confirm the site.");
+    document.getElementById("interp").innerHTML = txt.map(function (t) { return "<p>" + t + "</p>"; }).join("");
+
+    // ---- equation
+    var eqs = { comp: "v = Vmax [S] / ( Km (1 + [I]/Ki) + [S] )", uncomp: "v = Vmax [S] / ( Km + [S] (1 + [I]/Kii) )", nc: "v = Vmax [S] / ( (Km + [S]) (1 + [I]/Ki) )", mixed: "v = Vmax [S] / ( Km (1 + [I]/Ki) + [S] (1 + [I]/Kii) )" };
+    exportTables = (function () {
+      var tp = [["model", "Vmax", "SE_Vmax", "Km", "SE_Km", "Ki", "SE_Ki", "Kii", "SE_Kii", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best_model"]];
+      keys.forEach(function (k) { var f = fits[k]; tp.push([UNAME[k], f.V, f.seV, f.Km, f.seKm, f.Ki, f.seKi, f.Kii, f.seKii, f.rmse, f.bic, f.dB, f.wt, k === best ? "yes" : ""]); });
+      var td = [["S", "I", "v_observed", "fit_competitive", "fit_uncompetitive", "fit_noncompetitive", "fit_mixed", "residual_shown_model"]];
+      P.S.forEach(function (S, j) { td.push([S, P.I[j], P.v[j]].concat(keys.map(function (k) { var f = fits[k]; return vel(f.V, f.Km, f.Ki, f.Kii, S, P.I[j]); })).concat([P.v[j] - vel(F.V, F.Km, F.Ki, F.Kii, S, P.I[j])])); });
+      var tc = [["I", "S", "v_competitive", "v_uncompetitive", "v_noncompetitive", "v_mixed"]], smax = Math.max.apply(null, P.S) * 1.05;
+      uniq.forEach(function (I) { for (var q = 0; q <= 160; q++) { var S = smax * q / 160; tc.push([I, S].concat(keys.map(function (k) { var f = fits[k]; return vel(f.V, f.Km, f.Ki, f.Kii, S, I); }))); } });
+      return { parameters: tp, data_fit: td, curves: tc };
+    })();
+    document.getElementById("eq").textContent = eqs[selKey] + "\n\nApparent constants at a given [I]:\n  Vmax,app = Vmax / (1 + [I]/Kii)\n  Km,app   = Km (1 + [I]/Ki) / (1 + [I]/Kii)\n\nAll four models are fit to all points together (global fit, nonlinear least squares" + (wmode === "prop" ? ", weights 1/v" : "") + ").\nCompetitive: Kii = ∞.  Uncompetitive: Ki = ∞.  Noncompetitive: Ki = Kii.  Mixed: both free.\nBIC = n ln(RSS/n) + (k + 1) ln(n), with k fitted constants.";
+  }
+  document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
+  rebuildList(); render();
+})();
+</script>
+
+</body></html>

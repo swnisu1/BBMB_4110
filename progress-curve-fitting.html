@@ -1,0 +1,881 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Progress Curve Fitting</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left; readouts, fit plot, residuals and per-curve table right. Stacks on phones.
+   Each starting [S] gets its own colour (c1..c6); grey = true curve or points outside the fit window. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 74ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; padding: 7px 8px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.row { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+.row.off { opacity: 0.4; }
+.row label { font-size: 13px; }
+.row label sub { font-size: 10px; }
+.row output { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.field { display: grid; grid-template-columns: 1fr 110px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field input, .field select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+textarea { height: 170px; resize: vertical; white-space: pre; }
+.check { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; margin-top: 8px; }
+.check input { accent-color: var(--accent); margin-top: 3px; }
+.btn { font: inherit; font-weight: 500; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; padding: 9px 12px; }
+:root[data-theme="dark"] .btn.primary { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0e1320; } }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btn.primary:disabled:hover { border-color: var(--accent); }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 16px; height: 0; border-top: 2.5px solid; vertical-align: middle; margin-right: 5px; }
+.legend i.dot { width: 9px; height: 9px; border: 0; border-radius: 50%; margin-right: 6px; }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 5px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { height: 90px; margin-top: 8px; }
+.crv { border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; margin-bottom: 8px; }
+.crvhead { display: flex; align-items: center; gap: 8px; }
+.crvname { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 500; }
+.crvn { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+.crv .x { font: inherit; font-size: 16px; line-height: 1; border: 0; background: transparent; color: var(--muted); cursor: pointer; padding: 0 4px; }
+.crv .x:hover { color: var(--warn); }
+.crvin { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+.crvin label { font-size: 11.5px; color: var(--muted); display: flex; flex-direction: column; gap: 2px; }
+.crvin input { font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); width: 100%; min-width: 0; }
+.crvin input:invalid, .crvin input[value=""] { border-color: var(--pin); }
+ul.try { margin: 0; padding-left: 18px; }
+ul.try li { margin-bottom: 4px; }
+[hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Progress Curve Fitting</h1>
+    <p>Fit whole reaction time courses to the integrated Michaelis-Menten equation. Run several starting [S] values, each with its own enzyme concentration, and fit them together for one kcat and one K<sub>m</sub>. Simulate a design or paste in your own data.</p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2>Data source</h2>
+        <div class="seg" id="modeSeg">
+          <button type="button" data-mode="data" aria-pressed="true">My data</button>
+          <button type="button" data-mode="sim" aria-pressed="false">Simulate</button>
+        </div>
+      </section>
+
+      <section class="panel" id="simPanel">
+        <h2>Simulated experiment</h2>
+        <div class="field"><label for="mults">Starting [S] (× true K<sub>m</sub>)</label><input id="mults" type="text" value="0.5, 1, 2, 5"></div>
+        <div id="simRows"></div>
+        <label class="check"><input type="checkbox" id="autoE" checked> Adjust [E] for each curve so it reaches 90% conversion at the end of the time course</label>
+        <div class="btns"><button type="button" class="btn" id="rerollBtn">New noise</button></div>
+        <p class="hint">Product inhibition and enzyme inactivation are not in the fitted model. Turning them on shows how a wrong model looks in the residuals.</p>
+      </section>
+
+      <section class="panel" id="dataPanel" hidden>
+        <h2>Your data</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop files here</b> or click to choose
+          <span>One file per curve, or one file with time in the first column and a curve in each other column (plate reader or spectrophotometer export). CSV, TSV or text.</span>
+          <input type="file" id="fileIn" multiple accept=".csv,.tsv,.txt,.dat,text/*" hidden>
+        </label>
+        <details id="pasteBox">
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted time and signal columns" spellcheck="false" placeholder="Copy the cells (time in the first column, one column per curve; a header row is fine) and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Add pasted data</button></div>
+        </details>
+
+        <h2 style="margin-top:14px">Curves</h2>
+        <div id="curveList"></div>
+        <div class="field" id="fillRow" style="margin-top:8px"><label for="fillE">Same [E] (nM) for all</label>
+          <span style="display:flex;gap:6px"><input id="fillE" type="number" min="0.001" step="any"><button type="button" class="btn" id="fillBtn">Apply</button></span></div>
+
+        <h2 style="margin-top:14px">Signal</h2>
+        <div class="field"><label for="sigType">Signal is</label>
+          <select id="sigType"><option value="abs">absorbance</option><option value="conc">product (µM)</option></select></div>
+        <div class="field" id="fEps"><label for="eps">ε (M⁻¹cm⁻¹)</label><input id="eps" type="number" value="6220" min="1" step="10"></div>
+        <div class="field" id="fPath"><label for="pathl">Path length (cm)</label><input id="pathl" type="number" value="1" min="0.01" step="0.05"></div>
+        <div class="field" id="fDir"><label for="dirSel">Absorbance</label>
+          <select id="dirSel"><option value="down">falls (NADPH consumed)</option><option value="up">rises (NADPH formed)</option></select></div>
+        <p class="hint">The first reading of each curve is taken as zero product.</p>
+        <div class="btns"><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear all</button></div>
+      </section>
+
+      <section class="panel">
+        <h2>Fit</h2>
+        <div id="fitRow" style="margin-bottom:12px"><button type="button" class="btn primary" id="fitBtn" style="width:100%">Fit data</button><p class="hint" id="fitHint"></p></div>
+        <div class="seg" id="scopeSeg">
+          <button type="button" data-scope="global" aria-pressed="true">Global (shared)</button>
+          <button type="button" data-scope="single" aria-pressed="false">Each curve</button>
+        </div>
+        <div id="fitRows" style="margin-top:12px"></div>
+        <label class="check"><input type="checkbox" id="optPI"> <span>Include product inhibition
+          <select id="optPIT" aria-label="Type of product inhibition" style="margin-left:6px;font:inherit;font-size:12.5px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)"><option value="comp">competitive</option><option value="nc">noncompetitive</option></select></span></label>
+        <label class="check"><input type="checkbox" id="optKD"> Include enzyme inactivation (first-order)</label>
+        <label class="check"><input type="checkbox" id="fitS0"> Also fit each starting [S] (use when [S]₀ is uncertain, e.g. a poorly soluble substrate)</label>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+      <section class="panel" id="exportPanel">
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figures (PNG, light background, legend included)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel to make your own figures)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+      <section class="panel plot">
+        <div class="plothead">
+          <h3>Product formed vs. <span id="xName">time</span></h3>
+          <div class="seg small" id="xSeg">
+            <button type="button" data-x="t" aria-pressed="true">time</button>
+            <button type="button" data-x="Et" aria-pressed="false">[E] · time</button>
+          </div>
+        </div>
+        <svg id="plotA" viewBox="0 0 640 330" role="img" aria-label="Progress curves with fits"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+      <section class="panel plot">
+        <div class="plothead"><h3>Residuals (data − fit)</h3></div>
+        <svg id="plotB" viewBox="0 0 640 190" role="img" aria-label="Residuals versus time"></svg>
+        <div class="legend"><span>Random scatter around zero is a good fit. A smooth curve or a long run of one sign means the model is missing something.</span></div>
+      </section>
+      <section class="panel">
+        <h2>Per-curve results</h2>
+        <div class="tablewrap" id="tbl"></div>
+        <p class="hint" id="tblHint"></p>
+      </section>
+      <section class="panel">
+        <h2>Model</h2>
+        <pre class="eq" id="eq"></pre>
+      </section>
+      <section class="panel" id="tryPanel">
+        <h2>Things to try</h2>
+        <ul class="try">
+          <li>Fit one curve at a time (Each curve) and note the K<sub>m</sub> errors, then switch to Global.</li>
+          <li>Try 0.1 and 0.2 × K<sub>m</sub> only, then 5 and 10 × K<sub>m</sub> only. Which parameter becomes uncertain in each case?</li>
+          <li>Turn on product inhibition and watch the residuals and the biased K<sub>m</sub>.</li>
+          <li>Switch the x axis to [E] · time. Curves that start at the same [S]₀ but use different [E] should overlap if the enzyme is stable (Selwyn test).</li>
+        </ul>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
+  function sig(x) { return String(Number(x.toPrecision(3))); }
+  function fmtC(uM) { return uM >= 1000 ? sig(uM / 1000) + " mM" : sig(uM) + " µM"; }
+
+  var sim = { kcat: 80, E: LOG(10), Km: LOG(600), dur: 600, noise: 2, Ki: 5, hl: 5, seed: 1 };
+  var fitCfg = { win: 100 };
+  var state = { mode: "data", scope: "global", x: "t", fitted: false };
+
+  // ---------- simulation ----------
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  function simulateOne(S0, E, Km, kcat, T, noise, Ki, kd, seed) {
+    var V = kcat * E / 1000;
+    function rate(t, P) { var S = Math.max(S0 - P, 0); return V * Math.exp(-kd * t) * S / (Km * (1 + P / Ki) + S); }
+    var N = 100, sub = 20, h = T / N / sub, P = 0, t = 0, ts = [0], Ps = [0];
+    for (var i = 0; i < N; i++) {
+      for (var j = 0; j < sub; j++) {
+        var k1 = rate(t, P), k2 = rate(t + h / 2, P + h * k1 / 2), k3 = rate(t + h / 2, P + h * k2 / 2), k4 = rate(t + h, P + h * k3);
+        P += h * (k1 + 2 * k2 + 2 * k3 + k4) / 6; t += h;
+      }
+      ts.push(T * (i + 1) / N); Ps.push(P);
+    }
+    var rnd = mulberry(seed * 9973 + 17), y = Ps.map(function (p) { return p + noise * gauss(rnd); });
+    return { t: ts, P: y, truth: Ps, S0: S0, E: E };
+  }
+  function simulateAll() {
+    var Km = Math.pow(10, sim.Km), T = sim.dur, kcat = sim.kcat;
+    var Ki = sim.Ki >= 5 ? Infinity : Math.pow(10, sim.Ki), kd = sim.hl >= 5 ? 0 : Math.LN2 / Math.pow(10, sim.hl);
+    var mults = document.getElementById("mults").value.split(/[\s,;]+/).map(parseFloat).filter(function (v) { return isFinite(v) && v > 0; }).slice(0, 6);
+    if (!mults.length) mults = [1];
+    var auto = document.getElementById("autoE").checked;
+    var sets = mults.map(function (m, i) {
+      var S0 = m * Km, E = auto ? (0.9 * S0 + Km * Math.LN10) / ((kcat / 1000) * T) : Math.pow(10, sim.E);
+      var d = simulateOne(S0, E, Km, kcat, T, sim.noise, Ki, kd, sim.seed + 31 * i);
+      d.label = fmtC(S0);
+      return d;
+    });
+    return { sets: sets, truth: { kcat: kcat, Km: Km } };
+  }
+
+  // ---------- user data ----------
+  var curves = [];   // {name, t[], y[] (raw signal), S0 (uM), E (nM)}; S0 and E are NaN until the student enters them
+
+  function exampleCurves() {
+    var rnd = mulberry(7), Km = 100, kcat = 25, T = 600, eps = 6220, l = 0.5, A0 = 1.3, out = [];
+    [50, 100, 200, 400].forEach(function (S0) {
+      var E = Math.round((0.9 * S0 + Km * Math.LN10) / ((kcat / 1000) * T) * 10) / 10, V = kcat * E / 1000, P = 0, t = 0, ts = [], ys = [];
+      for (var i = 0; i <= 40; i++) {
+        var target = i * 15;
+        while (t < target) { var S = S0 - P; P += 0.5 * V * S / (Km + S); t += 0.5; }
+        ts.push(target); ys.push(A0 - P * 1e-6 * eps * l + (i > 0 ? 0.0012 * gauss(rnd) : 0));
+      }
+      out.push({ name: "example, " + S0 + " µM", t: ts, y: ys, S0: S0, E: E });
+    });
+    return out;
+  }
+
+  // Read time/signal columns from text (CSV, TSV, spaces). Column 1 is time; every other column is a curve.
+  function parseTable(text, fname) {
+    var delim = null, header = null, rows = [];
+    text.split(/\r?\n/).forEach(function (ln) {
+      if (!ln.trim()) return;
+      if (!delim) delim = ln.indexOf("\t") >= 0 ? /\t/ : ln.indexOf(",") >= 0 ? /,/ : ln.indexOf(";") >= 0 ? /;/ : /\s+/;
+      var cells = ln.trim().split(delim).map(function (c) { return c.trim(); });
+      var nums = cells.map(function (c) { return c === "" ? NaN : Number(c); });
+      if (isFinite(nums[0]) && nums.slice(1).some(isFinite)) rows.push(nums);
+      else if (!rows.length) header = cells;
+    });
+    if (rows.length < 5) return [];
+    var ncol = Math.max.apply(null, rows.map(function (r) { return r.length; })), out = [];
+    for (var j = 1; j < ncol; j++) {
+      var t = [], y = [];
+      rows.forEach(function (r) { if (isFinite(r[0]) && isFinite(r[j])) { t.push(r[0]); y.push(r[j]); } });
+      if (t.length < 5) continue;
+      var nm = header && header[j] && !isFinite(Number(header[j])) ? header[j] : (fname || "pasted") + (ncol > 2 ? " " + j : "");
+      var c = { name: nm, t: t, y: y, S0: NaN, E: NaN };
+      var ms = nm.match(/(\d+(?:\.\d+)?)\s*(?:u|µ|μ)M\b/i), me = nm.match(/(\d+(?:\.\d+)?)\s*nM\b/i);
+      if (ms) c.S0 = parseFloat(ms[1]); if (me) c.E = parseFloat(me[1]);
+      out.push(c);
+    }
+    return out;
+  }
+  function addCurves(list) { list.forEach(function (c) { if (curves.length < 6) curves.push(c); }); state.fitted = false; rebuildCurveList(); render(); }
+
+  function rebuildCurveList() {
+    var host = document.getElementById("curveList");
+    if (!curves.length) { host.innerHTML = '<p class="hint" style="margin:0">No curves yet. Drop a file, paste from Excel, or load the example.</p>'; return; }
+    host.innerHTML = curves.map(function (c, i) {
+      return '<div class="crv"><div class="crvhead"><i class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;background:' + COLORS[i % 6] + '"></i>' +
+        '<span class="crvname" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="crvn">' + c.t.length + ' pts</span>' +
+        '<button type="button" class="x" data-del="' + i + '" aria-label="Remove curve">×</button></div>' +
+        '<div class="crvin"><label>[S]₀ (µM)<input type="number" min="0" step="any" data-f="S0" data-i="' + i + '" value="' + (isFinite(c.S0) ? c.S0 : "") + '"></label>' +
+        '<label>[E] (nM)<input type="number" min="0" step="any" data-f="E" data-i="' + i + '" value="' + (isFinite(c.E) ? c.E : "") + '"></label></div></div>';
+    }).join("");
+  }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  function parseData() {
+    var typ = document.getElementById("sigType").value, eps = parseFloat(document.getElementById("eps").value),
+        l = parseFloat(document.getElementById("pathl").value), dir = document.getElementById("dirSel").value, skipped = 0, sets = [];
+    curves.forEach(function (c) {
+      if (!(c.S0 > 0) || !(c.E > 0) || c.t.length < 5) { skipped++; return; }
+      var P;
+      if (typ === "abs") { var f = 1e6 / (eps * l), a0 = c.y[0]; P = c.y.map(function (a) { return (dir === "down" ? a0 - a : a - a0) * f; }); }
+      else P = c.y.slice();
+      sets.push({ t: c.t, P: P, S0: c.S0, E: c.E, label: fmtC(c.S0), idx: curves.indexOf(c) });
+    });
+    return sets.length ? { sets: sets, truth: null, skipped: skipped } : { sets: null, skipped: skipped };
+  }
+
+  // ---------- integrated Michaelis-Menten ----------
+  // [P] = S0 - Km W( (S0/Km) exp((S0 - V t)/Km) ); W solved in log space (Newton on e^u + u = L, u = ln w).
+  function lambertLog(L) {
+    var u = L > 1 ? Math.log(L) : L;
+    for (var i = 0; i < 60; i++) { var e = Math.exp(u), d = (e + u - L) / (e + 1); u -= d; if (Math.abs(d) < 1e-13) break; }
+    return Math.exp(u);
+  }
+  function modelP(V, Km, S0, t) { return S0 - Km * lambertLog(Math.log(S0 / Km) + (S0 - V * t) / Km); }
+
+  // ---------- Levenberg-Marquardt (generic) ----------
+  function solve(A, b) {
+    var n = b.length, M = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-300) return null;
+      var tmp = M[c]; M[c] = M[p]; M[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(); t2[j] += 1e-6; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / 1e-6; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 200; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    var jm = jac(best.th), A = [], a, b, i;
+    for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); for (b = 0; b < np; b++) for (i = 0; i < n; i++) A[a][b] += jm.J[i][a] * jm.J[i][b]; }
+    var inv = invert(A), s2 = best.sse / Math.max(n - np, 1);
+    best.n = n; best.np = np; best.s2 = s2;
+    best.cov = inv ? inv.map(function (r) { return r.map(function (v) { return v * s2; }); }) : null;
+    return best;
+  }
+
+  // Curves with product inhibition and/or enzyme inactivation have no closed form: integrate dP/dt with RK4.
+  //   competitive:     dP/dt = V e^(-kd t) S / ( Km (1 + P/Ki) + S )
+  //   noncompetitive:  dP/dt = V e^(-kd t) S / ( (Km + S)(1 + P/Ki) )
+  function odeP(V, Km, S0, Ki, kd, pit, ts) {
+    function rate(t, P) {
+      var S = Math.max(S0 - P, 0), f = Math.exp(-kd * t);
+      return pit === "nc" ? V * f * S / ((Km + S) * (1 + P / Ki)) : V * f * S / (Km * (1 + P / Ki) + S);
+    }
+    var out = [], P = 0, t = 0;
+    for (var i = 0; i < ts.length; i++) {
+      var dt = ts[i] - t;
+      if (dt > 0) {
+        var n = 12, h = dt / n;
+        for (var j = 0; j < n; j++) {
+          var k1 = rate(t, P), k2 = rate(t + h / 2, P + h * k1 / 2), k3 = rate(t + h / 2, P + h * k2 / 2), k4 = rate(t + h, P + h * k3);
+          P += h * (k1 + 2 * k2 + 2 * k3 + k4) / 6; t += h;
+        }
+      }
+      out.push(Math.min(P, S0));
+    }
+    return out;
+  }
+  // p = {kcat, Km, S0, Ki (Infinity = none), kd (0 = none), pit}
+  function curveVals(p, E, ts) {
+    var V = p.kcat * E / 1000;
+    if (p.Ki === Infinity && !p.kd) return ts.map(function (x) { return modelP(V, p.Km, p.S0, x); });
+    return odeP(V, p.Km, p.S0, p.Ki, p.kd || 0, p.pit, ts);
+  }
+
+  // Fit a group of curves with shared kcat and Km (V_i = kcat * E_i); a single curve is the n = 1 case.
+  // opts: {pi: product inhibition, pit: "comp" | "nc", kd: enzyme inactivation}
+  function fitGroup(sets, fitS0, opts) {
+    opts = opts || {};
+    var y = [].concat.apply([], sets.map(function (s) { return s.P; }));
+    var maxS0 = Math.max.apply(null, sets.map(function (s) { return s.S0; })), KMAX = Math.log(50 * maxS0);
+    var Tmin = Math.min.apply(null, sets.map(function (s) { return s.t[s.t.length - 1]; })), Tmax = Math.max.apply(null, sets.map(function (s) { return s.t[s.t.length - 1]; }));
+    var ix = 2, iKi = opts.pi ? ix++ : -1, iKd = opts.kd ? ix++ : -1, i0 = ix;
+    var KIMIN = Math.log(0.1), KIMAX = Math.log(1e4 * maxS0), KDMIN = Math.log(1e-7), KDMAX = Math.log(20 / Tmin);
+    function pred(th) {
+      var out = [], kc = Math.exp(th[0]), Km = Math.exp(th[1]), Ki = opts.pi ? Math.exp(th[iKi]) : Infinity, kd = opts.kd ? Math.exp(th[iKd]) : 0;
+      sets.forEach(function (s, i) {
+        var vals = curveVals({ kcat: kc, Km: Km, S0: fitS0 ? Math.exp(th[i0 + i]) : s.S0, Ki: Ki, kd: kd, pit: opts.pit }, s.E, s.t);
+        for (var j = 0; j < vals.length; j++) out.push(vals[j]);
+      });
+      return out;
+    }
+    var starts = [];
+    var medS0 = sets.map(function (s) { return s.S0; }).sort(function (a, b) { return a - b; })[Math.floor(sets.length / 2)];
+    [0.2, 1, 5].forEach(function (kf) {
+      var Km0 = kf * medS0, ks = sets.map(function (s) {
+        var k0 = Math.max(3, Math.round(s.t.length * 0.08)), sxy = 0, sxx = 0;
+        for (var i = 1; i <= k0 && i < s.t.length; i++) { sxy += s.t[i] * s.P[i]; sxx += s.t[i] * s.t[i]; }
+        var slope = sxx > 0 ? sxy / sxx : 0, V0 = slope > 0 ? slope * (s.S0 + Km0) / s.S0 : s.S0 / (s.t[s.t.length - 1] || 1);
+        return V0 / s.E * 1000;
+      }).sort(function (a, b) { return a - b; });
+      var th = [Math.log(ks[Math.floor(ks.length / 2)]), Math.log(Km0)];
+      if (opts.pi) th.push(Math.log(maxS0));
+      if (opts.kd) th.push(Math.log(1 / (3 * Tmax)));
+      if (fitS0) sets.forEach(function (s) { th.push(Math.log(s.S0)); });
+      starts.push(th);
+    });
+    var F = lm(pred, y, starts, function (th) {
+      if (th[1] > KMAX) th[1] = KMAX;
+      if (opts.pi) th[iKi] = Math.min(Math.max(th[iKi], KIMIN), KIMAX);
+      if (opts.kd) th[iKd] = Math.min(Math.max(th[iKd], KDMIN), KDMAX);
+    });
+    var kc = Math.exp(F.th[0]), Km = Math.exp(F.th[1]), se = F.cov ? F.cov.map(function (r, i) { return Math.sqrt(Math.max(r[i], 0)); }) : null;
+    var Ki = opts.pi ? Math.exp(F.th[iKi]) : Infinity, kd = opts.kd ? Math.exp(F.th[iKd]) : 0;
+    return {
+      kcat: kc, Km: Km, seK: se ? kc * se[0] : NaN, seKm: se ? Km * se[1] : NaN, corr: F.cov ? F.cov[0][1] / Math.sqrt(F.cov[0][0] * F.cov[1][1]) : NaN,
+      seSpec: F.cov ? (kc / Km) * Math.sqrt(Math.max(F.cov[0][0] + F.cov[1][1] - 2 * F.cov[0][1], 0)) : NaN,
+      Ki: Ki, seKi: opts.pi && se ? Ki * se[iKi] : NaN, kd: kd, seKd: opts.kd && se ? kd * se[iKd] : NaN, pit: opts.pit,
+      piNone: !!opts.pi && Ki > 50 * maxS0, kdNone: !!opts.kd && kd < Math.LN2 / (20 * Tmax),
+      S0: sets.map(function (s, i) { return fitS0 ? Math.exp(F.th[i0 + i]) : s.S0; }),
+      seS0: sets.map(function (s, i) { return fitS0 && se ? Math.exp(F.th[i0 + i]) * se[i0 + i] : NaN; }),
+      rmse: Math.sqrt(F.s2), n: F.n, np: F.np, sse: F.sse, bic: F.n * Math.log(F.sse / F.n) + (F.np + 1) * Math.log(F.n),
+      unbound: F.th[1] >= KMAX - 1e-3
+    };
+  }
+
+  // ---------- controls ----------
+  var simDefs = [
+    { key: "Km", label: "True K<sub>m</sub>", min: 1, max: 4, step: 0.01, fmt: function (v) { return fmtC(Math.pow(10, v)); } },
+    { key: "kcat", label: "True k<sub>cat</sub>", min: 5, max: 300, step: 1, fmt: function (v) { return Math.round(v) + " s⁻¹"; } },
+    { key: "E", label: "[Enzyme] (when not auto-adjusted)", min: 0, max: 3, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)) + " nM"; }, off: "auto" },
+    { key: "dur", label: "Time course length", min: 120, max: 3600, step: 30, fmt: function (v) { return Math.round(v) + " s (" + sig(v / 60) + " min)"; } },
+    { key: "noise", label: "Noise (SD of product)", min: 0, max: 10, step: 0.5, fmt: function (v) { return sig(v) + " µM"; } },
+    { key: "Ki", label: "Product inhibition, K<sub>i</sub>(P)", min: 1, max: 5, step: 0.01, fmt: function (v) { return v >= 5 ? "off" : fmtC(Math.pow(10, v)); } },
+    { key: "hl", label: "Enzyme half-life", min: 2, max: 5, step: 0.01, fmt: function (v) { return v >= 5 ? "off" : Math.round(Math.pow(10, v)) + " s"; } }
+  ];
+  var fitDefs = [{ key: "win", label: "Fit window (% of each time course)", min: 5, max: 100, step: 1, fmt: function (v) { return Math.round(v) + "%"; } }];
+  function buildRows(host, defs, obj) {
+    host.innerHTML = defs.map(function (d) {
+      return '<div class="row" id="row_' + d.key + '"><label for="in_' + d.key + '">' + d.label + '</label><output id="out_' + d.key + '"></output>' +
+        '<input type="range" id="in_' + d.key + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"></div>';
+    }).join("");
+    defs.forEach(function (d) {
+      var el = document.getElementById("in_" + d.key); el.value = obj[d.key];
+      el.addEventListener("input", function (e) { obj[d.key] = parseFloat(e.target.value); render(); });
+    });
+  }
+  buildRows(document.getElementById("simRows"), simDefs, sim);
+  buildRows(document.getElementById("fitRows"), fitDefs, fitCfg);
+
+  function bindSeg(id, attr, setter) {
+    document.getElementById(id).addEventListener("click", function (e) {
+      var b = e.target.closest("button"); if (!b) return;
+      setter(b.dataset[attr]);
+      Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (x) { x.setAttribute("aria-pressed", x === b); });
+      render();
+    });
+  }
+  bindSeg("modeSeg", "mode", function (v) { state.mode = v; });
+  bindSeg("scopeSeg", "scope", function (v) { state.scope = v; });
+  bindSeg("xSeg", "x", function (v) { state.x = v; });
+  document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
+  function readFiles(files) {
+    var list = Array.prototype.slice.call(files).slice(0, 6), pending = list.length, found = [];
+    if (!pending) return;
+    list.forEach(function (f, k) {
+      var r = new FileReader();
+      r.onload = function () { found[k] = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (--pending === 0) addCurves([].concat.apply([], found.filter(Boolean))); };
+      r.onerror = function () { if (--pending === 0) addCurves([].concat.apply([], found.filter(Boolean))); };
+      r.readAsText(f);
+    });
+  }
+  var dropEl = document.getElementById("drop");
+  document.getElementById("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });
+  document.getElementById("pasteBtn").addEventListener("click", function () {
+    var box = document.getElementById("pasteText"), got = parseTable(box.value, "pasted");
+    if (got.length) { box.value = ""; addCurves(got); }
+  });
+  document.getElementById("curveList").addEventListener("input", function (e) {
+    var el = e.target; if (!el.dataset || el.dataset.i === undefined) return;
+    var v = parseFloat(el.value); curves[+el.dataset.i][el.dataset.f] = isFinite(v) ? v : NaN; render();
+  });
+  document.getElementById("curveList").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-del]"); if (!b) return;
+    curves.splice(+b.dataset.del, 1); state.fitted = false; rebuildCurveList(); render();
+  });
+  document.getElementById("fillBtn").addEventListener("click", function () {
+    var v = parseFloat(document.getElementById("fillE").value); if (!(v > 0)) return;
+    curves.forEach(function (c) { c.E = v; }); rebuildCurveList(); render();
+  });
+  document.getElementById("exampleBtn").addEventListener("click", function () {
+    curves = []; document.getElementById("sigType").value = "abs"; document.getElementById("eps").value = 6220; document.getElementById("pathl").value = 0.5;
+    document.getElementById("dirSel").value = "down"; addCurves(exampleCurves());
+  });
+  document.getElementById("clearBtn").addEventListener("click", function () { curves = []; state.fitted = false; rebuildCurveList(); render(); });
+  document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  ["mults", "autoE", "sigType", "eps", "pathl", "dirSel", "fitS0", "optPI", "optPIT", "optKD"].forEach(function (id) {
+    var el = document.getElementById(id); el.addEventListener("input", render); el.addEventListener("change", render);
+  });
+  rebuildCurveList();
+
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(4))); }
+  function polyline(pts, color, dash, w) {
+    return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.4) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' +
+      pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>';
+  }
+  function frame(W, H, M, xr, yr, xl, yl) {
+    var sx = function (x) { return M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); };
+    var s = "";
+    ticksFor(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    ticksFor(xr[0], xr[1], 6).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + (H - M.b) + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(13 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+
+  // ---------- render ----------
+  // Data preview shown after files are loaded and before the student presses Fit data.
+  function previewDraw() {
+    showPanels(false);
+    document.getElementById("plotA").closest("section").hidden = false;
+    var typ = document.getElementById("sigType").value, eps = parseFloat(document.getElementById("eps").value), l = parseFloat(document.getElementById("pathl").value), dir = document.getElementById("dirSel").value;
+    var conv = typ === "abs" && eps > 0 && l > 0, missing = 0, npts = 0, tmax = 0, ymin = 0, ymax = 0;
+    var lines = curves.map(function (c) {
+      var P = conv ? c.y.map(function (a) { return (dir === "down" ? c.y[0] - a : a - c.y[0]) * 1e6 / (eps * l); }) : c.y.slice();
+      if (!(c.S0 > 0) || !(c.E > 0)) missing++;
+      npts += c.t.length; tmax = Math.max(tmax, c.t[c.t.length - 1]); ymin = Math.min(ymin, Math.min.apply(null, P)); ymax = Math.max(ymax, Math.max.apply(null, P));
+      return P;
+    });
+    var fa = frame(640, 330, { l: 58, r: 14, t: 12, b: 42 }, [0, tmax], [ymin, ymax * 1.08], "time (s)", conv || typ === "conc" ? "[product] (µM)" : "signal"), s = fa.svg;
+    curves.forEach(function (c, i) { c.t.forEach(function (x, j) { s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(lines[i][j]).toFixed(1) + '" r="2.5" fill="' + COLORS[i % 6] + '" opacity="0.85"/>'; }); });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = curves.map(function (c, i) { return '<span><i class="dot" style="background:' + COLORS[i % 6] + '"></i>' + esc(c.name) + '</span>'; }).join("");
+    document.getElementById("cards").innerHTML = "";
+    document.getElementById("msgs").innerHTML = '<p class="msg' + (missing ? " warn" : "") + '">' + curves.length + ' curve' + (curves.length > 1 ? "s" : "") + ' (' + npts + ' points) loaded. ' +
+      (missing ? "Enter [S]₀ and [E] for " + (missing > 1 ? "each curve" : "the curve") + " in the panel on the left, then press <b>Fit data</b>." : "Check the data below, then press <b>Fit data</b> in the panel on the left.") + '</p>';
+  }
+  // ---------- export: PNG figures and CSV tables ----------
+  // Published pages save through the platform's `downloads` capability (the viewer confirms); a locally opened copy downloads directly.
+  var exportTables = {};
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "pin", "ref", "c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "m1", "m2", "m3"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && document.getElementById(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) {
+        var cs = getComputedStyle(i);
+        if (i.classList.contains("ln") || (parseFloat(cs.borderTopWidth) > 0 && cs.backgroundColor === "rgba(0, 0, 0, 0)")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; }
+        else { item.kind = "dot"; item.color = cs.backgroundColor; }
+      }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = document.getElementById(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function exportNote(t) { var el = document.getElementById("exportMsg"); if (el) el.textContent = t; }
+  function saveFile(filename, data) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) {
+        return dl.save({ filename: filename, data: data }).then(function () { exportNote("Saved " + filename + "."); }, function (e) {
+          exportNote(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + (e && e.message ? ": " + e.message : "."));
+        });
+      }
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); exportNote("Downloaded " + filename + ".");
+      } catch (e) { exportNote("Saving files is not available in this view."); }
+    });
+  }
+  function setupExport(cfg) {
+    var png = document.getElementById("exportPng"), csv = document.getElementById("exportCsv");
+    png.innerHTML = cfg.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+    csv.innerHTML = cfg.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+    png.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-png]"); if (!b) return; var p = cfg.plots[+b.dataset.png], el = document.getElementById(p.svg);
+      if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+      exportNote("Preparing the figure...");
+      svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(cfg.prefix + "_" + p.file + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+    });
+    csv.addEventListener("click", function (e) {
+      var b = e.target.closest("button[data-csv]"); if (!b) return; var t = cfg.tables[+b.dataset.csv], rows = exportTables[t.key];
+      if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+      saveFile(cfg.prefix + "_" + t.file + ".csv", csvText(rows));
+    });
+  }
+
+  setupExport({ prefix: "progress_curve",
+    plots: [{ svg: "plotA", legend: "legendA", label: "Progress curves (PNG)", file: "fit" }, { svg: "plotB", legend: null, label: "Residuals (PNG)", file: "residuals" }],
+    tables: [{ key: "parameters", label: "Parameters (CSV)", file: "parameters" }, { key: "data_fit", label: "Data + fitted values (CSV)", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves (CSV)", file: "fit_curves" }] });
+  function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
+  function runsZ(res) {
+    var np = 0, nn = 0, runs = 0, last = 0;
+    res.forEach(function (r) { var sg = r >= 0 ? 1 : -1; if (sg > 0) np++; else nn++; if (sg !== last) runs++; last = sg; });
+    var N = np + nn, mu = 2 * np * nn / N + 1, v = 2 * np * nn * (2 * np * nn - N) / (N * N * (N - 1));
+    return v > 0 ? (runs - mu) / Math.sqrt(v) : 0;
+  }
+
+  function render() {
+    showPanels(true);
+    var isAbs = document.getElementById("sigType").value === "abs", fitS0 = document.getElementById("fitS0").checked;
+    simDefs.forEach(function (d) {
+      var out = document.getElementById("out_" + d.key), auto = document.getElementById("autoE").checked;
+      out.textContent = (d.off && auto) ? "auto" : d.fmt(sim[d.key]);
+      if (d.off) document.getElementById("row_" + d.key).classList.toggle("off", auto);
+    });
+    fitDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(fitCfg[d.key]); });
+    document.getElementById("simPanel").hidden = state.mode !== "sim";
+    document.getElementById("dataPanel").hidden = state.mode !== "data";
+    document.getElementById("tryPanel").hidden = state.mode !== "sim";
+    document.getElementById("fEps").hidden = !isAbs; document.getElementById("fPath").hidden = !isAbs; document.getElementById("fDir").hidden = !isAbs;
+    document.getElementById("xName").textContent = state.x === "t" ? "time" : "[E] · time";
+
+    var D = state.mode === "sim" ? simulateAll() : parseData();
+    var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
+    document.getElementById("fitRow").hidden = state.mode === "sim"; document.getElementById("fitBtn").disabled = !curves.length;
+    document.getElementById("fitHint").textContent = !curves.length ? "Load data to enable fitting." : state.fitted ? "Fitted. Loading new data starts a fresh fit." : "Data loaded but not yet fitted.";
+    if (state.mode === "data" && !state.fitted && curves.length) { previewDraw(); return; }
+    if (!D || !D.sets) {
+      showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg' + (curves.length ? ' warn' : '') + '">' + (curves.length ?'Enter [S]₀ and [E] for each curve to start the fit.' : 'Add data to start: drop a file, paste from Excel, or load the example.') + '</p>';
+      ["plotA", "plotB", "tbl", "legendA"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); return;
+    }
+    var sets = D.sets, multi = sets.length > 1;
+    // apply the fit window per curve
+    sets.forEach(function (s) {
+      var tw = s.t[s.t.length - 1] * fitCfg.win / 100; s.tw = tw; s.k = 0;
+      for (var i = 0; i < s.t.length; i++) if (s.t[i] <= tw + 1e-9) s.k = i + 1;
+    });
+    var minPts = fitS0 ? 6 : 5;
+    if (sets.some(function (s) { return s.k < minPts; })) { msgs.innerHTML = '<p class="msg warn">The fit window leaves too few points on one curve. Widen it.</p>'; return; }
+    var win = sets.map(function (s) { return { t: s.t.slice(0, s.k), P: s.P.slice(0, s.k), S0: s.S0, E: s.E }; });
+    var global = state.scope === "global" && multi;
+    var opts = { pi: document.getElementById("optPI").checked, pit: document.getElementById("optPIT").value, kd: document.getElementById("optKD").checked };
+    var extended = opts.pi || opts.kd;
+    var G = global ? fitGroup(win, fitS0, opts) : null;
+    var singles = win.map(function (w) { return fitGroup([w], fitS0, opts); });
+    // per-curve fitted parameters used to draw the curves
+    var par = sets.map(function (s, i) {
+      var f = global ? G : singles[i];
+      return { kcat: f.kcat, Km: f.Km, S0: global ? G.S0[i] : singles[i].S0[0], Ki: f.Ki, kd: f.kd, pit: f.pit };
+    });
+    var R = global ? G : singles[0];
+    // BIC comparison against the plain integrated Michaelis-Menten model (a group fit, or a single curve)
+    var plain = extended && (global || !multi) ? fitGroup(win.slice(0, global ? win.length : 1), fitS0, {}) : null;
+    var truth = D.truth;
+
+    // ---- cards
+    var kcatTxt = R.unbound ? "undetermined" : sig(R.kcat) + " s⁻¹", kmTxt = R.unbound ? "undetermined" : fmtC(R.Km);
+    var e1 = multi && !global ? "(curve 1 of " + sets.length + ")" : "";
+    cards.innerHTML =
+      '<div class="card"><div class="k">k<sub>cat</sub> ' + e1 + '</div><div class="v">' + kcatTxt + '</div><div class="s">' + (!R.unbound && isFinite(R.seK) ? '± ' + sig(R.seK) + ' SE' : '') + (truth ? ' | true ' + sig(truth.kcat) : '') + '</div></div>' +
+      '<div class="card"><div class="k">K<sub>m</sub> ' + e1 + '</div><div class="v">' + kmTxt + '</div><div class="s">' + (!R.unbound && isFinite(R.seKm) ? '± ' + sig(R.seKm) + ' SE' : '') + (truth ? ' | true ' + sig(truth.Km) : '') + '</div></div>' +
+      '<div class="card"><div class="k">k<sub>cat</sub>/K<sub>m</sub> (M⁻¹s⁻¹)</div><div class="v">' + Math.round(R.kcat / R.Km * 1e6).toLocaleString("en-US") + '</div><div class="s">' + (isFinite(R.seSpec) ? '± ' + Math.round(R.seSpec * 1e6).toLocaleString("en-US") + ' SE' : '') + (truth ? ' | true ' + Math.round(truth.kcat / truth.Km * 1e6).toLocaleString("en-US") : '') + '</div></div>' +
+      '<div class="card"><div class="k">Fit quality</div><div class="v">' + sig(R.rmse) + '</div><div class="s">RMSE µM' + (truth ? ' | noise SD ' + sig(sim.noise) : '') + (isFinite(R.corr) && !R.unbound ? ' | r(k,K) ' + sig(R.corr) : '') + '</div></div>';
+
+    var extra = "";
+    if (opts.pi) extra += '<div class="card"><div class="k">K<sub>i</sub>(P), ' + (opts.pit === "nc" ? "noncompetitive" : "competitive") + '</div><div class="v">' + (R.piNone ? "not detected" : fmtC(R.Ki)) + '</div><div class="s">' + (!R.piNone && isFinite(R.seKi) ? "± " + sig(R.seKi) + " SE" : "") + (truth && sim.Ki < 5 && opts.pit === "comp" ? " | true " + fmtC(Math.pow(10, sim.Ki)) : "") + '</div></div>';
+    if (opts.kd) extra += '<div class="card"><div class="k">Enzyme half-life</div><div class="v">' + (R.kdNone ? "not detected" : sig(Math.LN2 / R.kd) + " s") + '</div><div class="s">' + (!R.kdNone && isFinite(R.seKd) ? "k<sub>d</sub> " + sig(R.kd) + " ± " + sig(R.seKd) + " s⁻¹" : "") + (truth && sim.hl < 5 ? " | true " + sig(Math.pow(10, sim.hl)) + " s" : "") + '</div></div>';
+    cards.innerHTML += extra;
+
+    // ---- messages
+    var m = [], worst = { z: 99, i: -1 };
+    if (plain) {
+      var dB = plain.bic - R.bic;
+      m.push([dB > 6 ? '' : 'warn', '<b>BIC comparison:</b> plain integrated Michaelis-Menten BIC = ' + sig(plain.bic) + ', this model = ' + sig(R.bic) + ' (ΔBIC = ' + sig(dB) + '). ' +
+        (dB > 10 ? 'The extra term(s) are very strongly supported.' : dB > 6 ? 'The extra term(s) are strongly supported.' : dB > 2 ? 'The extra term(s) are modestly supported.' : dB > -2 ? 'The extra term(s) are not justified; the plain model is adequate.' : 'The plain model is preferred.')]);
+    }
+    if (D.skipped) m.push(['warn', D.skipped + ' curve' + (D.skipped > 1 ? 's are' : ' is') + ' not in the fit: enter [S]₀ and [E] for ' + (D.skipped > 1 ? 'each' : 'it') + '.']);
+    win.forEach(function (w, i) {
+      var pv = curveVals(par[i], w.E, w.t), res = w.P.map(function (p, j) { return p - pv[j]; }), z = runsZ(res);
+      if (z < worst.z) worst = { z: z, i: i };
+    });
+    if (worst.z < -2) m.push(['warn', '<b>Residuals are systematic</b>' + (multi ? ' (worst on the ' + sets[worst.i].label + ' curve)' : '') + ', runs test z = ' + sig(worst.z) + '. The data have a trend the model does not capture: product inhibition, enzyme inactivation, reversibility, or a wrong [S]₀. Treat the constants with caution.']);
+    else m.push(['', 'Residuals show no systematic pattern (worst runs-test z = ' + sig(worst.z) + ').']);
+    if (R.unbound) m.push(['warn', '<b>The curves are effectively first-order</b>, so k<sub>cat</sub> and K<sub>m</sub> cannot be separated. Only k<sub>cat</sub>/K<sub>m</sub> is determined. A higher [S]₀ or a longer time course may supply the curvature needed.']);
+    else if (isFinite(R.seKm) && R.seKm / R.Km > 0.5) m.push(['warn', '<b>K<sub>m</sub> is poorly determined</b> (SE is ' + Math.round(100 * R.seKm / R.Km) + '% of the value). Add a starting [S] near or above K<sub>m</sub>, follow the reaction further, or fit several starting concentrations together.']);
+    if (!R.unbound && isFinite(R.corr) && Math.abs(R.corr) > 0.95) m.push(['warn', 'k<sub>cat</sub> and K<sub>m</sub> are strongly correlated (r = ' + sig(R.corr) + '), so each is uncertain even when the curve fits well.' + (multi && !global ? ' Try the Global fit.' : '')]);
+    var maxConv = Math.max.apply(null, win.map(function (w, i) { return Math.max.apply(null, w.P) / par[i].S0; }));
+    if (maxConv < 0.25) m.push(['warn', 'Less than 25% of the substrate is consumed inside the fit window, so there is little curvature to report K<sub>m</sub>.']);
+    var maxS0 = Math.max.apply(null, par.map(function (p) { return p.S0; }));
+    if (!R.unbound && maxS0 < 0.3 * R.Km) m.push(['', 'Every starting [S] is below 0.3 × K<sub>m</sub>, so the curves are close to single exponentials. They determine k<sub>cat</sub>/K<sub>m</sub> (here to ±' + (isFinite(R.seSpec) ? Math.round(100 * R.seSpec / (R.kcat / R.Km)) : '?') + '%) but not k<sub>cat</sub> and K<sub>m</sub> separately.']);
+    if (!R.unbound && multi && Math.min.apply(null, par.map(function (p) { return p.S0; })) > 3 * R.Km) m.push(['', 'Every starting [S] is above 3 × K<sub>m</sub>, so the curves are nearly linear and mainly report V<sub>max</sub>. Add a starting [S] near K<sub>m</sub>.']);
+    msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // ---- plot A
+    var xf = function (s, t) { return state.x === "t" ? t : t * s.E; };
+    var Xmax = Math.max.apply(null, sets.map(function (s) { return xf(s, s.t[s.t.length - 1]); }));
+    var Ymax = Math.max(Math.max.apply(null, sets.map(function (s) { return Math.max(par[sets.indexOf(s)].S0, Math.max.apply(null, s.P)); }))) * 1.05;
+    var Ymin = Math.min(0, Math.min.apply(null, sets.map(function (s) { return Math.min.apply(null, s.P); })));
+    var fa = frame(640, 330, { l: 58, r: 14, t: 12, b: 42 }, [0, Xmax], [Ymin, Ymax], state.x === "t" ? "time (s)" : "[E] · time (nM·s)", "[product] (µM)");
+    var s = fa.svg;
+    sets.forEach(function (st, i) {
+      var c = COLORS[i % 6], p = par[i], tmax = st.t[st.t.length - 1];
+      s += '<line x1="58" x2="626" y1="' + fa.sy(p.S0) + '" y2="' + fa.sy(p.S0) + '" stroke="' + c + '" stroke-dasharray="2 4" opacity="0.5"/>';
+      if (truth && st.truth) s += polyline(st.t.map(function (x, j) { return [fa.sx(xf(st, x)), fa.sy(st.truth[j])]; }), "var(--ref)", "6 4", 1.6);
+      for (var j = 0; j < st.t.length; j++) {
+        s += '<circle cx="' + fa.sx(xf(st, st.t[j])).toFixed(1) + '" cy="' + fa.sy(st.P[j]).toFixed(1) + '" r="2.5" fill="' + c + '" opacity="' + (st.t[j] <= st.tw + 1e-9 ? 0.85 : 0.28) + '"/>';
+      }
+      var xs = []; for (j = 0; j <= 200; j++) xs.push(tmax * j / 200);
+      var yv = curveVals(p, st.E, xs), pts = xs.map(function (x, q) { return [fa.sx(xf(st, x)), fa.sy(yv[q])]; });
+      s += polyline(pts, c, null, 2.4);
+    });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = sets.map(function (st, i) {
+      return '<span><i class="dot" style="background:' + COLORS[i % 6] + '"></i>[S]₀ ' + st.label + ', [E] ' + sig(st.E) + ' nM</span>';
+    }).join("") + (truth ? '<span><i style="border-color:var(--ref);border-top-style:dashed"></i>true curves</span>' : '') + (fitCfg.win < 100 ? '<span>faded points: outside the fit window</span>' : '');
+
+    // ---- plot B
+    var resAll = sets.map(function (st, i) { var pv = curveVals(par[i], st.E, st.t); return st.P.map(function (p, j) { return p - pv[j]; }); });
+    var rm = Math.max(0.5, Math.max.apply(null, resAll.map(function (r) { return Math.max.apply(null, r.map(Math.abs)); }))) * 1.15;
+    var fb = frame(640, 190, { l: 58, r: 14, t: 10, b: 38 }, [0, Xmax], [-rm, rm], state.x === "t" ? "time (s)" : "[E] · time (nM·s)", "residual (µM)");
+    s = fb.svg + '<line x1="58" x2="626" y1="' + fb.sy(0) + '" y2="' + fb.sy(0) + '" stroke="var(--muted)"/>';
+    sets.forEach(function (st, i) {
+      for (var j = 0; j < st.t.length; j++) s += '<circle cx="' + fb.sx(xf(st, st.t[j])).toFixed(1) + '" cy="' + fb.sy(resAll[i][j]).toFixed(1) + '" r="2.4" fill="' + COLORS[i % 6] + '" opacity="' + (st.t[j] <= st.tw + 1e-9 ? 0.85 : 0.28) + '"/>';
+    });
+    document.getElementById("plotB").innerHTML = s;
+
+    // ---- table
+    var rows = sets.map(function (st, i) {
+      var f1 = singles[i];
+      return '<tr><td><i class="dot" style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + st.label + '</td><td>' + sig(st.E) + '</td>' +
+        '<td>' + Math.round(100 * Math.max.apply(null, win[i].P) / par[i].S0) + '%</td>' +
+        '<td>' + (f1.unbound ? 'undetermined' : sig(f1.Km) + (isFinite(f1.seKm) ? ' ± ' + sig(f1.seKm) : '')) + '</td>' +
+        '<td>' + (f1.unbound ? 'undetermined' : sig(f1.kcat) + (isFinite(f1.seK) ? ' ± ' + sig(f1.seK) : '')) + '</td>' +
+        '<td>' + Math.round(f1.kcat / f1.Km * 1e6).toLocaleString("en-US") + '</td>' +
+        (fitS0 ? '<td>' + sig(par[i].S0) + '</td>' : '') + '</tr>';
+    }).join("");
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>[S]₀</th><th>[E] nM</th><th>converted</th><th>K<sub>m</sub> µM (this curve alone)</th><th>k<sub>cat</sub> s⁻¹ (alone)</th><th>k<sub>cat</sub>/K<sub>m</sub></th>' + (fitS0 ? '<th>fitted [S]₀</th>' : '') + '</tr></thead><tbody>' + rows + '</tbody></table>';
+    document.getElementById("tblHint").textContent = global
+      ? 'Cards above use all curves together. This table shows what each curve gives alone, so compare its uncertainty with the global fit.'
+      : (multi ? 'Each curve is fit on its own; the cards show curve 1. Switch to Global to combine them.' : 'One curve.');
+
+    exportTables = (function () {
+      var tp = [["scope", "curve_or_group", "S0_uM", "E_nM", "kcat_per_s", "SE_kcat", "Km_uM", "SE_Km", "kcat_over_Km_per_M_per_s", "SE_kcat_over_Km", "Ki_product_uM", "SE_Ki", "kd_inactivation_per_s", "SE_kd", "RMSE_uM"]];
+      function row(scope, label, f, S0, E) {
+        tp.push([scope, label, S0, E, f.unbound ? "" : f.kcat, f.unbound ? "" : f.seK, f.unbound ? "" : f.Km, f.unbound ? "" : f.seKm, f.kcat / f.Km * 1e6, f.seSpec * 1e6,
+          isFinite(f.Ki) && !f.piNone ? f.Ki : "", isFinite(f.Ki) && !f.piNone ? f.seKi : "", f.kd && !f.kdNone ? f.kd : "", f.kd && !f.kdNone ? f.seKd : "", f.rmse]);
+      }
+      if (global) row("global", "all curves", G, "", "");
+      sets.forEach(function (st, i) { row("single curve", st.label, singles[i], singles[i].S0[0], st.E); });
+      var td = [["curve", "S0_uM", "E_nM", "time_s", "product_observed_uM", "product_fit_uM", "residual_uM", "in_fit_window"]], tc = [["curve", "time_s", "product_fit_uM"]];
+      sets.forEach(function (st, i) {
+        var pv = curveVals(par[i], st.E, st.t), tmax = st.t[st.t.length - 1], xs = [], q;
+        st.t.forEach(function (t, j) { td.push([st.label, par[i].S0, st.E, t, st.P[j], pv[j], st.P[j] - pv[j], t <= st.tw + 1e-9 ? "yes" : "no"]); });
+        for (q = 0; q <= 200; q++) xs.push(tmax * q / 200);
+        var yv = curveVals(par[i], st.E, xs); xs.forEach(function (t, k) { tc.push([st.label, t, yv[k]]); });
+      });
+      return { parameters: tp, data_fit: td, curves: tc };
+    })();
+    document.getElementById("eq").textContent =
+      "t = [P]/Vmax + (Km/Vmax) · ln( [S]0 / ([S]0 − [P]) ),   Vmax = kcat · [E]\n" +
+      "[P] = [S]0 − Km · W( ([S]0/Km) · exp(([S]0 − Vmax·t)/Km) )     (W = Lambert W function)\n\n" +
+      (global ? "Global fit: all curves share kcat and Km; each curve uses its own [E]" : "Each curve is fit separately") + (fitS0 ? " and its own [S]0.\n" : ".\n") +
+      (extended
+        ? "With product inhibition and/or inactivation there is no closed form, so dP/dt is integrated numerically:\n" +
+          "  dP/dt = Vmax · exp(−kd·t) · [S] / ( Km (1 + [P]/Ki) + [S] )" + (opts.pit === "nc" ? "   (noncompetitive: [S]/((Km+[S])(1+[P]/Ki)))" : "") + "\n" +
+          "Models are compared with BIC = n ln(SSE/n) + k ln(n).\n"
+        : "") +
+      "Assumes an irreversible reaction" + (extended ? "" : ", no product inhibition and no enzyme inactivation") + ".";
+  }
+  render();
+})();
+</script>
+
+</body></html>

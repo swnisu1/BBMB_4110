@@ -1,0 +1,246 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>How the Fitting Widgets Work</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one readable column with a contents list; equations and worked tables sit inside sections.
+   Same palette as the fitting widgets so the set looks like one family. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 15px; line-height: 1.55;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 860px; margin: 0 auto; }
+h1 { font-size: 26px; font-weight: 600; margin: 0 0 6px; letter-spacing: -0.01em; text-wrap: balance; }
+.lede { color: var(--muted); margin: 0 0 18px; max-width: 70ch; }
+section.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 18px 20px; margin-bottom: 16px; }
+h2 { font-size: 18px; font-weight: 600; margin: 0 0 10px; text-wrap: balance; }
+h3 { font-size: 14px; font-weight: 600; margin: 18px 0 6px; }
+p { margin: 0 0 10px; max-width: 74ch; }
+p:last-child { margin-bottom: 0; }
+ul, ol { margin: 0 0 10px; padding-left: 22px; max-width: 74ch; }
+li { margin-bottom: 4px; }
+.toc { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 0 0 16px; padding: 0; list-style: none; }
+.toc a { color: var(--accent); text-decoration: none; font-size: 14px; }
+.toc a:hover { text-decoration: underline; }
+.eq { font-family: var(--mono); font-size: 13px; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 10px 12px; overflow-x: auto; white-space: pre; margin: 8px 0 12px; }
+.answer { background: var(--accent-soft); border-radius: 8px; padding: 12px 14px; margin: 0 0 12px; max-width: none; }
+.note { background: var(--warn-bg); color: var(--warn); border-radius: 8px; padding: 10px 14px; margin: 10px 0; max-width: none; }
+.tablewrap { overflow-x: auto; margin: 8px 0 12px; }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+th, td { text-align: left; padding: 7px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { color: var(--muted); font-weight: 600; font-size: 12.5px; white-space: nowrap; }
+td code, p code, li code { font-family: var(--mono); font-size: 12.5px; }
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.small { color: var(--muted); font-size: 12.5px; }
+footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74ch; }
+</style>
+
+<div class="wrap">
+  <h1>How the Fitting Widgets Work</h1>
+  <p class="lede">What happens between loading your data and seeing a fitted curve: the equations, how the starting guesses are chosen, how the fit is found, where the error bars come from, and how the widgets decide between models.</p>
+
+  <ul class="toc">
+    <li><a href="#overview">Overview</a></li>
+    <li><a href="#guesses">Initial guesses</a></li>
+    <li><a href="#optimizer">How the fit is found</a></li>
+    <li><a href="#errors">Uncertainties</a></li>
+    <li><a href="#bic">Choosing between models</a></li>
+    <li><a href="#widgets">Each widget</a></li>
+    <li><a href="#check">Checking a fit</a></li>
+    <li><a href="#limits">Limitations</a></li>
+  </ul>
+
+  <section class="card" id="overview">
+    <h2>Overview</h2>
+    <p>Every fitting widget does the same five things:</p>
+    <ol>
+      <li><b>Reads your data</b> from a file or a paste, and shows it so you can check it before anything is fitted.</li>
+      <li><b>Chooses starting values</b> for each constant, automatically, from the data (see below).</li>
+      <li><b>Adjusts the constants</b> until the model curve is as close to your points as it can get, measured by the sum of squared differences.</li>
+      <li><b>Reports the constants</b> with a standard error and, where useful, a confidence interval.</li>
+      <li><b>Compares models</b> with BIC, so a more complicated equation is used only when the data call for it.</li>
+    </ol>
+    <p>Everything runs in your browser, and your data is not sent anywhere. Nothing is hidden: each widget shows the equations it fits in its <i>Model</i> panel, and the Export buttons give you the data, the fitted values and the constants as tables so you can check or redraw any result yourself.</p>
+  </section>
+
+  <section class="card" id="guesses">
+    <h2>Initial guesses</h2>
+    <p class="answer"><b>You do not enter initial guesses.</b> Each widget builds its own starting values from your data, tries several different starting points, and keeps whichever one ends with the smallest error. You never see the guesses and cannot change them.</p>
+
+    <h3>Why a fit needs a starting point at all</h3>
+    <p>A straight line can be fitted with one calculation. An enzyme equation cannot: the best Km and Vmax have no formula, so the computer searches for them step by step, like walking downhill on a landscape where the height is the total squared error. A starting guess is where the walk begins. A reasonable start leads to the bottom of the valley. A very poor start can stall on a flat area, wander off the useful range, or end in a dip that is not the lowest point.</p>
+
+    <h3>What the widgets use</h3>
+    <div class="tablewrap"><table>
+      <thead><tr><th>Widget</th><th>Starting values (several are tried, the best result is kept)</th></tr></thead>
+      <tbody>
+        <tr><td>Substrate dependence</td><td>V<sub>max</sub> = 1.2 × the largest velocity. K<sub>m</sub> or K<sub>0.5</sub> = the median [S] times 0.3, 1 or 3. Hill n starts at 1 and at 2. K<sub>si</sub> starts at the largest [S] and at 5 × that.</td></tr>
+        <tr><td>Inhibition mechanism</td><td>V<sub>max</sub> = 1.2 × the largest velocity. K<sub>m</sub> = the median [S] × 0.3, 1 or 3. K<sub>i</sub> and K<sub>ii</sub> start near the median nonzero [I] times the same factors; the mixed model also starts with K<sub>ii</sub> three times larger than K<sub>i</sub> and the other way round.</td></tr>
+        <tr><td>IC<sub>50</sub></td><td>IC<sub>50</sub> starts at the geometric middle of your [I] range, at the median [I], and at 0.2 and 5 times the median. Hill slope starts at 1. If the top or bottom is fitted, they start at the control mean (or the largest response) and the smallest response.</td></tr>
+        <tr><td>Progress curves</td><td>K<sub>m</sub> = 0.2, 1 or 5 × the median starting [S]. V<sub>max</sub> from the initial slope of each curve, which gives k<sub>cat</sub> = V<sub>max</sub>/[E]. Product inhibition K<sub>i</sub> starts at the largest [S]₀; inactivation starts at a rate that would decay the enzyme over about three time-course lengths.</td></tr>
+      </tbody>
+    </table></div>
+    <p>These rules come from how the curves look. The plateau cannot be much lower than the highest velocity you measured, and the half-saturating point lies somewhere inside the range of concentrations you tested. A start that honors those two facts is nearly always close enough.</p>
+
+    <h3>Why this is usually safe</h3>
+    <ul>
+      <li><b>Several starts.</b> If one starting point ends in a worse spot, another ends in a better one, and the better one is kept.</li>
+      <li><b>Log scale.</b> Constants such as K<sub>m</sub> can differ by factors of ten or a hundred between data sets. The search takes steps in log units, so a start that is off by 10× is as easy to fix as one that is off by 2×, and constants cannot go negative.</li>
+      <li><b>Limits.</b> Each constant is held inside a sensible range tied to your data, for example K<sub>m</sub> between 0.001 × the smallest [S] and 1000 × the largest. A result that runs to a limit is reported as "undetermined", "not detected" or "→ ∞" instead of as a number.</li>
+    </ul>
+
+    <h3>If you use other software</h3>
+    <p>Programs such as Prism, SigmaPlot and Excel Solver ask you for initial values. These rules of thumb work well for the same models: V<sub>max</sub> = 1.2 × the highest velocity; K<sub>m</sub> = the median [S] (or the [S] where v is about half of V<sub>max</sub>); Hill n = 1; K<sub>si</sub> = the highest [S]; IC<sub>50</sub> = the [I] where the response is about halfway. Plot the curve from your starting values on top of the data before fitting, and adjust until it is roughly in the right place.</p>
+  </section>
+
+  <section class="card" id="optimizer">
+    <h2>How the fit is found</h2>
+    <p><b>The goal.</b> The widgets use least squares: find the constants that minimize the sum of the squared differences between each measured value and the model curve (the residual sum of squares, RSS).</p>
+    <div class="eq">RSS = sum over all points of ( observed − model )²</div>
+    <p><b>A tiny worked example.</b> Suppose four measured velocities and the Michaelis-Menten equation v = V<sub>max</sub>[S]/(K<sub>m</sub> + [S]). Try two pairs of constants and add up the squared differences:</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>[S]</th><th>measured v</th><th>model at V<sub>max</sub> 1.5, K<sub>m</sub> 20</th><th>(difference)²</th><th>model at V<sub>max</sub> 1.2, K<sub>m</sub> 10</th><th>(difference)²</th></tr></thead>
+      <tbody>
+        <tr><td>10</td><td>0.52</td><td>0.500</td><td>0.0004</td><td>0.600</td><td>0.0064</td></tr>
+        <tr><td>20</td><td>0.76</td><td>0.750</td><td>0.0001</td><td>0.800</td><td>0.0016</td></tr>
+        <tr><td>40</td><td>1.02</td><td>1.000</td><td>0.0004</td><td>0.960</td><td>0.0036</td></tr>
+        <tr><td>80</td><td>1.15</td><td>1.200</td><td>0.0025</td><td>1.067</td><td>0.0069</td></tr>
+        <tr><td><b>RSS</b></td><td></td><td></td><td><b>0.0034</b></td><td></td><td><b>0.0185</b></td></tr>
+      </tbody>
+    </table></div>
+    <p>The first pair gives a much smaller RSS, so it describes these points better. Fitting is this calculation repeated for many pairs of constants, steered so that RSS keeps getting smaller, until it cannot get any smaller. You could do the same in a spreadsheet, and Excel Solver or Prism does exactly this with its own search.</p>
+    <p><b>Weighting.</b> With the default "constant" error model every point counts equally, which is right when the scatter is about the same size at all velocities. With "proportional" error, each point is divided by its velocity so that large and small velocities carry similar weight; this is right when the scatter grows with the signal. A small floor (3% of the largest velocity) stops points near zero from dominating. Check the residual plot to decide which is closer to your data.</p>
+    <p><b>The search.</b> The method is Levenberg-Marquardt, the standard algorithm for this job. At each step it estimates how the error changes if each constant is nudged, then takes a step that blends two strategies: a bold step toward where the error looks smallest, and a cautious step straight downhill. If a step makes the fit worse, it is rejected and the step is made more cautious; if it helps, the next step is bolder. The search stops when no step improves the fit or the improvement is negligible, with a limit of 200 to 250 steps.</p>
+    <p>The slopes are found numerically (by nudging each constant slightly), so no hand-derived formulas are needed, and the same code handles every model.</p>
+    <p><b>Special cases.</b> Progress curves with no product inhibition or inactivation use the closed-form integrated equation (with the Lambert W function). With product inhibition or inactivation there is no closed form, so the rate equation is integrated numerically with a fourth-order Runge-Kutta method, at each fitting step.</p>
+  </section>
+
+  <section class="card" id="errors">
+    <h2>Uncertainties</h2>
+    <p><b>Standard errors.</b> The same slope information used for the search says how sharply the error rises when a constant moves away from its best value. A sharp rise means the data pin the constant down tightly (small standard error); a shallow valley means many values fit about equally well (large standard error). In formula form, the covariance matrix is</p>
+    <div class="eq">covariance = s² × ( JᵀJ )⁻¹,   s² = RSS / (n − p)</div>
+    <p>where J holds the slopes, n is the number of points and p the number of fitted constants. Because the constants are searched on a log scale, a standard error for a positive constant is the value times the standard error of its logarithm.</p>
+    <p><b>Confidence intervals.</b> The IC<sub>50</sub> widget gives a 95% interval from exp(ln IC<sub>50</sub> ± t × SE), using the t distribution with n − p degrees of freedom. The intervals are therefore asymmetric on the concentration scale, as they should be.</p>
+    <p><b>Correlated constants.</b> When two constants trade off against each other, such as V<sub>max</sub> and K<sub>m</sub> in a progress curve at low [S], the widgets report their correlation and warn when it is above 0.95. Each can be uncertain even though the curve passes through the data perfectly.</p>
+    <p class="note">These error bars assume the scatter is roughly normal, independent from point to point, and either constant or proportional to the signal. They describe the precision of the fit to <i>this</i> data set, not systematic errors such as a wrong enzyme concentration or a bad stock solution.</p>
+  </section>
+
+  <section class="card" id="bic">
+    <h2>Choosing between models</h2>
+    <p>A model with more constants can always follow the data more closely, so a lower RSS alone does not make it better. The widgets use the Bayesian information criterion, which charges a penalty for every extra constant:</p>
+    <div class="eq">BIC = n ln( RSS / n ) + ( k + 1 ) ln( n )</div>
+    <p>Here n is the number of points and k is the number of fitted constants (the extra 1 counts the scatter). The lower the BIC, the better the balance between fit and simplicity. The widgets show ΔBIC, the difference from the best model, and a weight that turns the differences into approximate probabilities.</p>
+    <div class="tablewrap"><table>
+      <thead><tr><th>ΔBIC (versus the best model)</th><th>How to read it</th></tr></thead>
+      <tbody>
+        <tr><td>0 to 2</td><td>The data cannot tell the two models apart.</td></tr>
+        <tr><td>2 to 6</td><td>Positive evidence for the better model.</td></tr>
+        <tr><td>6 to 10</td><td>Strong evidence.</td></tr>
+        <tr><td>Above 10</td><td>Very strong evidence.</td></tr>
+      </tbody>
+    </table></div>
+    <p><b>Limits.</b> BIC only ranks the equations that were tried; the best of a poor set can still be wrong, so always look at the residuals. All models in a comparison must be fitted to the same points with the same weighting, which is why the widgets warn you when the answer changes with the error model. BIC penalizes complexity more than the AIC alternative, so it tends to favor the simpler model when the evidence is borderline.</p>
+  </section>
+
+  <section class="card" id="widgets">
+    <h2>Each widget</h2>
+
+    <h3>Substrate Dependence Fitting</h3>
+    <div class="eq">Michaelis-Menten:        v = Vmax [S] / ( Km + [S] )
+Hill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )
+Substrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )</div>
+    <p>Each dataset is fitted separately with all three equations. Under substrate inhibition the rate peaks at [S] = √(K<sub>m</sub> K<sub>si</sub>). When you enter an enzyme concentration, k<sub>cat</sub> = V<sub>max</sub>/[E] (V<sub>max</sub> in µM/s, [E] in nM). The Eadie-Hofstee plot (v against v/[S]) is for seeing departures from a hyperbola; the constants come from the fit, not from this plot.</p>
+
+    <h3>Inhibition Mechanism Fitting</h3>
+    <div class="eq">v = Vmax [S] / ( Km (1 + [I]/Ki) + [S] (1 + [I]/Kii) )
+
+competitive      Kii = ∞          uncompetitive    Ki = ∞
+noncompetitive   Ki = Kii         mixed            both free
+
+Vmax,app = Vmax / (1 + [I]/Kii)
+Km,app   = Km (1 + [I]/Ki) / (1 + [I]/Kii)</div>
+    <p>All points at all [I] are fitted together for each mechanism, and the four are ranked by BIC. The apparent-constants plot compares the global model with separate Michaelis-Menten fits at each [I]. The Lineweaver-Burk plot is drawn from the global fit for pattern recognition only, because taking reciprocals magnifies the error in the smallest velocities. The cofactor is assumed to be saturating.</p>
+
+    <h3>IC50 Fitting</h3>
+    <div class="eq">Hill:      response = bottom + (top − bottom) / ( 1 + ([I]/IC50)^h )
+Morrison:  response = bottom + (top − bottom) × (1 − [EI]/[E])
+           [EI] = ( ([E]+[I]+Ki,app) − sqrt( ([E]+[I]+Ki,app)² − 4[E][I] ) ) / 2
+
+Cheng-Prusoff (slope 1):
+  competitive      Ki = IC50 / (1 + [S]/Km)
+  uncompetitive    Ki = IC50 / (1 + Km/[S])
+  noncompetitive   Ki = IC50
+
+IC50 versus [S]:   comp  Ki(1 + [S]/Km)    uncomp  Ki(1 + Km/[S])
+                   nc    Ki                mixed   (Km + [S]) / (Km/Ki + [S]/Kii)</div>
+    <p>An IC<sub>50</sub> is not a constant of the inhibitor: it depends on [S] (and on the enzyme concentration if binding is tight). That is why the widget can use the way the IC<sub>50</sub> shifts across several [S] values to suggest a mechanism. This step fits the mechanisms to the IC<sub>50</sub> values themselves, weighted by their uncertainty, so it is only as strong as the number of [S] values (three or four). Confirm with full velocity curves. The tight-binding model is for inhibitors whose K<sub>i</sub> is close to the enzyme concentration, where the usual equations underestimate affinity.</p>
+
+    <h3>Progress Curve Fitting</h3>
+    <div class="eq">t = [P]/Vmax + (Km/Vmax) ln( [S]0 / ([S]0 − [P]) ),   Vmax = kcat [E]
+
+[P] = [S]0 − Km · W( ([S]0/Km) · exp(([S]0 − Vmax·t)/Km) )     (W = Lambert W)
+
+with product inhibition and inactivation:
+  dP/dt = Vmax · exp(−kd·t) · [S] / ( Km (1 + [P]/Ki) + [S] )    (competitive form)</div>
+    <p>With several starting [S] values the curves are fitted together: kcat and K<sub>m</sub> are shared, and each curve uses its own [E] and [S]₀. The first reading of each curve is taken as zero product. At [S] well below K<sub>m</sub> a curve is nearly a single exponential, so only k<sub>cat</sub>/K<sub>m</sub> is determined and the widget says so. The runs test on the residuals flags a systematic trend, which usually means the model is missing product inhibition, inactivation, reversibility, or the starting [S] is wrong.</p>
+
+    <h3>Two-Substrate Kinetics Explorer</h3>
+    <div class="eq">Ternary complex:  v = Vmax [A][B] / ( Kia Kb + Kb [A] + Ka [B] + [A][B] )
+Ping-pong:        v = Vmax [A][B] / ( Kb [A] + Ka [B] + [A][B] )
+
+at fixed [A]:  Vmax,app = Vmax [A] / (Ka + [A])
+               Km,app(B) = Kb (Kia + [A]) / (Ka + [A])     ternary complex
+               Km,app(B) = Kb [A] / (Ka + [A])             ping-pong</div>
+    <p>This one does not fit data. It draws the curves for constants you choose so you can see how a subsaturating cofactor [A] changes the apparent K<sub>m</sub> of the other substrate [B].</p>
+  </section>
+
+  <section class="card" id="check">
+    <h2>Checking a fit</h2>
+    <ol>
+      <li><b>Look at the curve against the points first.</b> A good fit goes through the middle of the scatter at every concentration.</li>
+      <li><b>Look at the residuals.</b> They should scatter randomly around zero. A smooth swing, a long run of the same sign, or scatter that grows with the signal all say the model or the error assumption is off.</li>
+      <li><b>Read the messages.</b> The widgets warn about poorly determined constants, strongly correlated constants, missing controls, curves that never reach a plateau, and BIC differences too small to decide.</li>
+      <li><b>Compare the standard errors to the values.</b> An error bar bigger than half the value means the data cannot fix that constant.</li>
+      <li><b>Ask whether the experiment could have answered the question.</b> The concentration range matters more than the fitting: aim for [S] from about 0.2 to 5 × K<sub>m</sub> and [I] from about 0.3 to 5 × K<sub>i</sub>.</li>
+      <li><b>For anything going into a paper, cross-check with another program</b> on one or two of your data sets.</li>
+    </ol>
+  </section>
+
+  <section class="card" id="limits">
+    <h2>Limitations</h2>
+    <ul>
+      <li>Each widget fits the specific equations shown on this page. If your system needs a different equation (reversible reaction, partial inhibition, an enzyme with two active-site classes), none of the widgets will fit it.</li>
+      <li>Initial rates and progress curves assume the enzyme is stable and the conditions are the same throughout; the progress curve widget can model simple inactivation and product inhibition, but not everything that can go wrong.</li>
+      <li>The error bars depend on assumptions about the scatter (above). They are not a substitute for replicate experiments.</li>
+      <li>Units are labels only. The widgets assume the same concentration unit throughout, and k<sub>cat</sub> from V<sub>max</sub>/[E] assumes V<sub>max</sub> in µM/s and [E] in nM.</li>
+      <li>The initial guesses are automatic. In a rare case (very few points, almost flat data, a wild outlier) the search can fail or end at a limit; the widget flags that with "undetermined" or "not detected" instead of a number.</li>
+    </ul>
+  </section>
+
+  <footer>These widgets were built with AI assistance (Claude, by Anthropic) and checked against simulated data with known answers and against independent fits in Python. Treat them as a convenient, transparent tool, and cross-check important results.</footer>
+</div>
+
+
+
+</body></html>

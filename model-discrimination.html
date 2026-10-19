@@ -1,0 +1,500 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Model Discrimination: One or Two Exponentials</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky slider column left; readouts, data plot, residuals, sweep charts and notes right. Stacks on phones.
+   Blue = single exponential, orange = double exponential, grey dashed = the true curve. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --dbl: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3; --good: #1b8a5a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --dbl: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18; --good: #4fc58f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --dbl: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18; --good: #4fc58f;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1180px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 76ch; }
+.grid { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 860px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+@media (min-width: 861px) { .controls { position: sticky; top: 12px; } }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; }
+.row { display: grid; grid-template-columns: 1fr auto; column-gap: 8px; margin-bottom: 10px; }
+.row:last-child { margin-bottom: 0; }
+.row label { font-size: 13px; }
+.row label sub { font-size: 10px; }
+.row output { font-family: var(--mono); font-size: 12.5px; text-align: right; }
+.row input[type=range] { grid-column: 1 / -1; width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.btn { font: inherit; font-weight: 500; padding: 7px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; width: 100%; padding: 9px 12px; }
+:root[data-theme="dark"] .btn.primary { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .btn.primary { color: #0e1320; } }
+.btn:disabled { opacity: 0.55; cursor: progress; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.seg { display: inline-grid; grid-auto-flow: column; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-size: 12.5px; font-weight: 500; padding: 4px 10px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 16px; height: 0; border-top: 2.5px solid; vertical-align: middle; margin-right: 5px; }
+.legend i.dot { width: 9px; height: 9px; border: 0; border-radius: 50%; margin-right: 6px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 700px) { .two { grid-template-columns: minmax(0, 1fr); } }
+.tablewrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+th, td { text-align: right; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+th:first-child, td:first-child { text-align: left; font-family: var(--font); }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+.notes p, .notes li { max-width: 78ch; }
+.notes ul { margin: 0; padding-left: 20px; }
+.notes li { margin-bottom: 6px; }
+.stale { color: var(--warn); font-size: 12.5px; margin: 6px 0 0; }
+[hidden] { display: none !important; }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Model Discrimination: One or Two Exponentials</h1>
+    <p>Simulate a decay with two rate constants, add noise, and fit it with a single and a double exponential. Move the rate constants together and watch what happens to RSS, AIC and BIC. RSS always improves with the bigger model; the information criteria say whether the improvement is worth the two extra parameters.</p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2>The true curve</h2>
+        <div id="simRows"></div>
+        <div class="btns"><button type="button" class="btn" id="rerollBtn">New noise</button></div>
+        <p class="hint" id="ratioNote"></p>
+        <p class="hint">y = A<sub>fast</sub> e<sup>−k<sub>fast</sub>t</sup> + A<sub>slow</sub> e<sup>−k<sub>slow</sub>t</sup> + noise, with A<sub>fast</sub> + A<sub>slow</sub> = 1.</p>
+      </section>
+      <section class="panel">
+        <h2>Simulation across rate ratios</h2>
+        <div id="sweepRows"></div>
+        <button type="button" class="btn primary" id="sweepBtn" style="margin-top:10px">Run simulation</button>
+        <p class="hint" id="sweepHint"></p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+
+      <section class="panel">
+        <div class="plothead">
+          <h3>Data and fits</h3>
+          <div class="seg" id="ySeg"><button type="button" data-y="lin" aria-pressed="true">linear y</button><button type="button" data-y="log" aria-pressed="false">log y</button></div>
+        </div>
+        <svg id="plotA" viewBox="0 0 640 320" role="img" aria-label="Simulated decay with single and double exponential fits"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+
+      <section class="panel">
+        <h3>Residuals (data − fit)</h3>
+        <div class="two"><svg id="resS" viewBox="0 0 320 190" role="img" aria-label="Residuals of the single exponential"></svg><svg id="resD" viewBox="0 0 320 190" role="img" aria-label="Residuals of the double exponential"></svg></div>
+        <p class="hint">Left: single exponential. Right: double exponential. Structure in the left plot (a smooth wave instead of random scatter) is the visible sign that the single exponential is too simple.</p>
+      </section>
+
+      <section class="panel">
+        <h3>Model comparison</h3>
+        <div class="tablewrap" id="tbl"></div>
+        <p class="hint">Δ = single minus double, so a positive Δ favors the double exponential. Weights are the approximate probabilities of the two models. The F-test compares nested models and is shown for reference.</p>
+      </section>
+
+      <section class="panel">
+        <h3>What happens as the rate constants approach each other?</h3>
+        <p class="hint" style="margin-top:0">Each point averages many simulated noise draws at one rate ratio (k<sub>fast</sub>/k<sub>slow</sub>), with everything else set by the sliders. Run it, then change a slider and run it again.</p>
+        <div id="sweepStatus" class="stale" hidden></div>
+        <div class="two" style="margin-top:8px">
+          <div><svg id="swD" viewBox="0 0 320 250" role="img" aria-label="Mean delta AICc and delta BIC against rate ratio"></svg></div>
+          <div><svg id="swF" viewBox="0 0 320 250" role="img" aria-label="Fraction of data sets favoring the double exponential against rate ratio"></svg></div>
+        </div>
+        <svg id="swR" viewBox="0 0 640 210" role="img" aria-label="Relative RSS of the double versus the single exponential against rate ratio" style="margin-top:8px"></svg>
+        <div class="legend" id="legendS"></div>
+      </section>
+
+      <section class="panel notes">
+        <h3>What to notice</h3>
+        <ul>
+          <li><b>RSS never gets worse.</b> The double exponential contains the single one as a special case, so its RSS is always lower or equal, even when the data really are a single exponential. A lower RSS alone proves nothing.</li>
+          <li><b>ΔAIC and ΔBIC shrink toward zero as the rates converge.</b> When the two rate constants differ by less than about 2 to 3 times, the second exponential is almost impossible to detect at realistic noise.</li>
+          <li><b>BIC is stricter than AIC.</b> Its penalty per parameter is ln(n) instead of 2, so with more than about 8 points BIC asks for stronger evidence. When the truth is a single exponential, AIC picks the double more often by chance.</li>
+          <li><b>The fitted rate constants fall apart first.</b> Before the criteria fail, the standard errors of k<sub>fast</sub> and k<sub>slow</sub> blow up and the amplitudes become large and opposite in sign. A double-exponential fit with huge uncertainties is not evidence of two phases.</li>
+          <li><b>The experiment matters as much as the analysis.</b> Less noise, more points, and a time window that reaches several slow lifetimes all push the criteria toward the right answer. Try each slider.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <h3>Models and criteria</h3>
+        <pre class="eq" id="eq"></pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10;
+  function sig(x) { return isFinite(x) ? String(Number(x.toPrecision(3))) : "—"; }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+
+  var P = { kf: LOG(1), ks: LOG(0.1), frac: 0.5, noise: 0.02, n: 60, win: 4, seed: 1 };
+  var SW = { reps: 30, rmax: 20 };
+  var state = { y: "lin" };
+  var sweepData = null, sweepStale = false, sweepBusy = false;
+
+  // ---------- random numbers ----------
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+
+  // ---------- data ----------
+  function makeData(kfast, kslow, frac, noise, n, win, seed) {
+    var tmax = win / kslow, rnd = mulberry(seed * 7919 + 13), t = [], y = [], truth = [];
+    for (var i = 0; i < n; i++) {
+      var ti = tmax * i / (n - 1), yt = frac * Math.exp(-kfast * ti) + (1 - frac) * Math.exp(-kslow * ti);
+      t.push(ti); truth.push(yt); y.push(yt + noise * gauss(rnd));
+    }
+    return { t: t, y: y, truth: truth, tmax: tmax };
+  }
+  function trueRates() { var a = Math.pow(10, P.kf), b = Math.pow(10, P.ks); return { kfast: Math.max(a, b), kslow: Math.min(a, b) }; }
+
+  // ---------- generic Levenberg-Marquardt (log-parameter or any parameter space) ----------
+  function solve(A, b) {
+    var n = b.length, M = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(M[r][c]) > Math.abs(M[p][c])) p = r;
+      if (Math.abs(M[p][c]) < 1e-300) return null;
+      var tmp = M[c]; M[c] = M[p]; M[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = M[r][c] / M[c][c]; for (var k = c; k <= n; k++) M[r][k] -= f * M[c][k]; }
+    }
+    return M.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(); t2[j] += 1e-6; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / 1e-6; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 150; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    return best;
+  }
+
+  // ---------- the two models (amplitudes solved by linear least squares for each trial pair of rate constants) ----------
+  function fitSingle(t, y) {
+    var n = t.length, tmax = t[n - 1];
+    function amp(k) { var spp = 0, spy = 0; for (var i = 0; i < n; i++) { var p = Math.exp(-k * t[i]); spp += p * p; spy += p * y[i]; } return spy / spp; }
+    function pred(th) { var k = Math.exp(th[0]), A = amp(k); return t.map(function (ti) { return A * Math.exp(-k * ti); }); }
+    var lo = Math.log(1e-3 / tmax), hi = Math.log(1e3 / tmax);
+    var F = lm(pred, y, [[Math.log(1 / (0.3 * tmax))], [Math.log(3 / tmax)], [Math.log(10 / tmax)]], function (th) { th[0] = Math.min(Math.max(th[0], lo), hi); });
+    var k = Math.exp(F.th[0]), A = amp(k);
+    return { A: A, k: k, rss: F.sse, fit: t.map(function (ti) { return A * Math.exp(-k * ti); }) };
+  }
+  // double exponential: slow rate ks, fast rate kf = ks (1 + exp(u)) so that kf > ks always
+  function fitDouble(t, y, single) {
+    var n = t.length, tmax = t[n - 1];
+    function amps(kf, ks) {
+      var s11 = 1e-12, s22 = 1e-12, s12 = 0, b1 = 0, b2 = 0;
+      for (var i = 0; i < n; i++) { var p1 = Math.exp(-kf * t[i]), p2 = Math.exp(-ks * t[i]); s11 += p1 * p1; s22 += p2 * p2; s12 += p1 * p2; b1 += p1 * y[i]; b2 += p2 * y[i]; }
+      var det = s11 * s22 - s12 * s12; if (Math.abs(det) < 1e-300) return [0, 0];
+      return [(b1 * s22 - b2 * s12) / det, (s11 * b2 - s12 * b1) / det];
+    }
+    function pred(th) { var ks = Math.exp(th[0]), kf = ks * (1 + Math.exp(th[1])), a = amps(kf, ks); return t.map(function (ti) { return a[0] * Math.exp(-kf * ti) + a[1] * Math.exp(-ks * ti); }); }
+    var lo = Math.log(1e-3 / tmax), hi = Math.log(1e3 / tmax);
+    var clamp = function (th) { th[0] = Math.min(Math.max(th[0], lo), hi); th[1] = Math.min(Math.max(th[1], Math.log(1e-3)), Math.log(1e3)); };
+    var k0 = single.k, starts = [[Math.log(k0 / 2), Math.log(4)], [Math.log(k0 / 4), Math.log(9)], [Math.log(k0 / 1.5), Math.log(2)], [Math.log(k0 / 8), Math.log(20)], [Math.log(k0 / 1.2), Math.log(0.5)]];
+    var F = lm(pred, y, starts, clamp);
+    var ks = Math.exp(F.th[0]), kf = ks * (1 + Math.exp(F.th[1])), a = amps(kf, ks), collapsed = false, rss = F.sse;
+    if (rss > single.rss) { collapsed = true; rss = single.rss; kf = single.k * 1.001; ks = single.k; a = [single.A, 0]; }   // the double model contains the single one, so it can never fit worse
+    return { A1: a[0], kf: kf, A2: a[1], ks: ks, rss: rss, collapsed: collapsed, fit: t.map(function (ti) { return a[0] * Math.exp(-kf * ti) + a[1] * Math.exp(-ks * ti); }) };
+  }
+  // standard errors from the full Jacobian: s^2 (J'J)^-1, rate constants on a log scale
+  function seSingle(t, y, f) {
+    var n = t.length, J = t.map(function (ti) { var e = Math.exp(-f.k * ti); return [e, -f.A * f.k * ti * e]; });
+    return covOf(J, f.rss / (n - 2), [1, f.k]);
+  }
+  function seDouble(t, y, f) {
+    var n = t.length, J = t.map(function (ti) { var e1 = Math.exp(-f.kf * ti), e2 = Math.exp(-f.ks * ti); return [e1, -f.A1 * f.kf * ti * e1, e2, -f.A2 * f.ks * ti * e2]; });
+    return covOf(J, f.rss / Math.max(n - 4, 1), [1, f.kf, 1, f.ks]);
+  }
+  function covOf(J, s2, scale) {
+    var np = J[0].length, A = [], a, b, i;
+    for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); for (b = 0; b < np; b++) for (i = 0; i < J.length; i++) A[a][b] += J[i][a] * J[i][b]; }
+    var inv = invert(A); if (!inv) return scale.map(function () { return NaN; });
+    return inv.map(function (r, i) { var v = r[i] * s2; return v > 0 ? Math.sqrt(v) * scale[i] : NaN; });
+  }
+
+  // ---------- statistics ----------
+  function lgamma(x) { var c = [76.18009172947146, -86.50532032941677, 24.01409824083091, -1.231739572450155, 0.1208650973866179e-2, -0.5395239384953e-5], y = x, t = x + 5.5, s = 1.000000000190015; t -= (x + 0.5) * Math.log(t); for (var j = 0; j < 6; j++) s += c[j] / ++y; return -t + Math.log(2.5066282746310005 * s / x); }
+  function betacf(a, b, x) {
+    var qab = a + b, qap = a + 1, qam = a - 1, c = 1, d = 1 - qab * x / qap; if (Math.abs(d) < 1e-30) d = 1e-30; d = 1 / d; var h = d;
+    for (var m = 1; m <= 200; m++) {
+      var m2 = 2 * m, aa = m * (b - m) * x / ((qam + m2) * (a + m2)); d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; h *= d * c;
+      aa = -(a + m) * (qab + m) * x / ((a + m2) * (qap + m2)); d = 1 + aa * d; if (Math.abs(d) < 1e-30) d = 1e-30; c = 1 + aa / c; if (Math.abs(c) < 1e-30) c = 1e-30; d = 1 / d; var del = d * c; h *= del; if (Math.abs(del - 1) < 3e-12) break;
+    }
+    return h;
+  }
+  function betai(a, b, x) { if (x <= 0) return 0; if (x >= 1) return 1; var bt = Math.exp(lgamma(a + b) - lgamma(a) - lgamma(b) + a * Math.log(x) + b * Math.log(1 - x)); return x < (a + 1) / (a + b + 2) ? bt * betacf(a, b, x) / a : 1 - bt * betacf(b, a, 1 - x) / b; }
+  function fTestP(rss1, rss2, n) { var d1 = 2, d2 = n - 4; if (!(rss2 < rss1) || d2 < 1) return 1; var F = ((rss1 - rss2) / d1) / (rss2 / d2); return betai(d2 / 2, d1 / 2, d2 / (d2 + d1 * F)); }
+  // information criteria; q counts the fitted mean parameters plus one for the error variance (same in both models, so differences are unaffected)
+  function ic(rss, n, p) { var q = p + 1, base = n * Math.log(rss / n); return { aic: base + 2 * q, aicc: base + 2 * q + 2 * q * (q + 1) / (n - q - 1), bic: base + q * Math.log(n) }; }
+  function compare(d) {
+    var s = fitSingle(d.t, d.y), db = fitDouble(d.t, d.y, s), n = d.t.length, is = ic(s.rss, n, 2), id = ic(db.rss, n, 4);
+    return { s: s, d: db, is: is, id: id, dAIC: is.aic - id.aic, dAICc: is.aicc - id.aicc, dBIC: is.bic - id.bic, p: fTestP(s.rss, db.rss, n), n: n };
+  }
+
+  // ---------- controls ----------
+  var simDefs = [
+    { key: "kf", label: "Fast rate constant, k<sub>fast</sub>", min: -2, max: 2, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)); } },
+    { key: "ks", label: "Slow rate constant, k<sub>slow</sub>", min: -2, max: 1, step: 0.01, fmt: function (v) { return sig(Math.pow(10, v)); } },
+    { key: "frac", label: "Fraction of the amplitude that is fast", min: 0, max: 1, step: 0.01, fmt: function (v) { return sig(v); } },
+    { key: "noise", label: "Noise (SD, total amplitude = 1)", min: 0.002, max: 0.2, step: 0.002, fmt: function (v) { return sig(v); } },
+    { key: "n", label: "Number of points", min: 20, max: 200, step: 1, fmt: function (v) { return String(Math.round(v)); } },
+    { key: "win", label: "Time window (× slow lifetime)", min: 1, max: 10, step: 0.1, fmt: function (v) { return sig(v); } }
+  ];
+  var swDefs = [
+    { key: "reps", label: "Noise draws per rate ratio", min: 10, max: 60, step: 5, fmt: function (v) { return String(Math.round(v)); } },
+    { key: "rmax", label: "Largest rate ratio", min: 3, max: 50, step: 1, fmt: function (v) { return String(Math.round(v)) + " ×"; } }
+  ];
+  function buildRows(hostId, defs, obj, onchange) {
+    var host = document.getElementById(hostId);
+    host.innerHTML = defs.map(function (d) {
+      return '<div class="row"><label for="in_' + d.key + '">' + d.label + '</label><output id="out_' + d.key + '"></output><input type="range" id="in_' + d.key + '" min="' + d.min + '" max="' + d.max + '" step="' + d.step + '"></div>';
+    }).join("");
+    defs.forEach(function (d) {
+      var el = document.getElementById("in_" + d.key); el.value = obj[d.key];
+      el.addEventListener("input", function (e) { obj[d.key] = parseFloat(e.target.value); onchange(); });
+    });
+  }
+  buildRows("simRows", simDefs, P, function () { if (sweepData) sweepStale = true; render(); });
+  buildRows("sweepRows", swDefs, SW, function () { if (sweepData) sweepStale = true; render(); });
+  document.getElementById("rerollBtn").addEventListener("click", function () { P.seed++; render(); });
+  document.getElementById("ySeg").addEventListener("click", function (e) {
+    var b = e.target.closest("button"); if (!b) return; state.y = b.dataset.y;
+    Array.prototype.forEach.call(document.querySelectorAll("#ySeg button"), function (x) { x.setAttribute("aria-pressed", x === b); }); render();
+  });
+
+  // ---------- plotting helpers ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w) { return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
+  // generic frame: x/y transforms given as functions of data values; ticks supplied as [value,label]
+  function frame(W, H, M, xr, yr, xt, yt, xl, yl, xf, yf) {
+    var sx = function (x) { return M.l + ((xf ? xf(x) : x) - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - ((yf ? yf(y) : y) - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); }, s = "";
+    yt.forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t[0]) + '" y2="' + sy(t[0]) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t[0]) + 3.5) + '" text-anchor="end">' + t[1] + '</text>'; });
+    xt.forEach(function (t) { s += '<text x="' + sx(t[0]) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + t[1] + '</text>'; });
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + (H - M.b) + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+  function lin(lo, hi, n) { return ticksFor(lo, hi, n).map(function (v) { return [v, fmtT(v)]; }); }
+
+  // ---------- render ----------
+  function render() {
+    simDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(P[d.key]); });
+    swDefs.forEach(function (d) { document.getElementById("out_" + d.key).textContent = d.fmt(SW[d.key]); });
+    var r = trueRates(), ratio = r.kfast / r.kslow, n = Math.round(P.n);
+    document.getElementById("ratioNote").innerHTML = "Rate ratio k<sub>fast</sub>/k<sub>slow</sub> = <b>" + sig(ratio) + "</b>. Time window = " + sig(P.win / r.kslow) + " time units (" + sig(P.win) + " slow lifetimes).";
+
+    var d = makeData(r.kfast, r.kslow, P.frac, P.noise, n, P.win, P.seed), C = compare(d);
+    var truthSingle = ratio < 1.05 || P.frac < 0.02 || P.frac > 0.98;
+    var seS = seSingle(d.t, d.y, C.s), seD = seDouble(d.t, d.y, C.d), dBetter = (C.s.rss - C.d.rss) / C.s.rss;
+    function wD(delta) { return 1 / (1 + Math.exp(-delta / 2)); }
+
+    // ---- cards
+    function verdict(delta) { return delta > 10 ? "double: very strong" : delta > 6 ? "double: strong" : delta > 2 ? "double: positive" : delta > -2 ? "cannot separate" : "single favored"; }
+    document.getElementById("cards").innerHTML =
+      '<div class="card"><div class="k">RSS single → double</div><div class="v">' + sig(C.s.rss) + ' → ' + sig(C.d.rss) + '</div><div class="s">' + sig(100 * dBetter) + '% lower with the double</div></div>' +
+      '<div class="card hot"><div class="k">ΔBIC (single − double)</div><div class="v">' + sig(C.dBIC) + '</div><div class="s">' + verdict(C.dBIC) + ' | P(double) ' + Math.round(100 * wD(C.dBIC)) + '%</div></div>' +
+      '<div class="card hot"><div class="k">ΔAICc (single − double)</div><div class="v">' + sig(C.dAICc) + '</div><div class="s">' + verdict(C.dAICc) + ' | P(double) ' + Math.round(100 * wD(C.dAICc)) + '%</div></div>' +
+      '<div class="card"><div class="k">F-test p-value</div><div class="v">' + (C.p < 0.0001 ? "<0.0001" : sig(C.p)) + '</div><div class="s">' + (C.p < 0.05 ? "double favored at 5%" : "not significant at 5%") + '</div></div>';
+
+    // ---- messages
+    var m = [];
+    if (truthSingle) m.push(["", "<b>The true curve here is a single exponential</b> (equal rates or one phase only). The double exponential still lowers RSS by " + sig(100 * dBetter) + "% by fitting noise. A good criterion should not prefer it."]);
+    else m.push(["", "The true curve has two phases (rate ratio " + sig(ratio) + ", " + sig(100 * P.frac) + "% fast). The double exponential lowers RSS by " + sig(100 * dBetter) + "% compared with the single."]);
+    var dtS = d.tmax / (n - 1), tauF = 1 / r.kfast;
+    if (!truthSingle && tauF < 3 * dtS) m.push(["warn", "<b>The fast phase is barely sampled.</b> Its lifetime (" + sig(tauF) + ") is only " + sig(tauF / dtS) + " sampling intervals (spacing " + sig(dtS) + "), so one or two noisy points carry all the information about k<sub>fast</sub>. In this regime the fit and the Δ values can change abruptly from one slider step to the next. Add points or shorten the time window to resolve the fast phase."]);
+    if (C.dBIC < 2 && !truthSingle) m.push(["warn", "<b>BIC cannot detect the second exponential</b> at this rate ratio, noise and number of points, even though it is really there."]);
+    if (C.dAICc > 2 && C.dBIC < 2) m.push(["", "AICc and BIC disagree: AICc (penalty 2 per parameter) sees the second phase, while BIC (penalty ln n = " + sig(Math.log(n)) + " per parameter) does not. BIC is the more conservative."]);
+    if (C.dAICc > 2 && truthSingle) m.push(["warn", "AICc favors the double exponential even though the truth is single. This is a false positive that happens by chance more often with AIC than with BIC."]);
+    var kfSe = seD[1] / C.d.kf, ksSe = seD[3] / C.d.ks;
+    if (C.d.collapsed) m.push(["warn", "The double-exponential fit collapsed to the single-exponential solution: the data contain no evidence of a second rate."]);
+    else if (!(kfSe < 0.5) || !(ksSe < 0.5)) m.push(["warn", "<b>The double-exponential rate constants are poorly determined</b> (standard errors of " + (isFinite(kfSe) ? Math.round(100 * kfSe) + "%" : "undefined") + " and " + (isFinite(ksSe) ? Math.round(100 * ksSe) + "%" : "undefined") + " of the values). Treat the fitted rates and amplitudes as meaningless even if the criteria favor the double."]);
+    if (sweepStale) m.push(["warn", "The sliders changed since the simulation across rate ratios was run. Press Run simulation to update those charts."]);
+    document.getElementById("msgs").innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // ---- table
+    function pf(v, se) { return sig(v) + (isFinite(se) ? " ± " + sig(se) : ""); }
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>Parameters</th><th>RSS</th><th>AIC</th><th>AICc</th><th>BIC</th><th>ΔAICc</th><th>ΔBIC</th></tr></thead><tbody>' +
+      '<tr><td>Single exponential</td><td>A = ' + pf(C.s.A, seS[0]) + '; k = ' + pf(C.s.k, seS[1]) + '</td><td>' + sig(C.s.rss) + '</td><td>' + sig(C.is.aic) + '</td><td>' + sig(C.is.aicc) + '</td><td>' + sig(C.is.bic) + '</td><td>0</td><td>0</td></tr>' +
+      '<tr><td>Double exponential</td><td>A<sub>f</sub> = ' + pf(C.d.A1, seD[0]) + '; k<sub>f</sub> = ' + pf(C.d.kf, seD[1]) + '; A<sub>s</sub> = ' + pf(C.d.A2, seD[2]) + '; k<sub>s</sub> = ' + pf(C.d.ks, seD[3]) + '</td><td>' + sig(C.d.rss) + '</td><td>' + sig(C.id.aic) + '</td><td>' + sig(C.id.aicc) + '</td><td>' + sig(C.id.bic) + '</td><td>' + sig(C.dAICc) + '</td><td>' + sig(C.dBIC) + '</td></tr>' +
+      '<tr><td>True values</td><td>A<sub>f</sub> = ' + sig(P.frac) + '; k<sub>f</sub> = ' + sig(r.kfast) + '; A<sub>s</sub> = ' + sig(1 - P.frac) + '; k<sub>s</sub> = ' + sig(r.kslow) + '</td><td colspan="6"></td></tr></tbody></table>';
+
+    // ---- data plot
+    var log = state.y === "log", W = 640, H = 320, M = { l: 54, r: 14, t: 12, b: 42 };
+    var ymin = log ? Math.max(1e-3, Math.min.apply(null, d.y.filter(function (v) { return v > 0; }))) : Math.min(0, Math.min.apply(null, d.y)), ymax = Math.max.apply(null, d.y) * 1.05;
+    var yr, yt, yf = null;
+    if (log) { yf = function (v) { return Math.log10(Math.max(v, 1e-6)); }; yr = [Math.floor(LOG(ymin)), Math.ceil(LOG(ymax))]; yt = []; for (var e = yr[0]; e <= yr[1]; e++) yt.push([Math.pow(10, e), fmtT(Math.pow(10, e))]); }
+    else { yr = [ymin, ymax]; yt = lin(ymin, ymax, 5); }
+    var fa = frame(W, H, M, [0, d.tmax], yr, lin(0, d.tmax, 6), yt, "time", "signal" + (log ? " (log scale)" : ""), null, yf), s = fa.svg, xs = [], q;
+    for (q = 0; q <= 240; q++) xs.push(d.tmax * q / 240);
+    function curve(fn) { return xs.map(function (x) { return [fa.sx(x), fa.sy(Math.max(fn(x), log ? 1e-6 : -1e9))]; }); }
+    s += polyline(curve(function (x) { return P.frac * Math.exp(-r.kfast * x) + (1 - P.frac) * Math.exp(-r.kslow * x); }), "var(--ref)", "6 4", 1.8);
+    s += polyline(curve(function (x) { return C.s.A * Math.exp(-C.s.k * x); }), "var(--accent)", null, 2.4);
+    s += polyline(curve(function (x) { return C.d.A1 * Math.exp(-C.d.kf * x) + C.d.A2 * Math.exp(-C.d.ks * x); }), "var(--dbl)", null, 2.4);
+    d.t.forEach(function (x, j) { if (!log || d.y[j] > 0) s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(d.y[j]).toFixed(1) + '" r="2.8" fill="var(--fg)" opacity="0.7"/>'; });
+    document.getElementById("plotA").innerHTML = s;
+    document.getElementById("legendA").innerHTML = '<span><i class="dot" style="background:var(--fg);opacity:0.7"></i>data</span><span><i style="border-color:var(--ref);border-top-style:dashed"></i>true curve</span><span><i style="border-color:var(--accent)"></i>single exponential</span><span><i style="border-color:var(--dbl)"></i>double exponential</span>' + (log ? "<span>points at or below zero are not shown on a log axis</span>" : "");
+
+    // ---- residual plots
+    function resPlot(id, fit, color) {
+      var res = d.y.map(function (v, i) { return v - fit[i]; }), rm = Math.max.apply(null, res.map(Math.abs)) * 1.2 || 0.05, MM = { l: 46, r: 10, t: 10, b: 38 };
+      var f = frame(320, 190, MM, [0, d.tmax], [-rm, rm], lin(0, d.tmax, 4), lin(-rm, rm, 4), "time", "residual"), t = f.svg + '<line x1="46" x2="310" y1="' + f.sy(0) + '" y2="' + f.sy(0) + '" stroke="var(--muted)"/>';
+      d.t.forEach(function (x, j) { t += '<circle cx="' + f.sx(x).toFixed(1) + '" cy="' + f.sy(res[j]).toFixed(1) + '" r="2.4" fill="' + color + '" opacity="0.85"/>'; });
+      document.getElementById(id).innerHTML = t;
+    }
+    resPlot("resS", C.s.fit, "var(--accent)"); resPlot("resD", C.d.fit, "var(--dbl)");
+
+    drawSweep(ratio);
+    document.getElementById("eq").textContent =
+      "single:  y = A exp(−k t)                                   2 fitted constants (A, k)\n" +
+      "double:  y = A1 exp(−k1 t) + A2 exp(−k2 t),  k1 > k2        4 fitted constants\n\n" +
+      "RSS = sum of (observed − fitted)²                 always lower or equal for the double model\n" +
+      "AIC  = n ln(RSS/n) + 2 q\n" +
+      "AICc = AIC + 2 q (q + 1) / (n − q − 1)             small-sample correction\n" +
+      "BIC  = n ln(RSS/n) + q ln(n)\n" +
+      "q = fitted constants + 1 (the error variance); the +1 is the same in both models and does not change any Δ.\n" +
+      "Δ = criterion(single) − criterion(double); positive favors the double exponential.\n" +
+      "Weight of the double model = 1 / (1 + exp(−Δ/2)).\n" +
+      "F-test: F = ((RSS1 − RSS2)/2) / (RSS2/(n − 4)), compared with an F(2, n − 4) distribution (approximate for nonlinear models).\n" +
+      "Amplitudes are found by linear least squares for each pair of rate constants; the rate constants by Levenberg-Marquardt from several starting points.";
+  }
+
+  // ---------- simulation across rate ratios ----------
+  function drawSweep(curRatio) {
+    var status = document.getElementById("sweepStatus"), hint = document.getElementById("sweepHint");
+    ["swD", "swF", "swR", "legendS"].forEach(function (id) { document.getElementById(id).innerHTML = ""; });
+    if (!sweepData) { status.hidden = false; status.textContent = sweepBusy ? "Running..." : "Press Run simulation in the left panel."; return; }
+    status.hidden = !sweepStale && !sweepBusy; status.textContent = sweepBusy ? "Running..." : "Out of date: the sliders changed since this was run.";
+    hint.textContent = "Last run: " + sweepData.reps + " noise draws at each of " + sweepData.ratios.length + " ratios; k_slow = " + sig(sweepData.ks) + ", " + Math.round(sweepData.n) + " points, noise " + sig(sweepData.noise) + ", " + sig(100 * sweepData.frac) + "% fast.";
+    var R = sweepData.ratios, rmax = R[R.length - 1], xf = function (x) { return Math.log10(x); }, xr = [0, LOG(rmax)];
+    var xt = [1, 2, 3, 5, 10, 20, 30, 50].filter(function (v) { return v <= rmax * 1.001; }).map(function (v) { return [v, String(v)]; });
+    var mk = function (id, W, H, yr, yt, yl, series, extra, yfn) {
+      var M = { l: 46, r: 10, t: 10, b: 38 }, f = frame(W, H, M, xr, yr, xt, yt, "rate ratio k_fast / k_slow (log scale)", yl, xf, yfn), s = f.svg;
+      if (extra) s += extra(f);
+      series.forEach(function (sr) { s += polyline(R.map(function (x, i) { return [f.sx(x), f.sy(sr.v[i])]; }), sr.c, sr.dash, 2.4); R.forEach(function (x, i) { s += '<circle cx="' + f.sx(x).toFixed(1) + '" cy="' + f.sy(sr.v[i]).toFixed(1) + '" r="2.8" fill="' + sr.c + '"/>'; }); });
+      if (curRatio >= 1 && curRatio <= rmax) s += '<line x1="' + f.sx(curRatio) + '" x2="' + f.sx(curRatio) + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)" stroke-dasharray="2 3"/>';
+      document.getElementById(id).innerHTML = s; return f;
+    };
+    // mean delta criteria on a signed-log axis
+    var sl = function (v) { return Math.sign(v) * Math.log10(1 + Math.abs(v)); }, allD = sweepData.mBIC.concat(sweepData.mAICc), lo = Math.min.apply(null, allD.concat([-1])), hi = Math.max.apply(null, allD.concat([12]));
+    var ytD = [-10, -1, 0, 1, 10, 100, 1000].filter(function (v) { return sl(v) >= sl(lo) - 0.05 && sl(v) <= sl(hi) + 0.05; }).map(function (v) { return [v, String(v)]; });
+    mk("swD", 320, 250, [sl(lo) - 0.1, sl(hi) + 0.1], ytD, "mean Δ (single − double)", [{ v: sweepData.mAICc, c: "var(--dbl)" }, { v: sweepData.mBIC, c: "var(--accent)" }], function (f) {
+      var t = ""; [[0, "var(--muted)", null], [2, "var(--ref)", "4 4"], [10, "var(--ref)", "4 4"]].forEach(function (g) { t += '<line x1="46" x2="310" y1="' + f.sy(g[0]) + '" y2="' + f.sy(g[0]) + '" stroke="' + g[1] + '"' + (g[2] ? ' stroke-dasharray="' + g[2] + '"' : "") + '/>'; });
+      return t + '<text x="308" y="' + (f.sy(2) - 3) + '" text-anchor="end">2</text><text x="308" y="' + (f.sy(10) - 3) + '" text-anchor="end">10</text>';
+    }, sl);
+    mk("swF", 320, 250, [0, 100], lin(0, 100, 5), "% of data sets favoring the double", [{ v: sweepData.fF, c: "var(--good)", dash: "5 3" }, { v: sweepData.fAICc, c: "var(--dbl)" }, { v: sweepData.fBIC, c: "var(--accent)" }], null);
+    var rlo = Math.min.apply(null, sweepData.rssR.concat([1])), rr = [Math.max(0, rlo - 0.05), 1.02];
+    mk("swR", 640, 210, rr, lin(rr[0], rr[1], 4), "mean RSS(double) / RSS(single)", [{ v: sweepData.rssR, c: "var(--fg)" }], function (f) { return '<line x1="46" x2="630" y1="' + f.sy(1) + '" y2="' + f.sy(1) + '" stroke="var(--ref)" stroke-dasharray="4 4"/>'; });
+    document.getElementById("legendS").innerHTML = '<span><i style="border-color:var(--accent)"></i>BIC</span><span><i style="border-color:var(--dbl)"></i>AICc</span><span><i style="border-color:var(--good);border-top-style:dashed"></i>F-test, p &lt; 0.05</span><span>dashed vertical line: the current ratio</span><span>top-left chart: Δ = 2 and 10 are the usual “positive” and “very strong” thresholds</span>';
+  }
+  function runSweep() {
+    if (sweepBusy) return;
+    sweepBusy = true; var btn = document.getElementById("sweepBtn"); btn.disabled = true;
+    var r = trueRates(), ks = r.kslow, steps = 12, rmax = Math.round(SW.rmax), reps = Math.round(SW.reps), n = Math.round(P.n);
+    var snap = { ks: ks, frac: P.frac, noise: P.noise, n: n, win: P.win, reps: reps };
+    var R = []; for (var i = 0; i < steps; i++) R.push(Math.pow(rmax, i / (steps - 1)));
+    var out = { ratios: R, mBIC: [], mAICc: [], fBIC: [], fAICc: [], fF: [], rssR: [], ks: ks, frac: P.frac, noise: P.noise, n: n, reps: reps }, idx = 0;
+    function step() {
+      var ratio = R[idx], sB = 0, sA = 0, cB = 0, cA = 0, cF = 0, sR = 0;
+      for (var k = 0; k < reps; k++) {
+        var d = makeData(ratio * ks, ks, snap.frac, snap.noise, n, snap.win, 1000 + idx * 131 + k * 977), C = compare(d);
+        sB += C.dBIC; sA += C.dAICc; if (C.dBIC > 0) cB++; if (C.dAICc > 0) cA++; if (C.p < 0.05) cF++; sR += C.d.rss / C.s.rss;
+      }
+      out.mBIC.push(sB / reps); out.mAICc.push(sA / reps); out.fBIC.push(100 * cB / reps); out.fAICc.push(100 * cA / reps); out.fF.push(100 * cF / reps); out.rssR.push(sR / reps);
+      idx++;
+      document.getElementById("sweepHint").textContent = "Running: " + idx + " of " + steps + " rate ratios...";
+      if (idx < steps) setTimeout(step, 0);
+      else { sweepData = out; sweepStale = false; sweepBusy = false; btn.disabled = false; render(); }
+    }
+    setTimeout(step, 0);
+  }
+  document.getElementById("sweepBtn").addEventListener("click", runSweep);
+
+  render();
+  setTimeout(runSweep, 200);
+})();
+</script>
+
+</body></html>
