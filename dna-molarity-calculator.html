@@ -47,6 +47,19 @@ h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacin
 .f .in select, .f .in span { width: auto; flex: none; border-radius: 0 6px 6px 0; border-left: 0; }
 .f .in span { font-family: var(--mono); font-size: 13px; padding: 7px 9px; border: 1px solid var(--line); border-left: 0; color: var(--muted); background: var(--panel); }
 input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.f input:disabled { opacity: .6; }
+.seq { margin-top: 14px; }
+.seq .opt { color: var(--muted); font-size: 12px; }
+.seq textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--fg); width: 100%; height: 96px; resize: vertical; word-break: break-all;
+}
+textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.seqbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 6px; }
+.check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin: 0; }
+.f .check input { accent-color: var(--accent); margin: 0; width: auto; flex: none; }
+.link { font: inherit; font-size: 13px; color: var(--accent); background: none; border: 0; padding: 0; cursor: pointer; }
+.seq .hint { font-family: var(--mono); }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .presets button { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
 .presets button:hover { border-color: var(--accent); color: var(--fg); }
@@ -72,7 +85,7 @@ footer a { color: var(--accent); }
 <main>
   <p class="eyebrow"><a href="index.html">BBMB 4110</a></p>
   <h1>DNA Molarity Calculator</h1>
-  <p class="lede">Enter a concentration in ng/µL (from a NanoDrop or Qubit) and the length. The molar concentration updates as you type.</p>
+  <p class="lede">Enter a concentration in ng/µL (from a NanoDrop or Qubit) and the length, or paste the sequence. The molar concentration updates as you type.</p>
 
   <section class="panel" aria-labelledby="h-in">
     <h2 id="h-in">Your sample</h2>
@@ -106,6 +119,15 @@ footer a { color: var(--accent); }
           <option value="rna">ssRNA</option>
         </select>
       </div>
+    </div>
+    <div class="f seq">
+      <label for="seq">Or paste the sequence <span class="opt">(plain or FASTA; sets the length and uses the exact base composition)</span></label>
+      <textarea id="seq" spellcheck="false" autocomplete="off" placeholder="&gt;my_plasmid&#10;ATGACCATGATTACGCCAAGC…"></textarea>
+      <div class="seqbar">
+        <label class="check"><input id="circ" type="checkbox"> Circular (plasmid)</label>
+        <button type="button" class="link" id="clearSeq" hidden>Clear sequence</button>
+      </div>
+      <p class="hint" id="seqInfo" hidden></p>
     </div>
     <div class="presets" aria-label="Common lengths">
       <button type="button" data-len="2686">pUC19 · 2,686 bp</button>
@@ -171,6 +193,7 @@ footer a { color: var(--accent); }
       <li>ssDNA: <code>MW = nt × 308.97 + 18.02</code> g/mol</li>
       <li>ssRNA: <code>MW = nt × 320.5 + 159.0</code> g/mol</li>
     </ul>
+    <p>With a pasted sequence the molecular weight is summed from the actual bases instead (both strands for dsDNA). Each nucleotide counts as its anhydrous monophosphate: dA 313.21, dC 289.18, dG 329.21, dT 304.20; A 329.21, C 305.18, G 345.21, U 306.17. A linear DNA strand with 5′-OH ends loses 61.96; RNA gains 159.0 for a 5′-triphosphate; a circular molecule has no ends to correct. Ambiguous bases (N, R, Y…) count as the average nucleotide. Numbers, spaces and FASTA header lines are ignored.</p>
     <p>Quick check: 50 ng/µL of a 3,000 bp plasmid is 50 × 10⁶ ÷ 1,853,916 ≈ 27 nM. For circular plasmids the end correction doesn’t apply, but at this size it changes nothing.</p>
   </details>
 
@@ -208,10 +231,59 @@ function fmtVol(ul) {
   return num(ul) + ' µL';
 }
 
+// Anhydrous nucleoside monophosphate masses (g/mol); a strand is the sum of its residues plus an end correction.
+const RES = {
+  dna: { A: 313.21, C: 289.18, G: 329.21, T: 304.20 },
+  rna: { A: 329.21, C: 305.18, G: 345.21, U: 306.17 },
+};
+const COMP = { A: 'T', T: 'A', G: 'C', C: 'G' };
+
+// Strip FASTA headers, digits and whitespace; return counts of A/C/G/T(U) and anything else.
+function parseSeq(text) {
+  const s = text.split(/\r?\n/).filter(l => !l.startsWith('>')).join('').toUpperCase().replace(/[^A-Z]/g, '');
+  const n = { A: 0, C: 0, G: 0, T: 0, U: 0, other: 0 };
+  for (const ch of s) ch in n ? n[ch]++ : n.other++;
+  return { len: s.length, n };
+}
+
+// Molecular weight from base composition, or null for an empty sequence.
+function seqMW(n, len, type, circular) {
+  if (!len) return null;
+  const rna = type === 'rna';
+  const r = rna ? RES.rna : RES.dna;
+  const t = n.T + n.U; // treat U in DNA (or T in RNA) as the other one
+  const known = { A: n.A, C: n.C, G: n.G, [rna ? 'U' : 'T']: t };
+  const avg = Object.values(r).reduce((x, y) => x + y) / 4;
+  let strand = 0;
+  for (const [b, c] of Object.entries(known)) strand += c * r[b];
+  strand += n.other * avg;
+  if (type === 'ds') {
+    let comp = n.other * avg;
+    for (const [b, c] of Object.entries(known)) comp += c * r[COMP[b === 'U' ? 'T' : b]];
+    return strand + comp + (circular ? 0 : -2 * 61.96);
+  }
+  return strand + (circular ? 0 : rna ? 159.0 : -61.96);
+}
+
 function update() {
   const conc = parseFloat($('conc').value) * parseFloat($('concUnit').value); // ng/µL
-  const len = parseFloat($('len').value) * parseFloat($('lenUnit').value);
-  const [a, b] = MW_COEF[$('type').value];
+  const type = $('type').value;
+  const seq = parseSeq($('seq').value);
+  const useSeq = seq.len > 0;
+  $('len').disabled = $('lenUnit').disabled = useSeq;
+  $('clearSeq').hidden = !useSeq;
+  $('seqInfo').hidden = !useSeq;
+  if (useSeq) {
+    $('len').value = seq.len; $('lenUnit').value = '1';
+    const gc = seq.len ? (seq.n.G + seq.n.C) / seq.len * 100 : 0;
+    const unit = type === 'ds' ? 'bp' : 'nt';
+    $('seqInfo').textContent = `${seq.len.toLocaleString()} ${unit} · GC ${gc.toFixed(1)}%` +
+      (seq.n.other ? ` · ${seq.n.other.toLocaleString()} ambiguous` : '') +
+      (type === 'rna' && seq.n.T ? ' · T read as U' : '') +
+      (type !== 'rna' && seq.n.U ? ' · U read as T' : '');
+  }
+  const len = useSeq ? seq.len : parseFloat($('len').value) * parseFloat($('lenUnit').value);
+  const [a, b] = MW_COEF[type];
   const warn = $('warn');
   warn.hidden = true;
 
@@ -222,7 +294,7 @@ function update() {
     return;
   }
 
-  const mw = len * a + b;                 // g/mol
+  const mw = useSeq ? seqMW(seq.n, seq.len, type, $('circ').checked) : len * a + b; // g/mol
   const molar = conc * 1e-3 / mw;          // mol/L  (ng/µL == mg/L)
   const [v, u] = fmtMolar(molar);
   $('molar').innerHTML = `${num(v)}<small>${u}</small>`;
@@ -255,8 +327,10 @@ function update() {
   }
 }
 
-document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', update));
+document.querySelectorAll('input, select, textarea').forEach(el => el.addEventListener('input', update));
+$('clearSeq').addEventListener('click', () => { $('seq').value = ''; update(); $('seq').focus(); });
 document.querySelectorAll('.presets button').forEach(btn => btn.addEventListener('click', () => {
+  $('seq').value = '';
   $('len').value = btn.dataset.len; $('lenUnit').value = '1'; $('type').value = 'ds'; update();
 }));
 update();
