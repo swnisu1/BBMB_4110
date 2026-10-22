@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DNA Molarity Calculator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* Concentration (ng/µL) + length → molar concentration. Also: moles in a volume, and the dilution to hit a target molarity. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --warn: #f0b070; --warn-bg: #3a2a18;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --warn: #f0b070; --warn-bg: #3a2a18;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 56px; }
+.eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: .04em; margin: 0 0 6px; }
+.eyebrow a { color: inherit; text-decoration: none; }
+h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 0 0 20px; max-width: 64ch; }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 14px; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 12px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px 16px; }
+.f label { display: block; font-size: 13px; margin-bottom: 4px; }
+.f .in { display: flex; }
+.f input, .f select {
+  font: inherit; font-family: var(--mono); font-size: 14px; padding: 7px 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--fg); min-width: 0; width: 100%; border-radius: 6px;
+}
+.f .in input { border-radius: 6px 0 0 6px; }
+.f .in select, .f .in span { width: auto; flex: none; border-radius: 0 6px 6px 0; border-left: 0; }
+.f .in span { font-family: var(--mono); font-size: 13px; padding: 7px 9px; border: 1px solid var(--line); border-left: 0; color: var(--muted); background: var(--panel); }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.presets button { font: inherit; font-size: 12px; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--line); background: transparent; color: var(--muted); cursor: pointer; }
+.presets button:hover { border-color: var(--accent); color: var(--fg); }
+.result { background: var(--accent-soft); border: 0; }
+.big { font-family: var(--mono); font-size: 40px; font-weight: 500; letter-spacing: -.02em; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+.big small { font-size: 22px; color: var(--muted); margin-left: 6px; }
+.alts { display: flex; flex-wrap: wrap; gap: 4px 18px; font-family: var(--mono); font-size: 13px; color: var(--muted); margin: 8px 0 0; }
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 14px 0 0; padding-top: 12px; border-top: 1px solid var(--line); font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--mono); text-align: right; }
+.out { font-family: var(--mono); font-size: 15px; margin: 12px 0 0; }
+.out b { font-weight: 500; color: var(--accent); }
+.warn { background: var(--warn-bg); color: var(--warn); border-radius: 6px; padding: 8px 10px; font-size: 13px; margin: 12px 0 0; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 10px 0 0; }
+details summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details p, details ul { color: var(--muted); font-size: 13px; }
+code { font-family: var(--mono); font-size: 12.5px; }
+footer { margin-top: 24px; font-size: 13px; color: var(--muted); }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow"><a href="index.html">BBMB 4110</a></p>
+  <h1>DNA Molarity Calculator</h1>
+  <p class="lede">Enter a concentration in ng/µL (from a NanoDrop or Qubit) and the length. The molar concentration updates as you type.</p>
+
+  <section class="panel" aria-labelledby="h-in">
+    <h2 id="h-in">Your sample</h2>
+    <div class="fields">
+      <div class="f">
+        <label for="conc">Concentration</label>
+        <div class="in">
+          <input id="conc" type="number" inputmode="decimal" min="0" step="any" value="50">
+          <select id="concUnit" aria-label="Concentration unit">
+            <option value="1">ng/µL</option>
+            <option value="1000">µg/µL</option>
+            <option value="0.001">pg/µL</option>
+          </select>
+        </div>
+      </div>
+      <div class="f">
+        <label for="len">Length</label>
+        <div class="in">
+          <input id="len" type="number" inputmode="numeric" min="1" step="1" value="3000">
+          <select id="lenUnit" aria-label="Length unit">
+            <option value="1">bp / nt</option>
+            <option value="1000">kb</option>
+          </select>
+        </div>
+      </div>
+      <div class="f">
+        <label for="type">Molecule</label>
+        <select id="type">
+          <option value="ds">dsDNA</option>
+          <option value="ss">ssDNA (oligo)</option>
+          <option value="rna">ssRNA</option>
+        </select>
+      </div>
+    </div>
+    <div class="presets" aria-label="Common lengths">
+      <button type="button" data-len="2686">pUC19 · 2,686 bp</button>
+      <button type="button" data-len="5369">pET-28a(+) · 5,369 bp</button>
+      <button type="button" data-len="48502">λ DNA · 48,502 bp</button>
+      <button type="button" data-len="1000">1 kb PCR product</button>
+    </div>
+  </section>
+
+  <section class="panel result" aria-live="polite" aria-labelledby="h-out">
+    <h2 id="h-out">Molar concentration</h2>
+    <p class="big" id="molar">–</p>
+    <p class="alts" id="alts"></p>
+    <dl class="kv">
+      <dt>Molecular weight</dt><dd id="mw">–</dd>
+      <dt>Copies per µL</dt><dd id="copies">–</dd>
+      <dt>1 pmol of this DNA weighs</dt><dd id="perPmol">–</dd>
+    </dl>
+    <p class="warn" id="warn" hidden></p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-vol">
+    <h2 id="h-vol">How much is in a volume?</h2>
+    <div class="fields">
+      <div class="f">
+        <label for="vol">Volume of this stock</label>
+        <div class="in"><input id="vol" type="number" inputmode="decimal" min="0" step="any" value="1"><span>µL</span></div>
+      </div>
+    </div>
+    <p class="out" id="volOut">–</p>
+  </section>
+
+  <section class="panel" aria-labelledby="h-dil">
+    <h2 id="h-dil">Dilute to a target molarity</h2>
+    <div class="fields">
+      <div class="f">
+        <label for="target">Target concentration</label>
+        <div class="in">
+          <input id="target" type="number" inputmode="decimal" min="0" step="any" value="10">
+          <select id="targetUnit" aria-label="Target unit">
+            <option value="1e-12">pM</option>
+            <option value="1e-9" selected>nM</option>
+            <option value="1e-6">µM</option>
+          </select>
+        </div>
+      </div>
+      <div class="f">
+        <label for="final">Final volume</label>
+        <div class="in"><input id="final" type="number" inputmode="decimal" min="0" step="any" value="20"><span>µL</span></div>
+      </div>
+    </div>
+    <p class="out" id="dilOut">–</p>
+  </section>
+
+  <details>
+    <summary>How it’s calculated</summary>
+    <p>Molarity is mass concentration divided by molecular weight. Since 1 ng/µL = 1 g/L × 10<sup>−3</sup>:</p>
+    <p><code>molarity (M) = concentration (ng/µL) × 10⁻³ ÷ MW (g/mol)</code><br>
+       <code>molarity (nM) = concentration (ng/µL) × 10⁶ ÷ MW</code></p>
+    <p>Molecular weights use average masses of the sodium-free nucleotides:</p>
+    <ul>
+      <li>dsDNA: <code>MW = bp × 617.96 + 36.04</code> g/mol</li>
+      <li>ssDNA: <code>MW = nt × 308.97 + 18.02</code> g/mol</li>
+      <li>ssRNA: <code>MW = nt × 320.5 + 159.0</code> g/mol</li>
+    </ul>
+    <p>Quick check: 50 ng/µL of a 3,000 bp plasmid is 50 × 10⁶ ÷ 1,853,916 ≈ 27 nM. For circular plasmids the end correction doesn’t apply, but at this size it changes nothing.</p>
+  </details>
+
+  <footer>Source on <a href="https://github.com/swnisu1/BBMB_4110">GitHub</a>.</footer>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const AVOGADRO = 6.02214076e23;
+const MW_COEF = { ds: [617.96, 36.04], ss: [308.97, 18.02], rna: [320.5, 159.0] };
+
+// Pick a unit so the number lands between 1 and 1000.
+function fmtMolar(m) {
+  const units = [[1, 'M'], [1e-3, 'mM'], [1e-6, 'µM'], [1e-9, 'nM'], [1e-12, 'pM'], [1e-15, 'fM']];
+  for (const [f, u] of units) if (m >= f) return [m / f, u];
+  return [m / 1e-15, 'fM'];
+}
+function num(x, sig = 4) {
+  if (!isFinite(x)) return '–';
+  if (x === 0) return '0';
+  const r = Number(x.toPrecision(sig));
+  return Math.abs(r) >= 1e6 || Math.abs(r) < 1e-3 ? r.toExponential(sig - 1).replace('e+', 'e') : r.toLocaleString(undefined, { maximumSignificantDigits: sig });
+}
+function fmtMoles(mol) {
+  const units = [[1e-3, 'mmol'], [1e-6, 'µmol'], [1e-9, 'nmol'], [1e-12, 'pmol'], [1e-15, 'fmol'], [1e-18, 'amol']];
+  for (const [f, u] of units) if (mol >= f) return num(mol / f) + ' ' + u;
+  return num(mol / 1e-18) + ' amol';
+}
+function fmtMass(ng) {
+  if (ng >= 1e3) return num(ng / 1e3) + ' µg';
+  if (ng >= 1) return num(ng) + ' ng';
+  return num(ng * 1e3) + ' pg';
+}
+function fmtVol(ul) {
+  if (ul >= 1000) return num(ul / 1000) + ' mL';
+  return num(ul) + ' µL';
+}
+
+function update() {
+  const conc = parseFloat($('conc').value) * parseFloat($('concUnit').value); // ng/µL
+  const len = parseFloat($('len').value) * parseFloat($('lenUnit').value);
+  const [a, b] = MW_COEF[$('type').value];
+  const warn = $('warn');
+  warn.hidden = true;
+
+  if (!(conc >= 0) || !(len > 0)) {
+    $('molar').textContent = '–';
+    ['alts', 'mw', 'copies', 'perPmol', 'volOut', 'dilOut'].forEach(id => $(id).textContent = '–');
+    $('alts').textContent = '';
+    return;
+  }
+
+  const mw = len * a + b;                 // g/mol
+  const molar = conc * 1e-3 / mw;          // mol/L  (ng/µL == mg/L)
+  const [v, u] = fmtMolar(molar);
+  $('molar').innerHTML = `${num(v)}<small>${u}</small>`;
+  $('alts').innerHTML = [[1e-6, 'µM'], [1e-9, 'nM'], [1e-12, 'pM']]
+    .filter(([, uu]) => uu !== u).map(([f, uu]) => `<span>${num(molar / f)} ${uu}</span>`).join('');
+  $('mw').textContent = num(mw, 6) + ' g/mol';
+  $('copies').textContent = num(molar * 1e-6 * AVOGADRO, 3);
+  $('perPmol').textContent = fmtMass(mw * 1e-12 * 1e9);
+
+  const vol = parseFloat($('vol').value);
+  $('volOut').innerHTML = vol >= 0
+    ? `${num(vol)} µL = <b>${fmtMoles(molar * vol * 1e-6)}</b> · ${fmtMass(conc * vol)}`
+    : '–';
+
+  const target = parseFloat($('target').value) * parseFloat($('targetUnit').value);
+  const fin = parseFloat($('final').value);
+  if (target > 0 && fin > 0 && molar > 0) {
+    if (target > molar) {
+      $('dilOut').textContent = 'Stock is more dilute than the target — concentrate it first.';
+    } else {
+      const stock = fin * target / molar;
+      $('dilOut').innerHTML = `Mix <b>${fmtVol(stock)}</b> stock + <b>${fmtVol(fin - stock)}</b> buffer`;
+      if (stock < 0.5) {
+        warn.textContent = `That’s less than 0.5 µL of stock — hard to pipette accurately. Make an intermediate dilution first, or increase the final volume.`;
+        warn.hidden = false;
+      }
+    }
+  } else {
+    $('dilOut').textContent = '–';
+  }
+}
+
+document.querySelectorAll('input, select').forEach(el => el.addEventListener('input', update));
+document.querySelectorAll('.presets button').forEach(btn => btn.addEventListener('click', () => {
+  $('len').value = btn.dataset.len; $('lenUnit').value = '1'; $('type').value = 'ds'; update();
+}));
+update();
+</script>
+</body>
+</html>

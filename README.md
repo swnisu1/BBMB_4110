@@ -12,6 +12,7 @@ Interactive tools for fitting and exploring enzyme kinetics data. Everything run
 | [Substrate Dependence Fitting](https://swnisu1.github.io/BBMB_4110/substrate-dependence-fitting.html) | Michaelis–Menten, Hill and substrate-inhibition fits |
 | [Two-Substrate Kinetics Explorer](https://swnisu1.github.io/BBMB_4110/two-substrate-kinetics-explorer.html) | Apparent K<sub>M</sub> of one substrate vs. the other |
 | [Inhibition Mechanism Fitting](https://swnisu1.github.io/BBMB_4110/inhibition-mechanism-fitting.html) | Competitive, uncompetitive, noncompetitive and mixed inhibition |
+| [DNA Molarity Calculator](https://swnisu1.github.io/BBMB_4110/dna-molarity-calculator.html) | ng/µL + length → molar concentration, moles and dilutions |
 | [IC50 Fitting](https://swnisu1.github.io/BBMB_4110/ic50-fitting.html) | Dose–response curves for IC<sub>50</sub> |
 
 The source for each tool is the matching `.html` file in this repository.
