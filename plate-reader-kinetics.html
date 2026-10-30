@@ -192,12 +192,12 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
       <section class="panel">
         <h2><span class="step">2</span>Slopes</h2>
-        <div class="field two"><label>Window (min)</label><input type="number" id="winA" step="any" min="0" aria-label="Window start, min"><input type="number" id="winB" step="any" min="0" aria-label="Window end, min"></div>
+        <div class="field two"><label>Shared window (min)</label><input type="number" id="winA" step="any" min="0" aria-label="Window start, min"><input type="number" id="winB" step="any" min="0" aria-label="Window end, min"></div>
         <div class="field"><label for="dirSel">A<sub>340</sub> during the assay</label>
           <select id="dirSel"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
         <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the mean slope of wells marked <b>blank</b> (same run)</span></label>
         <div class="btns"><button type="button" class="btn" id="resetWin">Clear per-well windows</button></div>
-        <p class="hint">Use the early part of each trace, where it is still straight. You can also drag across the well plot on the right to set the window with the mouse.</p>
+        <p class="hint">Use the early part of each trace, where it is still straight. This is the shared window for every well. To change one well only, drag across its plot on the right.</p>
       </section>
 
       <section class="panel">
@@ -265,12 +265,12 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="stats" id="wellStats"></div>
         <div class="dctl">
           <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="blank">a blank (no enzyme)</option><option value="off">left out (bad well)</option></select></label>
-          <label><input type="checkbox" id="wOwn"> own window</label>
-          <label><input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
+          <label>Window <input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
           <button type="button" class="btn" id="wApply">Use this window for all wells</button>
+          <button type="button" class="btn" id="wReset">Back to the shared window</button>
           <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
         </div>
-        <p class="hint">Set <b>this well is</b> to <i>left out</i> only for a well that went wrong (bubble, pipetting error, empty); it then drops out of the rates and the fit. <b>Drag across the plot</b> to set the slope window, or drag an edge of the shaded band to move it. The window applies to all wells unless “own window” is ticked, in which case it applies to this well only. Click a point to drop it from the slope (for a bubble or mixing spike); click it again to restore it.</p>
+        <p class="hint">Set <b>this well is</b> to <i>left out</i> only for a well that went wrong (bubble, pipetting error, empty); it then drops out of the rates and the fit. <b>Drag across the plot</b> to set the slope window, or drag an edge of the shaded band to move it. Changes here apply to this well only. When the window looks right, press <b>Use this window for all wells</b>, then fine-tune any well that needs a different one. Pressing that button again resets every well, so use it first. Click a point to drop it from the slope (for a bubble or mixing spike); click it again to restore it.</p>
         </div>
       </section>
 
@@ -853,7 +853,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       var fl = o.fit.flags; if (fl.length) st += '<br><span style="color:var(--warn)">Check: ' + esc(fl.join("; ")) + (o.fit.curv < -0.25 ? ". Try a shorter or earlier window." : "") + '</span>';
     } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
     $("wellStats").innerHTML = st;
-    $("wRole").value = cfg.role; $("wOwn").checked = !!cfg.win; $("wA").value = sig(win[0], 4); $("wB").value = sig(win[1], 4); $("wA").disabled = $("wB").disabled = !cfg.win;
+    $("wRole").value = cfg.role; $("wA").value = sig(win[0], 4); $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
+    $("wellStats").innerHTML += '<br><span style="color:var(--muted)">' + (cfg.win ? "This well has its own window (the shared window is " + sig(G.win[0]) + "–" + sig(G.win[1]) + " min)." : "Shared window, used by every well without its own.") + '</span>';
     $("wClearPts").disabled = !Object.keys(cfg.excl).length;
   }
   function drawRates() {
@@ -1162,7 +1163,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function edgeAt(e) { if (cur < 0) return -1; var p = plotTime(e), win = winOf(runs[cur], selWell), tmax = runs[cur].t[runs[cur].t.length - 1] / 60, k = (640 - M.l - M.r) / tmax, tol = 7 * p.px; return Math.abs((p.t - win[0]) * k) < tol ? 0 : Math.abs((p.t - win[1]) * k) < tol ? 1 : -1; }
   function setWin(a, b) {
     var lo = Math.round(Math.min(a, b) * 100) / 100, hi = Math.round(Math.max(a, b) * 100) / 100, c = runs[cur].cfg.wells[selWell];
-    if (c.win) c.win = [lo, hi]; else { G.win = [lo, hi]; $("winA").value = lo; $("winB").value = hi; }
+    c.win = [lo, hi];
     render();
   }
   plotW.addEventListener("pointerdown", function (e) {
@@ -1183,8 +1184,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function step(d) { var o = runs[cur].order, i = o.indexOf(selWell); selWell = o[(i + d + o.length) % o.length]; render(); }
   $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
   $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; buildLayout(); render(); });
-  $("wOwn").addEventListener("change", function (e) { var c = runs[cur].cfg.wells[selWell]; c.win = e.target.checked ? G.win.slice() : null; render(); });
-  ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!c.win || !isFinite(v)) return; c.win[i] = v; render(); }); });
+  $("wReset").addEventListener("click", function () { runs[cur].cfg.wells[selWell].win = null; render(); });
+  ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!isFinite(v)) return; if (!c.win) c.win = G.win.slice(); c.win[i] = v; render(); }); });
   $("wApply").addEventListener("click", function () { var c = runs[cur].cfg.wells[selWell]; G.win = winOf(runs[cur], selWell).slice(); runs.forEach(function (r) { r.order.forEach(function (w) { r.cfg.wells[w].win = null; }); }); syncInputs(); saveSettings(); render(); });
   $("wBack").addEventListener("click", function () { runs[cur].cfg.wells[selWell].role = "sample"; buildLayout(); render(); });
   $("wClearPts").addEventListener("click", function () { runs[cur].cfg.wells[selWell].excl = {}; render(); });
