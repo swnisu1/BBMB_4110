@@ -1172,9 +1172,9 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   // paste a row or block from Excel across the [S] boxes
   lg.addEventListener("paste", function (e) {
     var el = e.target; if (el.tagName !== "INPUT" || el.dataset.ws === undefined) return;
-    var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n]/.test(t.trim())) return;
+    var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n,; ]/.test(t.trim())) return;
     e.preventDefault();
-    var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.split("\t"); });
+    var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
     var r0 = +el.dataset.r, c0 = +el.dataset.c;
     grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); setS(x, v.trim()); } }); });
     render();
