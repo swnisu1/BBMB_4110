@@ -280,12 +280,12 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <div class="toggles"><label style="font-size:12.5px;color:var(--muted)" for="sUnit">[S] units</label><select id="sUnit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select></div>
         </div>
         <div class="seg" id="layoutSeg" style="margin:6px 0 10px">
-          <button type="button" data-l="col" aria-pressed="true">Same [S] in each plate column (1, 2, 3…)</button>
-          <button type="button" data-l="row" aria-pressed="false">Same [S] in each plate row (A, B, C…)</button>
+          <button type="button" data-l="col" aria-pressed="true">Each row is an [S] series (1→12)</button>
+          <button type="button" data-l="row" aria-pressed="false">Each row has a single [S]</button>
           <button type="button" data-l="well" aria-pressed="false">Each well separately</button>
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <p class="hint">Rows and columns here mean the plate (row A = wells A1–A12, column 1 = wells A1, B1, C1…), not the rows of the spreadsheet. Example: if the triplicates are in rows A–C and [S] changes from column 1 to 12, use “each plate column”. Leave [S] empty for wells that should not be fit. Wells with the same series name and [S] are replicates; series let you compare WT and a mutant on one plate. You can paste a row or block of numbers copied from Excel into the boxes. Blank wells (no enzyme) only set the background slope and need no [S].</p>
+        <p class="hint">Rows and columns here mean the plate (row A = wells A1–A12, column 1 = wells A1, B1, C1…), not the rows of the spreadsheet. The usual setup is the first option: each row (A1–A12) is a substrate series, so you type the 12 concentrations once and every row uses them; rows with the same series name (e.g. A–C) are replicates. Give a row a different series name for a mutant, or set it to blank. Leave [S] empty for wells that should not be fit. Wells with the same series name and [S] are replicates; series let you compare WT and a mutant on one plate. You can paste a row or block of numbers copied from Excel into the boxes. Blank wells (no enzyme) only set the background slope and need no [S].</p>
       </section>
 
       <section class="panel" id="ratePanel" hidden>
