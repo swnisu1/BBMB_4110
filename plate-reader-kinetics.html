@@ -245,7 +245,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
-        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. <b style="color:var(--warn)">!</b> marks a trace that bends inside the window, a poor straight-line fit, or absorbance near the detector limit.</p>
+        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered.</p>
       </section>
 
       <section class="panel plot" id="wellPanel" hidden>
@@ -550,13 +550,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     for (var k = 0; k < run.t.length; k++) { var m = run.t[k] / 60; if (m < win[0] - 1e-9 || m > win[1] + 1e-9 || cfg.excl[k] || !isFinite(y[k])) continue; x.push(m); yy.push(y[k]); }
     if (x.length < 3) return { ok: false, n: x.length };
     var L = linreg(x, yy), out = { ok: true, n: x.length, slope: L.b, a: L.a, se: L.se, r2: L.r2, amax: Math.max.apply(null, yy), flags: [] };
-    if (x.length >= 8) {
-      var h = Math.floor(x.length / 2), b1 = linreg(x.slice(0, h), yy.slice(0, h)).b, b2 = linreg(x.slice(x.length - h), yy.slice(yy.length - h)).b;
-      out.curv = (b2 - b1) / Math.abs(L.b || 1e-12);
-      if (Math.abs(L.b) > 4 * L.se && Math.abs(out.curv) > 0.25) out.flags.push(out.curv < 0 ? "slows down in window" : "speeds up in window");
-    }
-    if (out.amax > 2) out.flags.push("A > 2 (detector limit)");
-    if (Math.abs(L.b) > 5 * L.se && L.r2 < 0.98) out.flags.push("R² " + L.r2.toFixed(3));
     return out;
   }
   // absorbance per µM NADPH in the well (null = no conversion)
