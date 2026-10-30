@@ -13,6 +13,7 @@
 :root {
   --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
   --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
   --win: rgba(51, 71, 201, 0.08);
   --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
   --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
@@ -24,6 +25,7 @@
   :root:not([data-theme="light"]) {
     --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
     --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
     --win: rgba(141, 155, 255, 0.10);
     --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
     --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
@@ -33,6 +35,7 @@
 :root[data-theme="dark"] {
   --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
   --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
   --win: rgba(141, 155, 255, 0.10);
   --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
   --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
@@ -132,7 +135,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .wl.off { opacity: 0.35; }
 .wl.off .num { text-decoration: line-through; }
 .wl.blank { border-style: dashed; border-color: var(--muted); }
-.wl .fl { position: absolute; top: 1px; right: 3px; color: var(--warn); font-size: 10px; font-weight: 600; }
+.wl.q1 { background: var(--q1); }
+.wl.q2 { background: var(--q2); }
+.wl.q3 { background: var(--q3); }
+.qkey { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin: 0 3px 0 6px; border: 1px solid var(--line); }
 .wl.empty { cursor: default; opacity: 0.25; height: 52px; }
 .dctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; font-size: 13px; }
 .dctl label { display: inline-flex; gap: 6px; align-items: center; }
@@ -245,7 +251,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
-        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. A <b>no-enzyme blank</b> is a well with substrate, NADP⁺ and buffer but no enzyme; the mean slope of these wells is subtracted from every sample as background. A well with [S] = 0 is not a blank; leave it as a sample, since it is a point on the curve.</p>
+        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. Colour shows how well a straight line fits the window:<span class="qkey" style="background:var(--q1)"></span>good<span class="qkey" style="background:var(--q2)"></span>worth a look (slope changes 20–45% across the window, or R² 0.95–0.98)<span class="qkey" style="background:var(--q3)"></span>problem (strong bend, R² below 0.95, A above 2, or too few points). Hover over a well, or click it, to see why. A <b>no-enzyme blank</b> is a well with substrate, NADP⁺ and buffer but no enzyme; the mean slope of these wells is subtracted from every sample as background. A well with [S] = 0 is not a blank; leave it as a sample, since it is a point on the curve.</p>
       </section>
 
       <section class="panel plot" id="wellPanel" hidden>
@@ -549,7 +555,16 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var cfg = run.cfg.wells[w], y = run.wells[w], win = winOf(run, w), x = [], yy = [];
     for (var k = 0; k < run.t.length; k++) { var m = run.t[k] / 60; if (m < win[0] - 1e-9 || m > win[1] + 1e-9 || cfg.excl[k] || !isFinite(y[k])) continue; x.push(m); yy.push(y[k]); }
     if (x.length < 3) return { ok: false, n: x.length };
-    var L = linreg(x, yy), out = { ok: true, n: x.length, slope: L.b, a: L.a, se: L.se, r2: L.r2, amax: Math.max.apply(null, yy), flags: [] };
+    var L = linreg(x, yy), out = { ok: true, n: x.length, slope: L.b, a: L.a, se: L.se, r2: L.r2, amax: Math.max.apply(null, yy), flags: [], q: 1 };
+    // trace quality: 1 green (fine), 2 yellow (worth a look), 3 red (problem)
+    function flag(t, q) { out.flags.push(t); out.q = Math.max(out.q, q); }
+    if (x.length >= 8) {
+      var h = Math.floor(x.length / 2), b1 = linreg(x.slice(0, h), yy.slice(0, h)).b, b2 = linreg(x.slice(x.length - h), yy.slice(yy.length - h)).b;
+      out.curv = (b2 - b1) / Math.abs(L.b || 1e-12);
+      if (Math.abs(L.b) > 4 * L.se && Math.abs(out.curv) > 0.2) flag((out.curv < 0 ? "slows down" : "speeds up") + " in window (" + Math.round(100 * Math.abs(out.curv)) + "%)", Math.abs(out.curv) > 0.45 ? 3 : 2);
+    }
+    if (out.amax > 2) flag("A > 2 (detector limit)", 3);
+    if (Math.abs(L.b) > 5 * L.se && L.r2 < 0.98) flag("R² " + L.r2.toFixed(3), L.r2 < 0.95 ? 3 : 2);
     return out;
   }
   // absorbance per µM NADPH in the well (null = no conversion)
@@ -777,6 +792,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     $("convOut").textContent = t;
   }
   function wellFlag(o) { return o.fit.ok ? o.fit.flags : ["too few points in window"]; }
+  function wellQ(o) { return o.fit.ok ? o.fit.q : 3; }
   function drawPlate() {
     var r = runs[cur], C = calc[cur], tmax = r.t[r.t.length - 1] / 60, h = '<table class="plate"><thead><tr><th></th>';
     r.colsUsed.forEach(function (c) { h += '<th>' + c + '</th>'; });
@@ -792,8 +808,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         s += polyline(r.t.map(function (t, k) { return [X(t / 60), Y(y[k])]; }).filter(function (p) { return isFinite(p[1]); }), "var(--muted)", null, 1);
         if (o.fit.ok) s += polyline([[X(win[0]), Y(o.fit.a + o.fit.slope * win[0])], [X(Math.min(win[1], tmax)), Y(o.fit.a + o.fit.slope * Math.min(win[1], tmax))]], "var(--accent)", null, 1.6);
         s += '</svg>';
-        var fl = wellFlag(o), cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "");
-        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "") + (fl.length ? " | " + fl.join(", ") : "")) + '">' + (fl.length ? '<span class="fl">!</span>' : "") + s +
+        var fl = wellFlag(o), cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : " q" + wellQ(o));
+        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "") + (fl.length ? " | " + fl.join(", ") : "")) + '">' + s +
           '<span class="num">' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</span><span class="sx">' + (o.role === "blank" ? "no enzyme" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
       });
       h += '</tr>';
@@ -827,6 +843,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     if (o.fit.ok) {
       st = "slope <b>" + sig(o.fit.slope * 1000, 4) + " ± " + sig(o.fit.se * 1000, 2) + "</b> mA₃₄₀/min · R² " + o.fit.r2.toFixed(4) + " · " + o.fit.n + " points";
       if (o.role === "sample") st += " · rate <b>" + sig(o.v, 4) + "</b> " + vUnit() + (G.sub && C.blankN ? " (blank " + sig(C.blank * 1000) + " mA/min subtracted)" : "");
+      var fl = o.fit.flags; if (fl.length && o.role !== "off") st += '<br><span style="color:var(--warn)">Check: ' + esc(fl.join("; ")) + (o.fit.curv < -0.2 ? ". Try a shorter or earlier window." : o.fit.curv > 0.2 ? ". Try starting the window later." : "") + '</span>';
     } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
     $("wellStats").innerHTML = st;
     $("wRole").value = cfg.role; if (document.activeElement !== $("wA")) $("wA").value = sig(win[0], 4); if (document.activeElement !== $("wB")) $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
