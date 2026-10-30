@@ -150,7 +150,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .sgrid { border-collapse: separate; border-spacing: 3px; }
 .sgrid th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
 .sgrid td { padding: 0; }
-.sgrid input { width: 54px; padding: 4px 5px; text-align: right; }
+.sgrid input.na { opacity: 0.4; }
+.sgrid input { width: 50px; padding: 4px 5px; text-align: right; }
 .sgrid input.ser { width: 104px; text-align: left; font-family: var(--font); }
 .sgrid select { width: 92px; padding: 4px 4px; font-size: 12px; }
 .serlist .srow { display: grid; grid-template-columns: 12px 1fr 92px; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
@@ -279,13 +280,9 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <h3>Plate layout: what is in each well?</h3>
           <div class="toggles"><label style="font-size:12.5px;color:var(--muted)" for="sUnit">[S] units</label><select id="sUnit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select></div>
         </div>
-        <div class="seg" id="layoutSeg" style="margin:6px 0 10px">
-          <button type="button" data-l="col" aria-pressed="true">Each row is an [S] series (1→12)</button>
-          <button type="button" data-l="row" aria-pressed="false">Each row has a single [S]</button>
-          <button type="button" data-l="well" aria-pressed="false">Each well separately</button>
-        </div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <p class="hint">Rows and columns here mean the plate (row A = wells A1–A12, column 1 = wells A1, B1, C1…), not the rows of the spreadsheet. The usual setup is the first option: each row (A1–A12) is a substrate series, so you type the 12 concentrations once and every row uses them; rows with the same series name (e.g. A–C) are replicates. Give a row a different series name for a mutant, or set it to blank. Leave [S] empty for wells that should not be fit. Wells with the same series name and [S] are replicates; series let you compare WT and a mutant on one plate. You can paste a row or block of numbers copied from Excel into the boxes. Blank wells (no enzyme) only set the background slope and need no [S].</p>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's [S] to every row</button></div>
+        <p class="hint">Type the substrate concentration in each well, as it is on the plate. If every row (A1–A12) is the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. Rows with the same series name (e.g. A–C) are replicates; give a row a different series name for a mutant, or set it to blank (no enzyme; it only sets the background slope and needs no [S]). Leave [S] empty for wells that should not be fit.</p>
       </section>
 
       <section class="panel" id="ratePanel" hidden>
@@ -494,10 +491,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   }
   function initCfg(run, series) {
     var wells = {}, rows = {}, ncol = 12;
-    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { series: series, S: NaN }; ncol = Math.max(ncol, +w.slice(1)); });
+    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { series: series }; ncol = Math.max(ncol, +w.slice(1)); });
     run.ncol = ncol; run.rowsUsed = Object.keys(rows).sort();
     run.colsUsed = []; for (var c = 1; c <= ncol; c++) if (run.order.some(function (w) { return +w.slice(1) === c; })) run.colsUsed.push(c);
-    run.cfg = { mode: "col", colS: new Array(ncol).fill(NaN), wells: wells, rows: rows };
+    run.cfg = { wells: wells, rows: rows };
   }
   function addRuns(found, base) {
     var fresh = found.filter(function (r) { return !runs.some(function (o) { return sameRun(o, r); }) && !found.some(function (o) { return o !== r && found.indexOf(o) < found.indexOf(r) && sameRun(o, r); }); });
@@ -541,7 +538,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     });
     var run = mkRun("Sheet2", [], 0, t, wells, order);
     runs = []; addRuns([run], "Example plate");
-    var r = runs[0]; r.cfg.colS = S.slice(); G.sUnit = "mM"; $("sUnit").value = "mM";
+    var r = runs[0]; r.order.forEach(function (w) { if (w.charAt(0) !== "D") r.cfg.wells[w].S = S[+w.slice(1) - 1]; }); G.sUnit = "mM"; $("sUnit").value = "mM";
     ["A", "B", "C"].forEach(function (R) { r.cfg.rows[R].series = "WT"; });
     r.cfg.rows.D.series = "no enzyme"; r.order.forEach(function (w) { if (w.charAt(0) === "D") r.cfg.wells[w].role = "blank"; });
     G.seriesE.WT = 20; G.win = [0, 5];
@@ -582,7 +579,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function pathFromVol() { var r = G.conv.diam / 20; return G.conv.vol * 1e-3 / (Math.PI * r * r); }
   function vUnit() { return aPerUM() === null ? "ΔA₃₄₀/min" : "µM/min"; }
   function sLabel() { return G.sUnit === "mM" ? "mM" : "µM"; }
-  function sOf(run, w) { var m = run.cfg.mode; return m === "col" ? run.cfg.colS[+w.slice(1) - 1] : m === "row" ? run.cfg.rows[w.charAt(0)].S : run.cfg.wells[w].S; }
+  function sOf(run, w) { return run.cfg.wells[w].S; }
 
   var calc = [];   // per run: { w: {fit, signed, corr, v, S, series, role} , blank }
   function computeAll() {
@@ -745,39 +742,28 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     $("runInfo").innerHTML = esc(r.order.length + " wells, " + r.t.length + " reads every " + sig(dt) + " s over " + sig(tmax) + " min" + (r.part ? " (" + r.part + ")" : "") + (r.wl ? ", " + r.wl + " nm" : "")) + (r.wl && Math.abs(+r.wl - 340) > 5 ? ' <b style="color:var(--warn)">Not read at 340 nm, so the NADPH conversion does not apply.</b>' : "");
   }
 
-  // layout editor (rebuilt only when the run or mode changes, so typing keeps focus)
+  // layout editor: one [S] box per well (rebuilt only when the run or a role changes, so typing keeps focus)
   function buildLayout() {
     var host = $("layoutGrid");
     if (cur < 0) { host.innerHTML = ""; return; }
-    var r = runs[cur], cfg = r.cfg, mode = cfg.mode, rowsU = r.rowsUsed, cols = r.colsUsed, h = "";
-    pressed("layoutSeg", "l", mode);
+    var r = runs[cur], cfg = r.cfg, rowsU = r.rowsUsed, cols = r.colsUsed, h = "";
     function val(x) { return isFinite(x) ? String(x) : ""; }
     function roleSel(R) {
-      var roles = rowsU && r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
+      var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
       return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o) + '</option>'; }).join("") + '</select>';
     }
-    h += '<table class="sgrid"><thead><tr><th></th><th style="text-align:left">Series</th><th style="text-align:left">Row is</th>';
-    if (mode === "row") h += '<th>[S]</th>';
-    else cols.forEach(function (c) { h += '<th>' + c + '</th>'; });
-    h += '</tr></thead><tbody>';
-    if (mode === "col") {
-      h += '<tr><th></th><td></td><th style="text-align:right">[S] →</th>' + cols.map(function (c, i) { return '<td><input type="text" inputmode="decimal" data-cs="' + (c - 1) + '" data-i="' + i + '" value="' + val(cfg.colS[c - 1]) + '" aria-label="[S] in column ' + c + '"></td>'; }).join("") + '</tr>';
-    }
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Series</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
     rowsU.forEach(function (R, ri) {
-      h += '<tr><th>' + R + '</th><td><input type="text" class="ser" data-ser="' + R + '" value="' + esc(cfg.rows[R].series) + '" aria-label="Series name for row ' + R + '"></td><td>' + roleSel(R) + '</td>';
-      if (mode === "row") h += '<td><input type="text" inputmode="decimal" data-rs="' + R + '" data-i="' + ri + '" value="' + val(cfg.rows[R].S) + '" aria-label="[S] in row ' + R + '"></td>';
-      else if (mode === "well") cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text" inputmode="decimal" data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cfg.wells[w].S) + '" aria-label="[S] in well ' + w + '">' : "") + '</td>'; });
-      else cols.forEach(function () { h += '<td></td>'; });
-      h += '</tr>';
+      h += '<tr><th>' + R + '</th>';
+      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text" inputmode="decimal" data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cfg.wells[w].S) + '" aria-label="[S] in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
+      h += '<td><input type="text" class="ser" data-ser="' + R + '" value="' + esc(cfg.rows[R].series) + '" aria-label="Series name for row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
     });
     h += '</tbody></table>';
     host.innerHTML = h;
   }
   function setS(el, v) {
     var r = runs[cur], cfg = r.cfg, x = v === "" ? NaN : num(String(v).replace(",", "."));
-    if (el.dataset.cs !== undefined) cfg.colS[+el.dataset.cs] = x;
-    else if (el.dataset.rs !== undefined) cfg.rows[el.dataset.rs].S = x;
-    else if (el.dataset.ws !== undefined) cfg.wells[el.dataset.ws].S = x;
+    if (el.dataset.ws !== undefined) cfg.wells[el.dataset.ws].S = x;
   }
 
   // ---------- render ----------
@@ -1190,7 +1176,11 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   $("wBack").addEventListener("click", function () { runs[cur].cfg.wells[selWell].role = "sample"; buildLayout(); render(); });
   $("wClearPts").addEventListener("click", function () { runs[cur].cfg.wells[selWell].excl = {}; render(); });
 
-  $("layoutSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-l]"); if (!b || cur < 0) return; runs[cur].cfg.mode = b.dataset.l; buildLayout(); render(); });
+  $("copyTop").addEventListener("click", function () {
+    if (cur < 0) return; var r = runs[cur], top = r.rowsUsed[0];
+    r.order.forEach(function (w) { var src = r.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src && r.cfg.wells[w].role === "sample") r.cfg.wells[w].S = src.S; });
+    buildLayout(); render();
+  });
   var lg = $("layoutGrid");
   lg.addEventListener("input", function (e) {
     var el = e.target, cfg = runs[cur].cfg;
@@ -1207,15 +1197,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n]/.test(t.trim())) return;
     e.preventDefault();
     var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.split("\t"); });
-    var mode = runs[cur].cfg.mode;
-    if (mode === "well") {
-      var r0 = +el.dataset.r, c0 = +el.dataset.c;
-      grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); setS(x, v.trim()); } }); });
-    } else {
-      var flat = [].concat.apply([], grid), i0 = +el.dataset.i, attr = mode === "col" ? "data-cs" : "data-rs";
-      var boxes = lg.querySelectorAll("input[" + attr + "]");
-      flat.forEach(function (v, k) { var x = boxes[i0 + k]; if (x) { x.value = v.trim(); setS(x, v.trim()); } });
-    }
+    var r0 = +el.dataset.r, c0 = +el.dataset.c;
+    grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); setS(x, v.trim()); } }); });
     render();
   });
   $("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; G.rateView = b.dataset.r; render(); });
