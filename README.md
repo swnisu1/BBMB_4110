@@ -9,6 +9,7 @@ Interactive tools for fitting and exploring enzyme kinetics data. Everything run
 | [How the Fitting Widgets Work](https://swnisu1.github.io/BBMB_4110/how-the-fitting-widgets-work.html) | Start here: how the fitting tools work |
 | [Progress Curve Fitting](https://swnisu1.github.io/BBMB_4110/progress-curve-fitting.html) | Fit time courses to the integrated Michaelis–Menten equation |
 | [Model Discrimination](https://swnisu1.github.io/BBMB_4110/model-discrimination.html) | One vs. two exponentials, judged by AIC/BIC |
+| [Plate Reader Kinetics](https://swnisu1.github.io/BBMB_4110/plate-reader-kinetics.html) | Plate reader .xlsx → per-well slopes → µM NADPH/min → MM, Hill or substrate-inhibition fit |
 | [Substrate Dependence Fitting](https://swnisu1.github.io/BBMB_4110/substrate-dependence-fitting.html) | Michaelis–Menten, Hill and substrate-inhibition fits |
 | [Two-Substrate Kinetics Explorer](https://swnisu1.github.io/BBMB_4110/two-substrate-kinetics-explorer.html) | Apparent K<sub>M</sub> of one substrate vs. the other |
 | [Inhibition Mechanism Fitting](https://swnisu1.github.io/BBMB_4110/inhibition-mechanism-fitting.html) | Competitive, uncompetitive, noncompetitive and mixed inhibition |
