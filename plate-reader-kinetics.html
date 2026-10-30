@@ -151,9 +151,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .sgrid input { width: 54px; padding: 4px 5px; text-align: right; }
 .sgrid input.ser { width: 104px; text-align: left; font-family: var(--font); }
 .sgrid select { width: 92px; padding: 4px 4px; font-size: 12px; }
-.helper { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; font-size: 13px; margin-top: 10px; }
-.helper input { width: 72px; }
-.helper select { width: auto; }
 .serlist .srow { display: grid; grid-template-columns: 12px 1fr 92px; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
 .serlist .srow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .serlist i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
@@ -280,13 +277,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <button type="button" data-l="well" aria-pressed="false">Each well</button>
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <div class="helper" id="dilHelp">
-          <span>Fill a dilution series:</span>
-          <label>highest <input type="number" id="dTop" step="any" min="0" value="100"></label>
-          <label>÷ <input type="number" id="dFold" step="any" min="1" value="2"></label>
-          <span id="dRange"></span>
-          <button type="button" class="btn" id="dFill">Fill</button>
-        </div>
         <p class="hint">Leave [S] empty for wells that should not be fit. Wells with the same series name and [S] are replicates; series let you compare WT and a mutant on one plate. You can paste a row or block of numbers copied from Excel into the boxes. Blank wells (no enzyme) only set the background slope and need no [S].</p>
       </section>
 
@@ -774,9 +764,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     });
     h += '</tbody></table>';
     host.innerHTML = h;
-    // dilution helper
-    var opts = mode === "row" ? rowsU.map(function (R) { return [R, R]; }) : cols.map(function (c) { return [c, c]; });
-    $("dRange").innerHTML = (mode === "row" ? "rows " : "columns ") + '<select id="dFrom" aria-label="first">' + opts.map(function (o, i) { return '<option value="' + i + '"' + (i === 0 ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select> to <select id="dTo" aria-label="last">' + opts.map(function (o, i) { return '<option value="' + i + '"' + (i === opts.length - 1 ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select>' + (mode === "well" ? ' in every row' : '');
   }
   function setS(el, v) {
     var r = runs[cur], cfg = r.cfg, x = v === "" ? NaN : num(String(v).replace(",", "."));
@@ -1219,20 +1206,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     }
     render();
   });
-  $("dFill").addEventListener("click", function () {
-    if (cur < 0) return;
-    var r = runs[cur], cfg = r.cfg, top = parseFloat($("dTop").value), fold = parseFloat($("dFold").value), a = +$("dFrom").value, b = +$("dTo").value;
-    if (!(top > 0) || !(fold > 1)) return;
-    var dirn = a <= b ? 1 : -1;
-    for (var i = a, k = 0; dirn > 0 ? i <= b : i >= b; i += dirn, k++) {
-      var v = Number((top / Math.pow(fold, k)).toPrecision(4));
-      if (cfg.mode === "row") cfg.rows[r.rowsUsed[i]].S = v;
-      else if (cfg.mode === "col") cfg.colS[r.colsUsed[i] - 1] = v;
-      else r.rowsUsed.forEach(function (R) { var w = R + r.colsUsed[i]; if (cfg.wells[w]) cfg.wells[w].S = v; });
-    }
-    buildLayout(); render();
-  });
-
   $("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; G.rateView = b.dataset.r; render(); });
   $("modelSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-m]"); if (!b) return; G.model = b.dataset.m; render(); });
   $("xSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-x]"); if (!b) return; G.x = b.dataset.x; render(); });
