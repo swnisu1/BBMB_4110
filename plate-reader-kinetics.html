@@ -834,7 +834,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     if (o.fit.ok) {
       st = "slope <b>" + sig(o.fit.slope * 1000, 4) + " ± " + sig(o.fit.se * 1000, 2) + "</b> mA₃₄₀/min · R² " + o.fit.r2.toFixed(4) + " · " + o.fit.n + " points";
       if (o.role === "sample") st += " · rate <b>" + sig(o.v, 4) + "</b> " + vUnit() + (G.sub && C.blankN ? " (blank " + sig(C.blank * 1000) + " mA/min subtracted)" : "");
-      var fl = o.fit.flags; if (fl.length) st += '<br><span style="color:var(--warn)">Check: ' + esc(fl.join("; ")) + (o.fit.curv < -0.25 ? ". Try a shorter or earlier window." : "") + '</span>';
     } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
     $("wellStats").innerHTML = st;
     $("wRole").value = cfg.role; if (document.activeElement !== $("wA")) $("wA").value = sig(win[0], 4); if (document.activeElement !== $("wB")) $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
@@ -948,8 +947,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     if (minS > 0.5 * F.K) m.push(["warn", "The lowest nonzero [S] is " + sig(minS / F.K) + " × K, so few points define the initial slope (V<sub>max</sub>/K)."]);
     var bad = [["V<sub>max</sub>", F.seV / F.V], ["K", F.seK / F.K], ["n", F.seN / F.n], ["K<sub>si</sub>", F.noSI ? NaN : F.seKsi / F.Ksi]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
     if (bad.length) m.push(["warn", "Poorly determined (SE over 50% of the value): " + bad.map(function (x) { return x[0]; }).join(", ") + "."]);
-    var nflag = 0; runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w]; if (o.role === "sample" && isFinite(o.S) && o.fit.ok && o.fit.flags.length) nflag++; }); });
-    if (nflag) m.push(["warn", nflag + " well" + (nflag > 1 ? "s" : "") + " used in the fit " + (nflag > 1 ? "are" : "is") + " flagged (<b>!</b> on the plate). Check those traces and their windows."]);
     msgs.innerHTML = m.slice(0, 5).map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
 
     // plot A
