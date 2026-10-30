@@ -149,10 +149,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .sgrid th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
 .sgrid td { padding: 0; }
 .sgrid input.na { opacity: 0.4; }
-.sgrid input { width: 46px; padding: 4px 5px; text-align: right; }
+.sgrid input { width: 44px; padding: 4px 5px; text-align: right; }
 .sgrid input.econc { width: 54px; }
-.sgrid input.ser { width: 82px; text-align: left; font-family: var(--font); }
-.sgrid select { width: 84px; padding: 4px 4px; font-size: 12px; }
+.sgrid input.ser { width: 76px; text-align: left; font-family: var(--font); }
+.sgrid select { width: 126px; padding: 4px 4px; font-size: 12px; }
 .serlist .srow { display: grid; grid-template-columns: 12px 1fr 92px; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
 .serlist .srow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .serlist i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
@@ -195,7 +195,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="field two"><label>Shared window (min)</label><input type="number" id="winA" step="any" min="0" aria-label="Window start, min"><input type="number" id="winB" step="any" min="0" aria-label="Window end, min"></div>
         <div class="field"><label for="dirSel">A<sub>340</sub> during the assay</label>
           <select id="dirSel"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
-        <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the mean slope of wells marked <b>blank</b> (same run)</span></label>
+        <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the mean slope of wells marked <b>blank</b> (no enzyme added; same run)</span></label>
         <div class="btns"><button type="button" class="btn" id="resetWin">Clear per-well windows</button></div>
         <p class="hint">Use the early part of each trace, where it is still straight. This is the shared window for every well. To change one well only, drag across its plot on the right.</p>
       </section>
@@ -241,11 +241,11 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="plothead">
           <h3 id="plateTitle">Plate</h3>
           <div class="toggles"><span style="font-size:12.5px;color:var(--muted)">Click a well to</span>
-            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false">mark blank</button></div>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false" title="A well with everything except enzyme; its slope is the background">mark no-enzyme blank</button></div>
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
-        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered.</p>
+        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. A <b>no-enzyme blank</b> is a well with substrate, NADP⁺ and buffer but no enzyme; the mean slope of these wells is subtracted from every sample as background. A well with [S] = 0 is not a blank; leave it as a sample, since it is a point on the curve.</p>
       </section>
 
       <section class="panel plot" id="wellPanel" hidden>
@@ -737,7 +737,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     function val(x) { return isFinite(x) ? String(x) : ""; }
     function roleSel(R) {
       var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
-      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o) + '</option>'; }).join("") + '</select>';
+      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no enzyme)" : o) + '</option>'; }).join("") + '</select>';
     }
     h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Enzyme</th><th style="text-align:left">[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
     rowsU.forEach(function (R, ri) {
@@ -794,7 +794,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         s += '</svg>';
         var fl = wellFlag(o), cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "");
         h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "") + (fl.length ? " | " + fl.join(", ") : "")) + '">' + (fl.length ? '<span class="fl">!</span>' : "") + s +
-          '<span class="num">' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</span><span class="sx">' + (o.role === "blank" ? "blank" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
+          '<span class="num">' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</span><span class="sx">' + (o.role === "blank" ? "no enzyme" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
       });
       h += '</tr>';
     });
@@ -842,7 +842,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       h = '<table class="data"><thead><tr><th>Well</th><th style="text-align:left">Enzyme</th><th>[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th>[S] (' + sLabel() + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '<th style="text-align:left">note</th></tr></thead><tbody>';
       h += list.map(function (x) {
         var o = x.o, E = o.E, ve = showE && E > 0 && o.role === "sample" ? o.v / 60 / (G.eUnit === "nM" ? E / 1000 : E) : NaN, fl = wellFlag(o);
-        return '<tr data-w="' + x.w + '" class="' + (x.w === selWell ? "sel " : "") + (o.role === "off" ? "off" : "") + '"><td>' + x.w + '</td><td class="l">' + (o.role === "blank" ? "blank" : esc(o.series)) + '</td><td>' + (o.role === "sample" ? sig(o.E) : "") + '</td><td>' + (o.role === "sample" ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000, 4) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000, 2) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (o.role === "sample" ? sig(o.v, 4) : "") + '</td>' + (showE ? '<td>' + sig(ve) + '</td>' : '') + '<td class="l">' + (fl.length ? '<span class="flag">' + esc(fl.join("; ")) + '</span>' : "") + '</td></tr>';
+        return '<tr data-w="' + x.w + '" class="' + (x.w === selWell ? "sel " : "") + (o.role === "off" ? "off" : "") + '"><td>' + x.w + '</td><td class="l">' + (o.role === "blank" ? "blank (no enzyme)" : esc(o.series)) + '</td><td>' + (o.role === "sample" ? sig(o.E) : "") + '</td><td>' + (o.role === "sample" ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000, 4) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000, 2) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (o.role === "sample" ? sig(o.v, 4) : "") + '</td>' + (showE ? '<td>' + sig(ve) + '</td>' : '') + '<td class="l">' + (fl.length ? '<span class="flag">' + esc(fl.join("; ")) + '</span>' : "") + '</td></tr>';
       }).join("") + '</tbody></table>';
       var C = calc[cur];
       $("rateHint").innerHTML = (C.blankN ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.blankN + " well" + (C.blankN > 1 ? "s" : "") + (G.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
