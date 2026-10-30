@@ -821,8 +821,12 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     $("wellOff").hidden = cfg.role !== "off"; $("wellOn").hidden = cfg.role === "off";
     if (cfg.role === "off") { $("wellTitle").textContent = "Well " + w + " (left out)"; $("plotW").innerHTML = ""; return; }
     var fin = y.filter(isFinite), lo = Math.min.apply(null, fin), hi = Math.max.apply(null, fin), pad = (hi - lo) * 0.08 || 0.01;
-    var f = frame(640, 250, [0, tmax], [lo - pad, hi + pad], "time (min)", "A₃₄₀", false), s = f.svg;
-    s += '<rect x="' + f.sx(win[0]) + '" y="' + M.t + '" width="' + Math.max(0, f.sx(Math.min(win[1], tmax)) - f.sx(win[0])) + '" height="' + (250 - M.t - M.b) + '" fill="var(--win)"/>';
+    // x axis runs a little past the first and last reads so both window edges can always be grabbed
+    wellXR = [-0.04 * tmax, tmax * 1.04];
+    var f = frame(640, 250, wellXR, [lo - pad, hi + pad], "time (min)", "A₃₄₀", false), s = f.svg;
+    var wa = Math.max(win[0], 0), wb = Math.min(win[1], tmax), xa = f.sx(wa), xb = f.sx(wb), yt = M.t, yb = 250 - M.b, ym = (yt + yb) / 2;
+    s += '<rect x="' + xa + '" y="' + yt + '" width="' + Math.max(0, xb - xa) + '" height="' + (yb - yt) + '" fill="var(--win)"/>';
+    [xa, xb].forEach(function (x) { s += '<line x1="' + x + '" x2="' + x + '" y1="' + yt + '" y2="' + yb + '" stroke="var(--accent)" stroke-width="1.5" opacity="0.6"/><rect x="' + (x - 4) + '" y="' + (ym - 14) + '" width="8" height="28" rx="3" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/><line x1="' + (x - 1) + '" x2="' + (x - 1) + '" y1="' + (ym - 7) + '" y2="' + (ym + 7) + '" stroke="var(--accent)"/><line x1="' + (x + 1) + '" x2="' + (x + 1) + '" y1="' + (ym - 7) + '" y2="' + (ym + 7) + '" stroke="var(--accent)"/>'; });
     if (o.fit.ok) s += polyline([[f.sx(win[0]), f.sy(o.fit.a + o.fit.slope * win[0])], [f.sx(Math.min(win[1], tmax)), f.sy(o.fit.a + o.fit.slope * Math.min(win[1], tmax))]], "var(--accent)", null, 2.4);
     r.t.forEach(function (t, k) {
       if (!isFinite(y[k])) return;
@@ -1144,11 +1148,18 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   });
   $("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-w]"); if (!tr) return; selWell = tr.dataset.w; render(); var p = $("wellPanel"); if (p.scrollIntoView) p.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
   // drag on the well plot to set the slope window (or drag an edge of the shaded band); a plain click drops a point
-  var drag = null, plotW = $("plotW");
-  function plotTime(e) { var r = runs[cur], rc = plotW.getBoundingClientRect(), x = (e.clientX - rc.left) * 640 / rc.width, tmax = r.t[r.t.length - 1] / 60; return { x: x, t: Math.max(0, Math.min(tmax, (x - M.l) / (640 - M.l - M.r) * tmax)), px: 640 / rc.width }; }
-  function edgeAt(e) { if (cur < 0) return -1; var p = plotTime(e), win = winOf(runs[cur], selWell), tmax = runs[cur].t[runs[cur].t.length - 1] / 60, k = (640 - M.l - M.r) / tmax, tol = 7 * p.px; return Math.abs((p.t - win[0]) * k) < tol ? 0 : Math.abs((p.t - win[1]) * k) < tol ? 1 : -1; }
+  var drag = null, plotW = $("plotW"), wellXR = [0, 1];
+  function plotTime(e) { var r = runs[cur], rc = plotW.getBoundingClientRect(), x = (e.clientX - rc.left) * 640 / rc.width, tmax = r.t[r.t.length - 1] / 60; return { x: x, t: Math.max(0, Math.min(tmax, wellXR[0] + (x - M.l) / (640 - M.l - M.r) * (wellXR[1] - wellXR[0]))), px: 640 / rc.width }; }
+  // which window edge (0 left, 1 right) is under the pointer, comparing on screen against the drawn (clamped) edges
+  function edgeAt(e) {
+    if (cur < 0) return -1;
+    var p = plotTime(e), win = winOf(runs[cur], selWell), tmax = runs[cur].t[runs[cur].t.length - 1] / 60, k = (640 - M.l - M.r) / (wellXR[1] - wellXR[0]), tol = 9 * p.px;
+    var xa = M.l + (Math.max(win[0], 0) - wellXR[0]) * k, xb = M.l + (Math.min(win[1], tmax) - wellXR[0]) * k, da = Math.abs(p.x - xa), db = Math.abs(p.x - xb);
+    if (da > tol && db > tol) return -1;
+    return db <= da ? 1 : 0;
+  }
   function setWin(a, b) {
-    var lo = Math.round(Math.min(a, b) * 100) / 100, hi = Math.round(Math.max(a, b) * 100) / 100, c = runs[cur].cfg.wells[selWell];
+    var tmax = runs[cur].t[runs[cur].t.length - 1] / 60, lo = Math.max(0, Math.round(Math.min(a, b) * 100) / 100), hi = Math.min(Math.round(tmax * 100) / 100, Math.round(Math.max(a, b) * 100) / 100), c = runs[cur].cfg.wells[selWell];
     c.win = [lo, hi];
     render();
   }
