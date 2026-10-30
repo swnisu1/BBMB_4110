@@ -547,7 +547,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   }
 
   // ---------- slopes and rates ----------
-  function winOf(run, w) { return run.cfg.wells[w].win || G.win; }
+  function winOf(run, w) { var v = run.cfg.wells[w].win || G.win; return v[0] <= v[1] ? v : [v[1], v[0]]; }
   function linreg(x, y) {
     var n = x.length, mx = 0, my = 0, i; for (i = 0; i < n; i++) { mx += x[i]; my += y[i]; } mx /= n; my /= n;
     var sxx = 0, sxy = 0, syy = 0; for (i = 0; i < n; i++) { sxx += (x[i] - mx) * (x[i] - mx); sxy += (x[i] - mx) * (y[i] - my); syy += (y[i] - my) * (y[i] - my); }
@@ -839,7 +839,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       var fl = o.fit.flags; if (fl.length) st += '<br><span style="color:var(--warn)">Check: ' + esc(fl.join("; ")) + (o.fit.curv < -0.25 ? ". Try a shorter or earlier window." : "") + '</span>';
     } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
     $("wellStats").innerHTML = st;
-    $("wRole").value = cfg.role; $("wA").value = sig(win[0], 4); $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
+    $("wRole").value = cfg.role; if (document.activeElement !== $("wA")) $("wA").value = sig(win[0], 4); if (document.activeElement !== $("wB")) $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
     $("wellStats").innerHTML += '<br><span style="color:var(--muted)">' + (cfg.win ? "This well has its own window (the shared window is " + sig(G.win[0]) + "–" + sig(G.win[1]) + " min)." : "Shared window, used by every well without its own.") + '</span>';
     $("wClearPts").disabled = !Object.keys(cfg.excl).length;
   }
@@ -1171,7 +1171,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
   $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; buildLayout(); render(); });
   $("wReset").addEventListener("click", function () { runs[cur].cfg.wells[selWell].win = null; render(); });
-  ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!isFinite(v)) return; if (!c.win) c.win = G.win.slice(); c.win[i] = v; render(); }); });
+  ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!isFinite(v)) return; if (!c.win) c.win = G.win.slice(); c.win[i] = v; render(); }); $(id).addEventListener("change", render); });
   $("wApply").addEventListener("click", function () { var c = runs[cur].cfg.wells[selWell]; G.win = winOf(runs[cur], selWell).slice(); runs.forEach(function (r) { r.order.forEach(function (w) { r.cfg.wells[w].win = null; }); }); syncInputs(); saveSettings(); render(); });
   $("wBack").addEventListener("click", function () { runs[cur].cfg.wells[selWell].role = "sample"; buildLayout(); render(); });
   $("wClearPts").addEventListener("click", function () { runs[cur].cfg.wells[selWell].excl = {}; render(); });
