@@ -141,6 +141,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .dctl input[type=number] { width: 76px; }
 .dctl select { width: auto; }
 #plotW { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.offnote { border: 1.5px dashed var(--line); border-radius: 8px; padding: 28px 16px; text-align: center; color: var(--muted); }
+.offnote p { margin: 0 0 10px; }
 .stats { font-family: var(--mono); font-size: 12.5px; margin-top: 6px; overflow-wrap: anywhere; }
 .stats b { font-weight: 500; color: var(--fg); }
 
@@ -254,6 +256,11 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <h3 id="wellTitle">Well</h3>
           <div class="toggles"><button type="button" class="btn" id="prevW" aria-label="Previous well">‹</button><button type="button" class="btn" id="nextW" aria-label="Next well">›</button></div>
         </div>
+        <div class="offnote" id="wellOff" hidden>
+          <p>This well is left out, so it has no slope and is not used in the rates or the fit.</p>
+          <button type="button" class="btn" id="wBack">Use this well again</button>
+        </div>
+        <div id="wellOn">
         <svg id="plotW" viewBox="0 0 640 250" role="img" aria-label="Absorbance against time for the selected well"></svg>
         <div class="stats" id="wellStats"></div>
         <div class="dctl">
@@ -264,6 +271,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
         </div>
         <p class="hint">Set <b>this well is</b> to <i>left out</i> only for a well that went wrong (bubble, pipetting error, empty); it then drops out of the rates and the fit. <b>Drag across the plot</b> to set the slope window, or drag an edge of the shaded band to move it. The window applies to all wells unless “own window” is ticked, in which case it applies to this well only. Click a point to drop it from the slope (for a bubble or mixing spike); click it again to restore it.</p>
+        </div>
       </section>
 
       <section class="panel" id="layoutPanel" hidden>
@@ -824,6 +832,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var r = runs[cur], C = calc[cur];
     if (!selWell || !C.w[selWell]) selWell = r.order[0];
     var w = selWell, o = C.w[w], cfg = r.cfg.wells[w], y = r.wells[w], win = winOf(r, w), tmax = r.t[r.t.length - 1] / 60;
+    $("wellOff").hidden = cfg.role !== "off"; $("wellOn").hidden = cfg.role === "off";
+    if (cfg.role === "off") { $("wellTitle").textContent = "Well " + w + " (left out)"; $("plotW").innerHTML = ""; return; }
     var fin = y.filter(isFinite), lo = Math.min.apply(null, fin), hi = Math.max.apply(null, fin), pad = (hi - lo) * 0.08 || 0.01;
     var f = frame(640, 250, [0, tmax], [lo - pad, hi + pad], "time (min)", "A₃₄₀", false), s = f.svg;
     s += '<rect x="' + f.sx(win[0]) + '" y="' + M.t + '" width="' + Math.max(0, f.sx(Math.min(win[1], tmax)) - f.sx(win[0])) + '" height="' + (250 - M.t - M.b) + '" fill="var(--win)"/>';
@@ -1176,6 +1186,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   $("wOwn").addEventListener("change", function (e) { var c = runs[cur].cfg.wells[selWell]; c.win = e.target.checked ? G.win.slice() : null; render(); });
   ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!c.win || !isFinite(v)) return; c.win[i] = v; render(); }); });
   $("wApply").addEventListener("click", function () { var c = runs[cur].cfg.wells[selWell]; G.win = winOf(runs[cur], selWell).slice(); runs.forEach(function (r) { r.order.forEach(function (w) { r.cfg.wells[w].win = null; }); }); syncInputs(); saveSettings(); render(); });
+  $("wBack").addEventListener("click", function () { runs[cur].cfg.wells[selWell].role = "sample"; buildLayout(); render(); });
   $("wClearPts").addEventListener("click", function () { runs[cur].cfg.wells[selWell].excl = {}; render(); });
 
   $("layoutSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-l]"); if (!b || cur < 0) return; runs[cur].cfg.mode = b.dataset.l; buildLayout(); render(); });
