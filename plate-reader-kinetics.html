@@ -118,8 +118,6 @@ table.data tbody tr.best td:first-child { font-weight: 600; }
 table.data tr.off td { color: var(--muted); text-decoration: line-through; }
 td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
-.interp p { margin: 0 0 8px; max-width: 80ch; }
-.interp p:last-child { margin-bottom: 0; }
 
 /* plate overview */
 .plate { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
@@ -269,7 +267,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <button type="button" class="btn" id="wReset">Back to the shared window</button>
           <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
         </div>
-        <p class="hint">Set <b>this well is</b> to <i>left out</i> only for a well that went wrong (bubble, pipetting error, empty); it then drops out of the rates and the fit. <b>Drag across the plot</b> to set the slope window, or drag an edge of the shaded band to move it. Changes here apply to this well only. When the window looks right, press <b>Use this window for all wells</b>, then fine-tune any well that needs a different one. Pressing that button again resets every well, so use it first. Click a point to drop it from the slope (for a bubble or mixing spike); click it again to restore it.</p>
         </div>
       </section>
 
@@ -280,6 +277,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
         <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's [S] to every row</button></div>
+        <p class="hint">Type the substrate concentration in each well, as it is on the plate. If every row (A1–A12) is the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. For each row, enter the <b>enzyme</b> (WT, mutantA…) and its final <b>[E]</b> in the well, used for k<sub>cat</sub> = V<sub>max</sub>/[E]. Rows with the same enzyme and [E] are replicates and are fit together. The same enzyme at two different [E] is fit as two series. Set a row to blank for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
       </section>
 
       <section class="panel" id="ratePanel" hidden>
@@ -321,10 +319,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       <section class="panel plot fitp" hidden>
         <h3>Residuals (data − fit)</h3>
         <svg id="plotB" viewBox="0 0 640 170" role="img" aria-label="Residuals versus substrate"></svg>
-      </section>
-      <section class="panel interp fitp" hidden>
-        <h2>What this suggests</h2>
-        <div id="interp"></div>
       </section>
       <section class="panel" id="exportPanel" hidden>
         <h2>Export</h2>
@@ -984,13 +978,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     d.S.forEach(function (x, j) { if (xlog && !(x > 0)) return; sB += '<circle cx="' + fb.sx(x).toFixed(1) + '" cy="' + fb.sy(res[j]).toFixed(1) + '" r="3" fill="' + COLORS[G.d % 6] + '" opacity="0.9"/>'; });
     $("plotB").innerHTML = sB;
 
-    // interpretation
-    var tx = [];
-    if (selKey === "mm") tx.push("<b>Michaelis-Menten.</b> A single hyperbola describes the data, with no detectable cooperativity or substrate inhibition over this [S] range. K<sub>m</sub> = " + sig(F.K) + " " + su + (isFinite(kcat) ? ", k<sub>cat</sub> = " + sig(kcat) + " s⁻¹, k<sub>cat</sub>/K<sub>m</sub> = " + big(kcat / KmM) + " M⁻¹s⁻¹." : "."));
-    else if (selKey === "hill") tx.push("<b>Hill.</b> The curve is " + (F.n > 1 ? "sigmoidal" : "more gradual than a hyperbola") + " (n = " + sig(F.n) + " ± " + sig(F.seN) + "). " + (F.n > 1.2 ? "n above 1 means binding at one site raises affinity at another (positive cooperativity), which needs more than one site, as in an oligomer." : F.n < 0.85 ? "n below 1 suggests negative cooperativity, or two kinds of site or enzyme form." : "n near 1 means the Hill model adds little over Michaelis-Menten."));
-    else tx.push("<b>Substrate inhibition.</b> The rate rises, peaks near [S] = " + (F.noSI ? "—" : sig(Math.sqrt(F.K * F.Ksi)) + " " + su) + " and then falls (K<sub>si</sub> = " + (F.noSI ? "beyond the data" : sig(F.Ksi) + " " + su) + "). A common cause is a second substrate molecule binding to give a dead-end complex. Before reading mechanism into it, rule out artifacts. At high [S], more solvent or salt goes in with the substrate. The stock could also be impure, or the substrate could absorb at 340 nm.");
-    tx.push("The rates come from the slope windows you chose, so a window that runs into the curved part of a fast well makes that rate too low and can look like saturation or inhibition. BIC chooses among these three equations only; it does not prove a mechanism.");
-    $("interp").innerHTML = tx.map(function (t) { return "<p>" + t + "</p>"; }).join("");
     $("eq").textContent = "Slope:                   A340 = a + b·t over the window (min); rate = (b − blank) / (ε·l)" + (A !== null ? "   [1 µM NADPH = " + sig(A * 1000) + " mA340]" : "") +
       "\nMichaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n" +
       "kcat = Vmax / [E]  (Vmax converted to µM/s)\n\nEach series is fit to every well (not the means) by nonlinear least squares" + (wmode === "prop" ? " with weights 1/v" : "") + ".\nBIC = n ln(RSS/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
