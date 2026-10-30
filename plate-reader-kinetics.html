@@ -140,6 +140,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 .dctl label { display: inline-flex; gap: 6px; align-items: center; }
 .dctl input[type=number] { width: 76px; }
 .dctl select { width: auto; }
+#plotW { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
 .stats { font-family: var(--mono); font-size: 12.5px; margin-top: 6px; overflow-wrap: anywhere; }
 .stats b { font-weight: 500; color: var(--fg); }
 
@@ -197,7 +198,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <select id="dirSel"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
         <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the mean slope of wells marked <b>blank</b> (same run)</span></label>
         <div class="btns"><button type="button" class="btn" id="resetWin">Clear per-well windows</button></div>
-        <p class="hint">Use the early part of each trace, where it is still straight. Click a well to check its fit, adjust its own window, or click points to drop them.</p>
+        <p class="hint">Use the early part of each trace, where it is still straight. You can also drag across the well plot on the right to set the window with the mouse.</p>
       </section>
 
       <section class="panel">
@@ -244,7 +245,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="plothead">
           <h3 id="plateTitle">Plate</h3>
           <div class="toggles"><span style="font-size:12.5px;color:var(--muted)">Click a well to</span>
-            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">exclude</button><button type="button" data-a="blank" aria-pressed="false">mark blank</button></div>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false">mark blank</button></div>
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
@@ -259,13 +260,13 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <svg id="plotW" viewBox="0 0 640 250" role="img" aria-label="Absorbance against time for the selected well"></svg>
         <div class="stats" id="wellStats"></div>
         <div class="dctl">
-          <label>Use <select id="wRole"><option value="sample">sample</option><option value="blank">blank</option><option value="off">excluded</option></select></label>
+          <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="blank">a blank (no enzyme)</option><option value="off">left out (bad well)</option></select></label>
           <label><input type="checkbox" id="wOwn"> own window</label>
           <label><input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
           <button type="button" class="btn" id="wApply">Use this window for all wells</button>
           <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
         </div>
-        <p class="hint">Click a point to drop it from the slope (for a bubble or mixing spike); click again to restore it.</p>
+        <p class="hint">Set <b>this well is</b> to <i>left out</i> only for a well that went wrong (bubble, pipetting error, empty); it then drops out of the rates and the fit. <b>Drag across the plot</b> to set the slope window, or drag an edge of the shaded band to move it. The window applies to all wells unless “own window” is ticked, in which case it applies to this well only. Click a point to drop it from the slope (for a bubble or mixing spike); click it again to restore it.</p>
       </section>
 
       <section class="panel" id="layoutPanel" hidden>
@@ -755,7 +756,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     function val(x) { return isFinite(x) ? String(x) : ""; }
     function roleSel(R) {
       var roles = rowsU && r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
-      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "excluded" : o) + '</option>'; }).join("") + '</select>';
+      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o) + '</option>'; }).join("") + '</select>';
     }
     h += '<table class="sgrid"><thead><tr><th></th><th style="text-align:left">Series</th><th style="text-align:left">Row is</th>';
     if (mode === "row") h += '<th>[S]</th>';
@@ -847,7 +848,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         : '<g data-k="' + k + '" style="cursor:pointer"><circle cx="' + cx + '" cy="' + cy + '" r="7" fill="transparent"/><circle cx="' + cx + '" cy="' + cy + '" r="3.2" fill="' + (inW ? "var(--fg)" : "var(--ref)") + '" opacity="' + (inW ? 0.9 : 0.5) + '"/></g>';
     });
     $("plotW").innerHTML = s;
-    $("wellTitle").textContent = "Well " + w + (o.role === "blank" ? " (blank)" : o.role === "off" ? " (excluded)" : "") + (isFinite(o.S) ? " · [S] = " + sig(o.S) + " " + sLabel() : "") + " · " + o.series;
+    $("wellTitle").textContent = "Well " + w + (o.role === "blank" ? " (blank)" : o.role === "off" ? " (left out)" : "") + (isFinite(o.S) ? " · [S] = " + sig(o.S) + " " + sLabel() : "") + " · " + o.series;
     var A = aPerUM(), st = "";
     if (o.fit.ok) {
       st = "slope <b>" + sig(o.fit.slope * 1000, 4) + " ± " + sig(o.fit.se * 1000, 2) + "</b> mA₃₄₀/min · R² " + o.fit.r2.toFixed(4) + " · " + o.fit.n + " points";
@@ -1036,7 +1037,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   }
   function wellRows() {
     var out = [["run", "well", "use", "series", "S (" + sLabel() + ")", "window_start_min", "window_end_min", "points", "slope (A340/min)", "SE_slope", "R2", "rate_minus_blank (A340/min)", "rate (" + vUnit() + ")", "flags"]];
-    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w], win = winOf(run, w); out.push([run.label, w, o.role === "off" ? "excluded" : o.role, o.series, o.S, win[0], win[1], o.fit.n, o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" ? o.corr : "", o.role === "sample" ? o.v : "", wellFlag(o).join("; ")]); }); });
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w], win = winOf(run, w); out.push([run.label, w, o.role === "off" ? "left out" : o.role, o.series, o.S, win[0], win[1], o.fit.n, o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" ? o.corr : "", o.role === "sample" ? o.v : "", wellFlag(o).join("; ")]); }); });
     return out;
   }
   function meanRows() { var out = [["series", "S (" + sLabel() + ")", "n", "mean rate (" + vUnit() + ")", "SD", "wells"]]; meanTable().forEach(function (g) { out.push([g.series, g.S, g.n, g.mean, g.sd, g.wells.join(" ")]); }); return out; }
@@ -1158,7 +1159,30 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     render();
   });
   $("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-w]"); if (!tr) return; selWell = tr.dataset.w; render(); var p = $("wellPanel"); if (p.scrollIntoView) p.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
-  $("plotW").addEventListener("click", function (e) { var g = e.target.closest("g[data-k]"); if (!g) return; var ex = runs[cur].cfg.wells[selWell].excl, k = g.dataset.k; if (ex[k]) delete ex[k]; else ex[k] = true; render(); });
+  // drag on the well plot to set the slope window (or drag an edge of the shaded band); a plain click drops a point
+  var drag = null, plotW = $("plotW");
+  function plotTime(e) { var r = runs[cur], rc = plotW.getBoundingClientRect(), x = (e.clientX - rc.left) * 640 / rc.width, tmax = r.t[r.t.length - 1] / 60; return { x: x, t: Math.max(0, Math.min(tmax, (x - M.l) / (640 - M.l - M.r) * tmax)), px: 640 / rc.width }; }
+  function edgeAt(e) { if (cur < 0) return -1; var p = plotTime(e), win = winOf(runs[cur], selWell), tmax = runs[cur].t[runs[cur].t.length - 1] / 60, k = (640 - M.l - M.r) / tmax, tol = 7 * p.px; return Math.abs((p.t - win[0]) * k) < tol ? 0 : Math.abs((p.t - win[1]) * k) < tol ? 1 : -1; }
+  function setWin(a, b) {
+    var lo = Math.round(Math.min(a, b) * 100) / 100, hi = Math.round(Math.max(a, b) * 100) / 100, c = runs[cur].cfg.wells[selWell];
+    if (c.win) c.win = [lo, hi]; else { G.win = [lo, hi]; $("winA").value = lo; $("winB").value = hi; }
+    render();
+  }
+  plotW.addEventListener("pointerdown", function (e) {
+    if (cur < 0 || e.button !== 0) return;
+    var p = plotTime(e), ed = edgeAt(e), win = winOf(runs[cur], selWell);
+    drag = { x0: p.x, t0: p.t, edge: ed, fixed: ed === 0 ? win[1] : ed === 1 ? win[0] : null, moved: false, id: e.pointerId };
+  });
+  plotW.addEventListener("pointermove", function (e) {
+    if (!drag) { plotW.style.cursor = edgeAt(e) >= 0 ? "ew-resize" : "crosshair"; return; }
+    var p = plotTime(e);
+    if (!drag.moved && Math.abs(p.x - drag.x0) < 5) return;
+    if (!drag.moved) { drag.moved = true; try { plotW.setPointerCapture(drag.id); } catch (er) {} }
+    setWin(drag.fixed !== null ? drag.fixed : drag.t0, p.t);
+  });
+  function endDrag() { if (drag && drag.moved) { saveSettings(); drag.justDragged = true; setTimeout(function () { drag = null; }, 0); } else drag = null; }
+  plotW.addEventListener("pointerup", endDrag); plotW.addEventListener("pointercancel", endDrag);
+  plotW.addEventListener("click", function (e) { if (drag && drag.justDragged) return; var g = e.target.closest("g[data-k]"); if (!g) return; var ex = runs[cur].cfg.wells[selWell].excl, k = g.dataset.k; if (ex[k]) delete ex[k]; else ex[k] = true; render(); });
   function step(d) { var o = runs[cur].order, i = o.indexOf(selWell); selWell = o[(i + d + o.length) % o.length]; render(); }
   $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
   $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; buildLayout(); render(); });
