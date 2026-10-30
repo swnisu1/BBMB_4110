@@ -180,7 +180,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <h2><span class="step">1</span>Plate reader file</h2>
         <label class="drop" id="drop" for="fileIn">
           <b>Drop the .xlsx here</b> or click to choose
-          <span>Tecan i-control export (wells in rows, “Time [s]” row), or a CSV / text file with a Time column and one column per well. Every kinetic run in the workbook is found.</span>
+          <span>Either plate reader’s export works as saved: the infinite 200Pro (i-control, wells in rows) or the Spark (SparkControl, wells in columns). The format is detected automatically. A CSV or text file with a Time column and one column per well also works. Every kinetic run in the workbook is found.</span>
           <input type="file" id="fileIn" multiple accept=".xlsx,.csv,.tsv,.txt" hidden>
         </label>
         <details>
@@ -475,10 +475,13 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     return out;
   }
   function mkRun(sheet, rows, i, t, wells, order) {
+    // the Spark lists all 96 wells even when only part of the plate was read: keep wells that have readings
+    order = order.filter(function (w) { return wells[w].filter(isFinite).length >= 3; });
     order.sort(function (a, b) { return a.charCodeAt(0) - b.charCodeAt(0) || +a.slice(1) - +b.slice(1); });
     var st = metaBefore(rows, i, "start time"), part = metaBefore(rows, i, "part of plate"), wl = metaBefore(rows, i, "measurement wavelength");
-    var tm = /(\d{1,2}:\d{2}(:\d{2})?\s*[AP]M)/i.exec(st);
-    return { sheet: sheet, t: t, wells: wells, order: order, start: tm ? tm[1] : st, part: part, wl: wl };
+    var tm = /(\d{1,2}:\d{2}(:\d{2})?\s*[AP]M)/i.exec(st) || /\b(\d{1,2}:\d{2})(:\d{2})?\s*$/.exec(st);
+    var dev = ""; rows.slice(0, i).forEach(function (r) { (r || []).forEach(function (c) { var m = /^Device:\s*(\S.*)$/i.exec(str(c)); if (m && !dev) dev = m[1]; }); });
+    return { sheet: sheet, t: t, wells: wells, order: order, start: tm ? tm[1] : st, part: part, wl: wl, device: dev };
   }
   function sameRun(a, b) {
     if (a.t.length !== b.t.length || a.order.join() !== b.order.join()) return false;
@@ -740,8 +743,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   }
   function runInfo() {
     if (cur < 0) { $("runInfo").textContent = runs.length ? "" : "No data loaded yet."; return; }
-    var r = runs[cur], tmax = r.t[r.t.length - 1] / 60, dt = (r.t[1] - r.t[0]);
-    $("runInfo").innerHTML = esc(r.order.length + " wells, " + r.t.length + " reads every " + sig(dt) + " s over " + sig(tmax) + " min" + (r.part ? " (" + r.part + ")" : "") + (r.wl ? ", " + r.wl + " nm" : "")) + (r.wl && Math.abs(+r.wl - 340) > 5 ? ' <b style="color:var(--warn)">Not read at 340 nm, so the NADPH conversion does not apply.</b>' : "");
+    var r = runs[cur], tmax = r.t[r.t.length - 1] / 60, dt = (r.t[r.t.length - 1] - r.t[0]) / (r.t.length - 1);
+    $("runInfo").innerHTML = esc((r.device ? "Tecan " + r.device.replace(/^tecan\s*/i, "") + ": " : "") + r.order.length + " wells, " + r.t.length + " reads, about every " + sig(dt) + " s over " + sig(tmax) + " min" + (r.part ? " (" + r.part + ")" : "") + (r.wl ? ", " + r.wl + " nm" : "")) + (r.wl && Math.abs(+r.wl - 340) > 5 ? ' <b style="color:var(--warn)">Not read at 340 nm, so the NADPH conversion does not apply.</b>' : "");
   }
 
   // layout editor: one [S] box per well (rebuilt only when the run or a role changes, so typing keeps focus)
