@@ -82,6 +82,7 @@ textarea.wrapit { white-space: pre-wrap; height: 56px; }
 .check input { margin-top: 3px; accent-color: var(--accent); }
 .btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
 .btn:hover { border-color: var(--accent); }
+a.btn { text-decoration: none; display: inline-block; }
 .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 .btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
@@ -198,6 +199,8 @@ td.neg { color: var(--warn); }
           <div class="field"><label for="rTemp">Temperature (°C)</label><input type="number" id="rTemp" step="any"></div>
         </div>
         <div class="btns"><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear all</button></div>
+        <p class="hint" style="margin-top:12px">Practice files (simulated Tecan infinite 200Pro exports, the same plate read twice). Download both, then drop them here together.</p>
+        <div class="btns"><a class="btn" href="examples/practice_urea_read1_30min.xlsx" download>⤓ Read 1 (30 min) .xlsx</a><a class="btn" href="examples/practice_urea_read2_150min.xlsx" download>⤓ Read 2 (150 min) .xlsx</a></div>
       </section>
 
       <section class="panel">
