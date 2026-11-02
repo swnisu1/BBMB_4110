@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Two tabs. Plan: urea stock, mixture volumes and plate map. Analyse: sticky control column left
+/* Sticky control column left
    (files, channels, fit options); right: plate overview, one-well spectrum, plate layout, spectra,
    unfolding fit, fraction unfolded, F350/F330 ratio and repeat-read check. Each protein gets its own colour (c1..c6). */
 :root {
@@ -53,7 +53,6 @@ header { margin-bottom: 14px; }
 h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
 header p { margin: 0; color: var(--muted); max-width: 84ch; }
 header a { color: var(--accent); }
-.tabs { margin: 12px 0 16px; max-width: 420px; }
 .grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
 @media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
@@ -171,76 +170,8 @@ td.neg { color: var(--warn); }
 <div class="wrap">
   <header>
     <h1>Urea Unfolding Fitting</h1>
-    <p>Plan the urea series and plate map, then load the emission spectra from the plate reader (Tecan .xlsx as exported). The matching no-protein urea blank is subtracted from every spectrum. A chosen intensity channel is fit to a two-state model with sloping baselines to give C<sub>m</sub>, m and ΔG<sub>water</sub>; F350/F330 is shown as a separate view of the transition. Everything runs in your browser. <a href="index.html">All tools</a></p>
-    <div class="seg tabs" id="tabSeg"><button type="button" data-t="plan" aria-pressed="false">1 · Plan the experiment</button><button type="button" data-t="analyse" aria-pressed="true">2 · Analyse the spectra</button></div>
+    <p>Load the emission spectra from the plate reader (Tecan .xlsx as exported). The matching no-protein urea blank is subtracted from every spectrum. A chosen intensity channel is fit to a two-state model with sloping baselines to give C<sub>m</sub>, m and ΔG<sub>water</sub>; F350/F330 is shown as a separate view of the transition. Everything runs in your browser. <a href="index.html">All tools</a></p>
   </header>
-
-  <!-- ===================== PLAN ===================== -->
-  <div class="grid" id="planView" hidden>
-    <div class="controls">
-      <section class="panel">
-        <h2><span class="step">1</span>Urea stock</h2>
-        <div class="seg" id="stockSeg"><button type="button" data-s="wt" aria-pressed="true">By weight</button><button type="button" data-s="ri" aria-pressed="false">Refractive index</button><button type="button" data-s="m" aria-pressed="false">Enter M</button></div>
-        <div style="margin-top:10px">
-          <div id="stWt">
-            <div class="field"><label for="pG">Urea weighed (g)</label><input type="number" id="pG" step="any" min="0"></div>
-            <div class="field"><label for="pML">Final volume (mL)</label><input type="number" id="pML" step="any" min="0"></div>
-          </div>
-          <div id="stRi" hidden>
-            <div class="field"><label for="pNU">n, urea stock</label><input type="number" id="pNU" step="any"></div>
-            <div class="field"><label for="pNB">n, buffer alone</label><input type="number" id="pNB" step="any"></div>
-          </div>
-          <div id="stM" hidden>
-            <div class="field"><label for="pM">Urea stock (M)</label><input type="number" id="pM" step="any" min="0"></div>
-          </div>
-        </div>
-        <div class="out" id="stockOut"></div>
-        <p class="hint">Make the urea stock fresh, in the same buffer as the final mixtures, so only urea changes along the series. By weight: M = g ÷ 60.06 g/mol ÷ L. The refractive index check (Pace) is more reliable: [urea] = 117.66ΔN + 29.753ΔN² + 185.56ΔN³, where ΔN is n(stock) − n(buffer).</p>
-      </section>
-
-      <section class="panel">
-        <h2><span class="step">2</span>Protein and wells</h2>
-        <div class="field"><label for="pPS">Protein stock (µM)</label><input type="number" id="pPS" step="any" min="0"></div>
-        <div class="field"><label for="pPF">Final protein (µM)</label><input type="number" id="pPF" step="any" min="0"></div>
-        <div class="field"><label for="pMW">Molar mass (kDa, optional)</label><input type="number" id="pMW" step="any" min="0" placeholder="for µg"></div>
-        <div class="field"><label for="pVol">Volume per well (µL)</label><input type="number" id="pVol" step="any" min="0"></div>
-        <div class="field"><label for="pExtra">Extra in each tube (%)</label><input type="number" id="pExtra" step="any" min="0"></div>
-        <p class="hint">Each replicate is mixed in its own tube (one well's volume plus the extra for pipetting loss), then dispensed. Protein concentration, buffer and volume stay the same in every well.</p>
-      </section>
-
-      <section class="panel">
-        <h2><span class="step">3</span>Series and plate</h2>
-        <div class="field" style="grid-template-columns:1fr"><label for="pConc">Final urea concentrations (M), comma separated</label><input type="text" id="pConc" spellcheck="false"></div>
-        <div class="field"><label for="pProt">Proteins (comma separated)</label><input type="text" id="pProt" spellcheck="false" style="font-family:var(--font)"></div>
-        <div class="field"><label for="pReps">Replicates per protein</label><input type="number" id="pReps" step="1" min="1" max="8"></div>
-        <div class="field"><label for="pBReps">No-protein blank rows</label><input type="number" id="pBReps" step="1" min="0" max="8"></div>
-        <label class="check"><input type="checkbox" id="pUse"><span>Fill the plate layout from this map when spectra are loaded</span></label>
-        <p class="hint">Each plate row is one series of 12 urea concentrations (columns 1–12). Space the points more closely where you expect the transition. A blank row has the same urea in buffer with no protein; it is subtracted from the protein wells at the same urea.</p>
-      </section>
-    </div>
-
-    <div class="main">
-      <div class="msgs" id="planMsgs"></div>
-      <section class="panel">
-        <div class="plothead"><h3>Mixtures</h3><span class="toggles lab" id="tubeNote"></span></div>
-        <div class="tablewrap" id="mixTbl"></div>
-        <p class="hint" id="mixHint"></p>
-      </section>
-      <div class="cards" id="planCards"></div>
-      <section class="panel plot">
-        <div class="plothead"><h3>Plate map</h3><span class="toggles lab">numbers = final [urea] (M)</span></div>
-        <svg id="planMap" viewBox="0 0 640 360" role="img" aria-label="Plate map with urea concentration in each well"></svg>
-        <div class="legend" id="legendMap"></div>
-      </section>
-      <section class="panel">
-        <h2>Record for the report</h2>
-        <textarea id="pNotes" class="wrapit" style="height:90px" aria-label="Preparation notes" placeholder="Urea lot and weighing, buffer recipe, protein stock and how it was measured, incubation temperature, time protein was added to urea…"></textarea>
-        <p class="hint" style="margin:12px 0 6px">Export</p>
-        <div class="btns" style="margin-top:0"><button type="button" class="btn" id="exPlanCsv">Mixture table (CSV)</button><button type="button" class="btn" id="exMapCsv">Plate map (CSV)</button><button type="button" class="btn" id="exMapPng">Plate map (PNG)</button></div>
-        <p class="hint" id="planExpMsg"></p>
-      </section>
-    </div>
-  </div>
 
   <!-- ===================== ANALYSE ===================== -->
   <div class="grid" id="anaView">
@@ -319,7 +250,7 @@ td.neg { color: var(--warn); }
           <h3>Plate layout: what is in each well?</h3>
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's urea to every row</button><button type="button" class="btn" id="fromPlan">Fill from the plan</button><button type="button" class="btn" id="copyReads">Use this layout for every read</button></div>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's urea to every row</button><button type="button" class="btn" id="stdRows" title="Sets the protein and role of each row; the urea is not changed">Rows A–C WT, D–F mutant, G–H blank</button><button type="button" class="btn" id="copyReads">Use this layout for every read</button></div>
         <p class="hint">Type the final urea concentration (M) in each well. For each row, enter the <b>protein</b> (WT, mutant…). Rows with the same protein in the same read are replicates and are fit together. Set a row to <b>blank</b> for the no-protein urea series; give the blank wells their urea too, so each protein well is matched to the blank at the same urea. Leave the urea empty for wells that should not be used. A reread of the same plate starts with the same layout.</p>
       </section>
 
@@ -396,7 +327,7 @@ td.neg { color: var(--warn); }
 <script>
 (function () {
   var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"], DASH = [null, "6 4", "2 3", "9 3 2 3"];
-  var WELL_RE = /^([A-P])0?(\d{1,2})$/, R_GAS = 0.008314, MW_UREA = 60.06;
+  var WELL_RE = /^([A-P])0?(\d{1,2})$/, R_GAS = 0.008314;
   function $(id) { return document.getElementById(id); }
   function sig(x, p) { return isFinite(x) ? String(Number(x.toPrecision(p || 3))) : "—"; }
   function fx(x, d) { return isFinite(x) ? x.toFixed(d) : "—"; }
@@ -409,12 +340,10 @@ td.neg { color: var(--warn); }
   function dkey(D) { return D.toFixed(4); }
 
   // ---------- settings ----------
-  var G = { tab: "analyse", la: 330, lb: 350, bw: 0, sub: true, fit: "a", slopes: true, reads: "cur", pts: "wells", norm: false, click: "inspect", sel: null, refP: null, spec: null };
-  var P = { stockMode: "wt", g: 12.01, mL: 20, nU: 1.4152, nB: 1.3330, M: 10, ps: 20, pf: 1, mw: "", vol: 200, extra: 10,
-    conc: "0, 1, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8", prot: "WT, mutant", reps: 3, breps: 2, use: true, notes: "" };
+  var G = { la: 330, lb: 350, bw: 0, sub: true, fit: "a", slopes: true, reads: "cur", pts: "wells", norm: false, click: "inspect", sel: null, refP: null, spec: null };
   var STORE = "bbmb_urea_unfolding_v1";
-  try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { if (sv.G) ["tab", "la", "lb", "bw", "sub", "fit", "slopes"].forEach(function (k) { if (sv.G[k] !== undefined) G[k] = sv.G[k]; }); if (sv.P) Object.keys(P).forEach(function (k) { if (sv.P[k] !== undefined) P[k] = sv.P[k]; }); } } catch (e) {}
-  function save() { try { localStorage.setItem(STORE, JSON.stringify({ G: { tab: G.tab, la: G.la, lb: G.lb, bw: G.bw, sub: G.sub, fit: G.fit, slopes: G.slopes }, P: P })); } catch (e) {} }
+  try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { if (sv.G) ["la", "lb", "bw", "sub", "fit", "slopes"].forEach(function (k) { if (sv.G[k] !== undefined) G[k] = sv.G[k]; }); } } catch (e) {}
+  function save() { try { localStorage.setItem(STORE, JSON.stringify({ G: { la: G.la, lb: G.lb, bw: G.bw, sub: G.sub, fit: G.fit, slopes: G.slopes } })); } catch (e) {} }
 
   var runs = [], cur = -1, selWell = null;
 
@@ -584,12 +513,12 @@ td.neg { color: var(--warn); }
     to.order.forEach(function (w) { var s = from.cfg.wells[w]; if (s) { to.cfg.wells[w].role = s.role; to.cfg.wells[w].D = s.D; } });
     to.rowsUsed.forEach(function (R) { if (from.cfg.rows[R]) to.cfg.rows[R].protein = from.cfg.rows[R].protein; });
   }
-  function applyPlan(run) {
-    var pr = planRows(), conc = planConc();
+  // rows A–C WT, D–F mutant, G–H no-protein blank (urea left as it is)
+  function standardRows(run) {
     run.rowsUsed.forEach(function (R) {
-      var i = R.charCodeAt(0) - 65, p = pr[i];
-      run.cfg.rows[R].protein = p ? p.protein : "";
-      run.order.forEach(function (w) { if (w.charAt(0) !== R) return; var c = +w.slice(1); run.cfg.wells[w].role = p && p.blank ? "blank" : p ? "sample" : "off"; run.cfg.wells[w].D = p && c <= conc.length ? conc[c - 1] : NaN; });
+      var i = R.charCodeAt(0) - 65, prot = i < 3 ? "WT" : i < 6 ? "mutant" : i < 8 ? "blank" : "";
+      run.cfg.rows[R].protein = prot;
+      run.order.forEach(function (w) { if (w.charAt(0) === R) run.cfg.wells[w].role = prot === "blank" ? "blank" : prot ? "sample" : "off"; });
     });
   }
   function addRuns(found, base) {
@@ -602,7 +531,7 @@ td.neg { color: var(--warn); }
       blankCfg(r);
       var prev = runs.length ? runs[runs.length - 1] : null;
       if (prev) { copyCfg(prev, r); note = "The layout was copied from the previous read."; }
-      else if (P.use) { applyPlan(r); note = "The plate layout was filled from the plan (Plan tab). Check that it matches your plate."; }
+      else note = "Enter the urea in each well and the protein in each row in the plate layout.";
       runs.push(r);
     });
     cur = runs.length - fresh.length; selWell = runs[cur].order[0];
@@ -649,11 +578,11 @@ td.neg { color: var(--warn); }
       built.push([run, rd.t]);
     });
     runs = []; cur = -1;
-    var keepUse = P.use; P.use = true;
-    var savedPlan = { conc: P.conc, prot: P.prot, reps: P.reps, breps: P.breps };
-    P.conc = conc.join(", "); P.prot = "WT, mutant"; P.reps = 3; P.breps = 2;
-    built.forEach(function (b, i) { addRuns([b[0]], "Example read " + (i + 1)); runs[runs.length - 1].tmin = b[1]; });
-    P.use = keepUse; Object.keys(savedPlan).forEach(function (k) { P[k] = savedPlan[k]; });
+    built.forEach(function (b, i) {
+      addRuns([b[0]], "Example read " + (i + 1));
+      var r = runs[runs.length - 1]; r.tmin = b[1];
+      if (i === 0) { standardRows(r); r.order.forEach(function (w) { r.cfg.wells[w].D = conc[+w.slice(1) - 1]; }); }
+    });
     cur = 0; selWell = "A1"; G.reads = "cur";
     syncInputs(); buildRunSel(); buildLayout(); render();
     topMsg("Simulated example: rows A–C WT, D–F mutant, G–H no-protein blanks; urea 0–8 M across columns 1–12; 295 nm excitation, 25 °C. Read 1 was taken 30 min after mixing and read 2 after 150 min. The mutant is still unfolding at 30 min; compare the reads. Well E7 is too bright (a pipetting error): click it and leave it out.");
@@ -868,11 +797,7 @@ td.neg { color: var(--warn); }
   function pressed(id, attr, val) { Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset[attr] === val)); }); }
   function syncInputs() {
     $("la").value = G.la; $("lb").value = G.lb; $("bw").value = G.bw; $("subBlank").checked = G.sub; $("slopes").checked = G.slopes;
-    pressed("fitSeg", "f", G.fit); pressed("tabSeg", "t", G.tab); pressed("readsSeg", "r", G.reads); pressed("ptsSeg", "p", G.pts); pressed("normSeg", "n", G.norm ? "norm" : "raw"); pressed("clickSeg", "a", G.click);
-    $("planView").hidden = G.tab !== "plan"; $("anaView").hidden = G.tab !== "analyse";
-    $("pG").value = P.g; $("pML").value = P.mL; $("pNU").value = P.nU; $("pNB").value = P.nB; $("pM").value = P.M; $("pPS").value = P.ps; $("pPF").value = P.pf; $("pMW").value = P.mw; $("pVol").value = P.vol; $("pExtra").value = P.extra;
-    $("pConc").value = P.conc; $("pProt").value = P.prot; $("pReps").value = P.reps; $("pBReps").value = P.breps; $("pUse").checked = P.use; $("pNotes").value = P.notes;
-    pressed("stockSeg", "s", P.stockMode); $("stWt").hidden = P.stockMode !== "wt"; $("stRi").hidden = P.stockMode !== "ri"; $("stM").hidden = P.stockMode !== "m";
+    pressed("fitSeg", "f", G.fit); pressed("readsSeg", "r", G.reads); pressed("ptsSeg", "p", G.pts); pressed("normSeg", "n", G.norm ? "norm" : "raw"); pressed("clickSeg", "a", G.click);
     if (cur >= 0) { $("rTime").value = isFinite(runs[cur].tmin) ? runs[cur].tmin : ""; $("rTemp").value = isFinite(runs[cur].T) ? runs[cur].T : ""; }
   }
   function buildRunSel() {
@@ -910,12 +835,11 @@ td.neg { color: var(--warn); }
   var pending = false;
   function render() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); }); }
   function draw() {
-    if (G.tab === "plan") { drawPlan(); return; }
     runInfo();
     var has = cur >= 0;
     ["platePanel", "wellPanel", "layoutPanel"].forEach(function (id) { $(id).hidden = !has; });
     $("readBox").hidden = !has;
-    if (!has) { hideFit(); $("specPanel").hidden = true; $("ratioPanel").hidden = true; $("repPanel").hidden = true; $("exportPanel").hidden = true; if (!$("topMsgs").innerHTML) topMsg("Load the spectra (step 1), or try <b>Load example</b> to see how this works. Plan the urea series and plate map on the Plan tab first."); return; }
+    if (!has) { hideFit(); $("specPanel").hidden = true; $("ratioPanel").hidden = true; $("repPanel").hidden = true; $("exportPanel").hidden = true; if (!$("topMsgs").innerHTML) topMsg("Load the spectra (step 1), or try <b>Load example</b> to see how this works."); return; }
     computeAll();
     var D = datasets();
     drawPlate(); drawWell(); drawSpectra(D); drawFit(D); drawRatio(D); drawRepeat(D);
@@ -1172,63 +1096,6 @@ td.neg { color: var(--warn); }
     return out;
   }
 
-  // ---------- plan ----------
-  function planConc() { return String(P.conc).split(/[\s,;]+/).map(function (s) { return num(s); }).filter(isFinite); }
-  function planProteins() { return String(P.prot).split(/[,;]+/).map(function (s) { return s.trim(); }).filter(Boolean); }
-  function planRows() { var out = []; planProteins().forEach(function (p) { for (var r = 1; r <= P.reps; r++) out.push({ protein: p, rep: r, blank: false }); }); for (var r = 1; r <= P.breps; r++) out.push({ protein: "blank", rep: r, blank: true }); return out; }
-  function stockM() { if (P.stockMode === "wt") return P.g / MW_UREA / (P.mL / 1000); if (P.stockMode === "ri") { var dn = P.nU - P.nB; return 117.66 * dn + 29.753 * dn * dn + 185.56 * dn * dn * dn; } return P.M; }
-  var planTable = [];
-  function drawPlan() {
-    var S = stockM(), conc = planConc(), prots = planProteins(), V = P.vol, tube = V * (1 + P.extra / 100), vp = P.pf / P.ps * tube, msgs = [], prow = planRows();
-    $("stockOut").textContent = isFinite(S) && S > 0 ? "Urea stock = " + sig(S, 4) + " M" + (P.stockMode === "ri" ? " (ΔN = " + sig(P.nU - P.nB, 4) + ")" : P.stockMode === "wt" ? " (" + sig(P.g / MW_UREA * 1000, 4) + " mmol in " + sig(P.mL) + " mL)" : "") + (S > 10.5 ? ". That is near or above the solubility of urea; check it." : "") : "Enter the stock values.";
-    var maxD = S * (1 - P.pf / P.ps);
-    if (conc.length !== 12) msgs.push(["", "The handout asks for 12 urea concentrations; this list has " + conc.length + "."]);
-    if (conc.some(function (D) { return D > maxD + 1e-9; })) msgs.push(["warn", "The highest urea that fits is " + sig(maxD, 3) + " M (urea stock " + sig(S, 3) + " M, protein stock taking " + sig(100 * P.pf / P.ps, 2) + "% of the volume). Use a more concentrated urea or protein stock, or lower the top concentration."]);
-    if (vp < 1) msgs.push(["warn", "Only " + sig(vp, 2) + " µL of protein stock per tube; that is hard to pipette accurately. Dilute the protein stock (in the same buffer) or mix a larger volume."]);
-    if (prow.length > 8) msgs.push(["warn", prow.length + " rows are needed but a 96-well plate has 8. Use fewer replicates, fewer blank rows, or two plates."]);
-    if (!(P.ps > P.pf)) msgs.push(["warn", "The protein stock must be more concentrated than the final protein."]);
-    $("planMsgs").innerHTML = msgs.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
-    $("tubeNote").textContent = "per replicate tube: " + sig(tube, 4) + " µL (" + sig(V) + " µL well + " + sig(P.extra) + "%)";
-    planTable = [["#", "urea (M)", "urea stock (uL)", "protein stock (uL)", "buffer (uL)", "blank: urea stock (uL)", "blank: buffer (uL)", "tube volume (uL)", "dispense per well (uL)"]];
-    var h = '<table class="data"><thead><tr><th>#</th><th>final [urea] (M)</th><th>urea stock (µL)</th><th>protein stock (µL)</th><th>buffer (µL)</th><th>blank: buffer (µL)</th></tr></thead><tbody>', totU = 0, totB = 0, nProtTubes = prots.length * P.reps;
-    conc.forEach(function (D, i) {
-      var vu = D / S * tube, vb = tube - vu - vp, neg = vb < -1e-9;
-      totU += vu * (nProtTubes + P.breps); totB += Math.max(vb, 0) * nProtTubes + Math.max(vb + vp, 0) * P.breps;
-      planTable.push([i + 1, D, vu, vp, vb, vu, vb + vp, tube, V]);
-      h += '<tr><td>' + (i + 1) + '</td><td>' + sig(D) + '</td><td>' + fx(vu, 1) + '</td><td>' + fx(vp, 1) + '</td><td' + (neg ? ' class="neg"' : "") + '>' + fx(vb, 1) + (neg ? " (too much)" : "") + '</td><td>' + fx(vb + vp, 1) + '</td></tr>';
-    });
-    $("mixTbl").innerHTML = h + '</tbody></table>';
-    $("mixHint").innerHTML = "Volumes for one replicate tube. Mix urea stock, buffer and protein (protein last), then dispense " + sig(V) + " µL into the well. The blank tube is the same with buffer in place of the protein stock (use the protein's storage buffer if it differs). Prepare each replicate tube separately.";
-    var vprotTot = vp * conc.length * P.reps, pmol = P.ps * vprotTot, mw = num(String(P.mw));
-    $("planCards").innerHTML =
-      '<div class="card"><div class="k">Urea stock needed</div><div class="v">' + sig(totU / 1000, 3) + ' mL</div><div class="s">' + (nProtTubes + P.breps) + ' series × ' + conc.length + ' tubes</div></div>' +
-      '<div class="card"><div class="k">Protein stock, per protein</div><div class="v">' + sig(vprotTot, 3) + ' µL</div><div class="s">' + sig(pmol / 1000, 3) + ' nmol' + (mw > 0 ? " · " + sig(pmol / 1000 * mw, 3) + " µg" : "") + ' at ' + sig(P.ps) + ' µM</div></div>' +
-      '<div class="card"><div class="k">Buffer</div><div class="v">' + sig(totB / 1000, 3) + ' mL</div><div class="s">all tubes</div></div>' +
-      '<div class="card"><div class="k">Wells</div><div class="v">' + (prow.length * conc.length) + '</div><div class="s">' + prow.length + ' rows × ' + conc.length + ' columns</div></div>';
-    drawMap(prow, conc);
-  }
-  var mapTable = [];
-  function drawMap(prow, conc) {
-    var ncol = Math.max(12, conc.length), nrow = Math.max(8, prow.length), cw = (640 - 34 - 104) / ncol, rh = 36, H = 26 + nrow * rh + 8, s = "", prots = planProteins();
-    mapTable = [[""].concat(Array.apply(null, Array(ncol)).map(function (_, i) { return String(i + 1); }), ["contents"])];
-    for (var c = 0; c < ncol; c++) s += '<text x="' + (34 + cw * (c + 0.5)) + '" y="16" text-anchor="middle">' + (c + 1) + '</text>';
-    for (var r = 0; r < nrow; r++) {
-      var y = 26 + rh * (r + 0.5), p = prow[r], col = p ? (p.blank ? "var(--muted)" : COLORS[prots.indexOf(p.protein) % 6]) : "var(--line)", R = String.fromCharCode(65 + r), mrow = [R];
-      s += '<text x="14" y="' + (y + 4) + '" text-anchor="middle" class="ttl">' + R + '</text>';
-      for (c = 0; c < ncol; c++) {
-        var x = 34 + cw * (c + 0.5), has = p && c < conc.length;
-        s += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + Math.min(15, cw / 2 - 2).toFixed(1) + '" fill="' + (has ? col : "none") + '" fill-opacity="' + (has ? (p.blank ? 0.08 : 0.16) : 0) + '" stroke="' + (has ? col : "var(--line)") + '" stroke-width="' + (has ? 1.6 : 1) + '"' + (p && p.blank ? ' stroke-dasharray="3 2"' : "") + '/>';
-        if (has) s += '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5) + '" text-anchor="middle" class="lbl">' + sig(conc[c]) + '</text>';
-        mrow.push(has ? sig(conc[c]) : "");
-      }
-      if (p) s += '<text x="' + (640 - 100) + '" y="' + (y + 4) + '" class="ttl">' + esc(p.blank ? "blank " + p.rep : p.protein + " · rep " + p.rep) + '</text>';
-      mrow.push(p ? (p.blank ? "no-protein blank " + p.rep : p.protein + " replicate " + p.rep) : "");
-      mapTable.push(mrow);
-    }
-    var svg = $("planMap"); svg.setAttribute("viewBox", "0 0 640 " + H); svg.innerHTML = s;
-    $("legendMap").innerHTML = prots.map(function (p, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(p) + ' (' + P.reps + ' rows)</span>'; }).join("") + (P.breps ? '<span><i class="op" style="border-color:var(--muted)"></i>no-protein blank (' + P.breps + ' row' + (P.breps > 1 ? "s" : "") + ')</span>' : "") + '<span>' + sig(P.pf) + ' µM protein, ' + sig(P.vol) + ' µL per well</span>';
-  }
-
   // ---------- export: PNG figures and CSV tables ----------
   var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "ref", "warn", "band", "c1", "c2", "c3", "c4", "c5", "c6", "u0", "u1"];
   function withLight(fn) {
@@ -1293,7 +1160,6 @@ td.neg { color: var(--warn); }
     });
   }
   function exportNote(t) { $("exportMsg").textContent = t; }
-  function planNote(t) { $("planExpMsg").textContent = t; }
   var EXP = { plots: [{ svg: "plotA", legend: "legendA", label: "Intensity fit", file: "intensity_fit" }, { svg: "plotB", legend: null, label: "Residuals", file: "residuals" }, { svg: "plotF", legend: "legendF", label: "Fraction unfolded", file: "fraction_unfolded" }, { svg: "plotR", legend: "legendR", label: "Ratio", file: "ratio" }, { svg: "plotS", legend: "legendS", label: "Spectra", file: "spectra" }, { svg: "plotW", legend: "legendW", label: "Selected well spectrum", file: "well" }],
     tables: [{ key: "wells", label: "Every well: channels and blanks", file: "wells" }, { key: "spectra", label: "Spectra, this read (blank subtracted)", file: "spectra" }, { key: "parameters", label: "Fit parameters", file: "parameters" }, { key: "data_fit", label: "Data + fitted values", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves", file: "fit_curves" }, { key: "ratio", label: "Ratio means", file: "ratio_means" }, { key: "repeat", label: "Repeat-read comparison", file: "repeat_reads" }] };
   $("exportPng").innerHTML = EXP.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
@@ -1310,15 +1176,7 @@ td.neg { color: var(--warn); }
     if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
     saveFile(prefix() + "_" + t.file + ".csv", csvText(rows), exportNote);
   });
-  $("exPlanCsv").addEventListener("click", function () {
-    var rows = [["urea stock (M)", stockM()], ["protein stock (uM)", P.ps], ["final protein (uM)", P.pf], ["volume per well (uL)", P.vol], ["extra per tube (%)", P.extra], ["notes", P.notes], []].concat(planTable);
-    saveFile("urea_mixtures.csv", csvText(rows), planNote);
-  });
-  $("exMapCsv").addEventListener("click", function () { saveFile("urea_plate_map.csv", csvText(mapTable), planNote); });
-  $("exMapPng").addEventListener("click", function () { planNote("Preparing the figure..."); svgToPng("planMap", "legendMap", 3).then(function (b) { return saveFile("urea_plate_map.png", b, planNote); }, function (err) { planNote("Could not make the figure: " + err.message); }); });
-
   // ---------- events ----------
-  $("tabSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; G.tab = b.dataset.t; syncInputs(); save(); render(); });
   $("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
   var dropEl = $("drop");
   ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
@@ -1363,7 +1221,7 @@ td.neg { color: var(--warn); }
     r.order.forEach(function (w) { var src = r.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src) r.cfg.wells[w].D = src.D; });
     buildLayout(); render();
   });
-  $("fromPlan").addEventListener("click", function () { if (cur < 0) return; applyPlan(runs[cur]); buildLayout(); render(); topMsg("Layout filled from the plan: " + planRows().length + " rows × " + planConc().length + " urea concentrations."); });
+  $("stdRows").addEventListener("click", function () { if (cur < 0) return; standardRows(runs[cur]); buildLayout(); render(); });
   $("copyReads").addEventListener("click", function () { if (cur < 0) return; runs.forEach(function (r) { if (r !== runs[cur]) copyCfg(runs[cur], r); }); render(); topMsg("This layout now applies to all " + runs.length + " reads."); });
   var lg = $("layoutGrid");
   lg.addEventListener("input", function (e) {
@@ -1386,16 +1244,6 @@ td.neg { color: var(--warn); }
     grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); cfg.wells[x.dataset.wd].D = v.trim() === "" ? NaN : num(v); } }); });
     render();
   });
-
-  // plan inputs
-  $("stockSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-s]"); if (!b) return; P.stockMode = b.dataset.s; syncInputs(); save(); render(); });
-  [["pG", "g"], ["pML", "mL"], ["pNU", "nU"], ["pNB", "nB"], ["pM", "M"], ["pPS", "ps"], ["pPF", "pf"], ["pVol", "vol"], ["pExtra", "extra"]].forEach(function (x) { numIn(x[0], function (v) { P[x[1]] = v; }); });
-  numIn("pReps", function (v) { P.reps = Math.max(1, Math.min(16, Math.round(v))); }); numIn("pBReps", function (v) { P.breps = Math.max(0, Math.min(16, Math.round(v))); });
-  $("pMW").addEventListener("input", function (e) { P.mw = e.target.value; save(); render(); });
-  $("pConc").addEventListener("input", function (e) { P.conc = e.target.value; save(); render(); });
-  $("pProt").addEventListener("input", function (e) { P.prot = e.target.value; save(); render(); });
-  $("pUse").addEventListener("change", function (e) { P.use = e.target.checked; save(); });
-  $("pNotes").addEventListener("input", function (e) { P.notes = e.target.value; save(); });
 
   syncInputs(); buildRunSel(); render();
 })();
