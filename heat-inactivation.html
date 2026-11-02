@@ -1,0 +1,448 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Heat Inactivation · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left (data, slope window, conversion, enzyme, fit options);
+   right: plate overview, one-well detail, plate layout, rates table, then the MM / Hill / SI fit.
+   Each series (WT, mutant...) gets its own colour (c1..c6). */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --win: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --win: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --win: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 80ch; }
+header a { color: var(--accent); }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 71px 71px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-k], table.data tbody tr[data-d], table.data tbody tr[data-w] { cursor: pointer; }
+table.data tbody tr[data-k]:hover, table.data tbody tr[data-d]:hover, table.data tbody tr[data-w]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+table.data tbody tr.best td:first-child { font-weight: 600; }
+table.data tr.off td { color: var(--muted); text-decoration: line-through; }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+
+.topline{display:flex;justify-content:space-between;align-items:center;gap:16px}.topline select{width:86px}
+textarea{height:210px;tab-size:10}p{margin:8px 0}.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.equation{font-family:var(--mono);font-size:14px;padding:12px;background:var(--bg);border-radius:6px;margin:10px 0;overflow-x:auto}
+.equations{display:grid;grid-template-columns:1fr 1fr;gap:18px}.equations h3{margin:0 0 8px}.equations p{font-size:13px}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:6px}
+.badge{font-size:11px;background:var(--accent-soft);color:var(--accent);padding:3px 7px;border-radius:4px;white-space:nowrap}
+.data input{accent-color:var(--accent)}.data tr.off{opacity:.55}.notes p{font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center}.legend i{flex:none}.main>.panel{overflow:hidden}
+svg text{font-size:13px}
+footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
+[hidden]{display:none!important}#status{min-height:20px}.status-error{color:var(--warn)}
+@media(max-width:600px){.equations{grid-template-columns:1fr}.topline{align-items:flex-start}.cards{grid-template-columns:1fr}body{padding-left:12px;padding-right:12px}}
+@media print{body{background:white;padding:0}.controls,.topline select,.btns,.plothead button,footer{display:none}.grid{display:block}.panel{break-inside:avoid;margin-bottom:12px}.cards{margin-bottom:12px}details:not([open]){display:none}}
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <div class="topline"><h1>Heat Inactivation</h1><select id="theme" aria-label="Appearance"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  <p>Fit remaining activity against holding time at one temperature. Estimate the inactivation rate and half-life; compare WT, mutants, or other conditions. <a href="index.html">All tools</a></p>
+</header>
+<div class="grid">
+<aside class="controls">
+  <section class="panel">
+    <h2><span class="step">1</span> Activity measurements</h2>
+    <label for="pasteText" class="hint">Paste a table from Excel, or open a CSV/TSV file.</label>
+    <textarea id="pasteText" spellcheck="false" placeholder="series,time,activity&#10;WT,unheated,0.120&#10;WT,0,0.110&#10;WT,5,0.082&#10;WT,10,0.061" aria-describedby="dataHelp"></textarea>
+    <div class="btns"><button class="btn primary" id="fitBtn">Fit data</button><button class="btn" id="fileBtn">Open file</button><input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></div>
+    <div class="btns"><button class="btn" id="exampleBtn">Load example</button><button class="btn" id="clearBtn">Clear</button></div>
+    <p class="hint" id="dataHelp">Use columns <b>series, time, activity</b>. Each replicate gets its own row. A table with <b>time, WT, mutant</b> columns also works.</p>
+    <details><summary>Which values go in the table?</summary>
+      <p class="hint">Enter blank-corrected activity. Slopes can be used directly when enzyme dose and optical conditions are the same. If assay doses differ, first express activity per amount of enzyme.</p>
+      <p class="hint"><b>Time = 0</b> is the ramp-only sample, removed as soon as it reaches the challenge temperature. Later times are the additional holding time at that temperature.</p>
+      <p class="hint">For an unheated reference, enter <b>unheated</b> in the time column. These measurements appear beside the curve and are excluded from fitting. Give each condition a distinct series name.</p>
+    </details>
+    <p class="hint" id="status" role="status" aria-live="polite">Ready for your data.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">2</span> Model and units</h2>
+    <div class="field"><label for="model">Decay model</label><select id="model"><option value="single">Single exponential</option><option value="plateau">Exponential + plateau</option></select></div>
+    <div class="field"><label for="timeUnit">Time units in table</label><select id="timeUnit"><option value="min">minutes</option><option value="s">seconds</option><option value="h">hours</option></select></div>
+    <div class="field"><label for="activityUnit">Activity units</label><input id="activityUnit" type="text" value="ΔA340/min" maxlength="40"></div>
+    <div class="field"><label for="temperature">Challenge temp. (°C)</label><input type="number" id="temperature" placeholder="Optional" step="any"></div>
+    <p class="hint">Time units label the numbers you entered; changing the selection does not convert them. Compare half-lives measured under the same challenge conditions.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">3</span> Save results</h2>
+    <div class="btns"><button class="btn" id="csvBtn" disabled>Results CSV</button><button class="btn" id="dataBtn" disabled>Data CSV</button><button class="btn" id="svgBtn" disabled>Save graph</button></div>
+    <p class="hint">The results file includes the model, units, temperature, fit parameters, and half-life interval. Your measurements stay in this browser tab.</p>
+  </section>
+</aside>
+<main class="main">
+  <div id="cards" class="cards" aria-live="polite"></div>
+  <section class="panel plot">
+    <div class="plothead"><h3>Remaining activity</h3><span id="exampleBadge" class="badge" hidden>Illustrative example</span></div>
+    <div id="plot"><div class="empty">Load your measurements or try the example.</div></div>
+    <div id="legend" class="legend"></div>
+    <p id="plotCaption" class="hint" hidden>Circles: held samples, including ramp-only at t = 0. Lines: fitted curves. Diamonds: unheated references, shown separately from holding time.</p>
+  </section>
+  <section class="panel" id="resultsPanel" hidden>
+    <h2>Fit results</h2><div class="tablewrap" id="results"></div>
+    <div id="notes" class="notes"></div>
+    <p class="hint">The 95% half-life interval is an approximate profile-fit interval, assuming independent measurements with constant variance. It does not include uncertainty in blank subtraction or shared controls.</p>
+  </section>
+  <section class="panel plot" id="residualPanel" hidden>
+    <div class="plothead"><h3>Residuals</h3><span class="hint">Measured − fitted activity</span></div>
+    <div id="residualPlot"></div>
+    <p class="hint">Scatter around zero is consistent with the model. Curvature or a systematic trend suggests it is missing part of the time course.</p>
+  </section>
+  <section class="panel">
+    <h2>What is being fit?</h2>
+    <div class="equations">
+      <div><h3>Single exponential</h3>
+        <div class="equation">A(t) = A₀ e<sup>−k<sub>inact</sub>t</sup></div>
+        <p><b>A₀</b> is the fitted activity after the heating ramp. <b>k<sub>inact</sub></b> describes the fractional loss of activity per unit time at the challenge temperature.</p>
+        <div class="equation">t<sub>½</sub> = ln(2) / k<sub>inact</sub></div>
+        <p>The half-life is the holding time needed to lose half the post-ramp activity.</p>
+      </div>
+      <div><h3>Exponential with a plateau</h3>
+        <div class="equation">A(t) = A∞ + (A₀ − A∞) e<sup>−kt</sup></div>
+        <p><b>A∞</b> is the activity remaining at the plateau. Use this model when late measurements support a persistent active fraction.</p>
+        <p>Here, <b>ln(2)/k</b> is the half-life of the <b>decaying component above the plateau</b>. At that time, A(t) = A∞ + (A₀ − A∞)/2.</p>
+      </div>
+    </div>
+    <p class="hint">Both models minimize squared residuals on the original activity scale, using every included replicate with equal weight. Negative blank-corrected measurements are retained. Fitted amplitudes and rate constants are constrained to be nonnegative. An unheated reference is not a time-zero fit point.</p>
+  </section>
+  <section class="panel" id="dataPanel" hidden><details><summary id="dataSummary">Measurements</summary><div class="tablewrap" id="dataTable"></div><p class="hint">Uncheck a measurement to leave it out. Exclusions are recorded in the data download.</p></details></section>
+</main></div>
+<footer>BBMB 4110 · E4: Time dependence of heat inactivation · <a href="https://github.com/swnisu1/BBMB_4110">Source on GitHub</a></footer>
+</div>
+<script>
+/* Separable least squares: solve the linear amplitudes at each trial rate,
+   then minimize the residual sum of squares over the nonnegative rate. */
+const HeatFit = (() => {
+  const mean = a => a.reduce((s,x)=>s+x,0)/a.length;
+  function atRate(data,q,plateau) {
+    const e=data.map(p=>Math.exp(-q*p.t));
+    const yy=data.map(p=>p.y), n=data.length;
+    const se=e.reduce((a,b)=>a+b,0), sy=yy.reduce((a,b)=>a+b,0);
+    const see=e.reduce((s,x)=>s+x*x,0), sey=e.reduce((s,x,i)=>s+x*yy[i],0);
+    const candidates=[{b:0,a:Math.max(0,sey/(see||1))}];
+    if(plateau) {
+      candidates.push({b:Math.max(0,sy/n),a:0});
+      const det=n*see-se*se;
+      if(det>1e-13*n*see) {
+        const a=(n*sey-se*sy)/det, b=(sy-a*se)/n;
+        if(a>=0 && b>=0) candidates.push({a,b});
+      }
+    }
+    candidates.forEach(c=>c.sse=yy.reduce((s,y,i)=>s+(y-c.b-c.a*e[i])**2,0));
+    return candidates.reduce((a,b)=>a.sse<b.sse?a:b);
+  }
+  function golden(f,a,b) {
+    const r=(Math.sqrt(5)-1)/2;
+    let c=b-r*(b-a),d=a+r*(b-a),fc=f(c),fd=f(d);
+    for(let i=0;i<85;i++) {
+      if(fc<fd){b=d;d=c;fd=fc;c=b-r*(b-a);fc=f(c);}
+      else{a=c;c=d;fc=fd;d=a+r*(b-a);fd=f(d);}
+    }
+    return (a+b)/2;
+  }
+  function t95(df) {
+    const tab=[0,12.706,4.303,3.182,2.776,2.571,2.447,2.365,2.306,2.262,2.228,2.201,2.179,2.160,2.145,2.131,2.120,2.110,2.101,2.093,2.086,2.080,2.074,2.069,2.064,2.060,2.056,2.052,2.048,2.045,2.042];
+    if(df<=30) return tab[df];
+    const z=1.9599639845;
+    return z+(z**3+z)/(4*df)+(5*z**5+16*z**3+3*z)/(96*df*df);
+  }
+  function fit(points,plateau=false) {
+    const n=points.length,p=plateau?3:2;
+    if(points.some(x=>!Number.isFinite(x.t)||!Number.isFinite(x.y)||x.t<0)) return {error:'Times must be finite and nonnegative; activities must be finite.'};
+    const unique=[...new Set(points.map(x=>x.t))].sort((a,b)=>a-b);
+    if(n<=p || unique.length<(plateau?4:3)) return {error:`Use at least ${plateau?4:3} different holding times for this model.`};
+    const scale=Math.max(...points.map(x=>Math.abs(x.y)));
+    if(!scale || Math.max(...points.map(x=>x.y))<=0) return {error:'No positive activity is resolved in this series.'};
+    const T=unique[unique.length-1], data=points.map(x=>({t:x.t/T,y:x.y/scale}));
+    const gaps=unique.slice(1).map((t,i)=>(t-unique[i])/T);
+    const lo=Math.log(1e-9),hi=Math.log(Math.min(1e12,40/Math.min(...gaps)));
+    const grid=240,step=(hi-lo)/grid, f=z=>atRate(data,Math.exp(z),plateau).sse;
+    let zi=0,ss=Infinity;
+    for(let i=0;i<=grid;i++){let v=f(lo+i*step);if(v<ss){ss=v;zi=i;}}
+    let z=golden(f,lo+Math.max(0,zi-1)*step,lo+Math.min(grid,zi+1)*step);
+    let q=Math.exp(z),sol=atRate(data,q,plateau),flat=atRate(data,0,plateau);
+    const unresolved=flat.sse-sol.sse<=1e-12*Math.max(1,flat.sse) || sol.a<1e-9;
+    if(unresolved){q=0;sol=flat;}
+    const df=n-p, sse=sol.sse*scale*scale;
+    let kLow=null,kHigh=null;
+    if(!unresolved) {
+      const cutoff=sol.sse*(1+t95(df)**2/df)+1e-15;
+      const bisect=(a,b)=>{
+        const insideAtA=f(a)<=cutoff;
+        for(let i=0;i<80;i++){const m=(a+b)/2;if((f(m)<=cutoff)===insideAtA)a=m;else b=m;}
+        return Math.exp((a+b)/2)/T;
+      };
+      kLow=flat.sse<=cutoff || f(lo)<=cutoff ? 0 : bisect(lo,z);
+      kHigh=f(hi)<=cutoff ? Infinity : bisect(z,hi);
+    }
+    const k=q/T,a0=(sol.a+sol.b)*scale,b=sol.b*scale;
+    const predict=t=>b+(a0-b)*Math.exp(-k*t);
+    const half=k>0?Math.LN2/k:Infinity;
+    return {n,p,k,a0,b,half,sse,sd:Math.sqrt(sse/df),kLow,kHigh,
+      halfLow:kHigh===null?null:Math.LN2/kHigh,
+      halfHigh:kLow===null?null:Math.LN2/kLow,
+      unresolved,fast:zi===grid, plateau,boundary:plateau&&b<1e-8*scale,
+      predict,residuals:points.map(x=>x.y-predict(x.t)),maxTime:T};
+  }
+  function fields(line,sep) {
+    let a=[],s='',quoted=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){if(quoted&&line[i+1]==='"'){s+='"';i++;}else quoted=!quoted;}
+      else if(c===sep&&!quoted){a.push(s.trim());s='';}else s+=c;
+    }
+    if(quoted)throw Error('A quoted field is missing its closing quote.');
+    a.push(s.trim());return a;
+  }
+  function parse(text) {
+    const lines=text.replace(/^\uFEFF/,'').split(/\r?\n/).map((s,i)=>({s,i:i+1})).filter(x=>x.s.trim());
+    if(!lines.length) return [];
+    if(lines.length>5001)throw Error('Please use no more than 5,000 data rows.');
+    const sep=lines[0].s.includes('\t')?'\t':lines[0].s.includes(';')?';':',';
+    const head=fields(lines[0].s,sep).map(s=>s.toLowerCase());
+    const hasHeader=head.includes('time');
+    let ti=hasHeader?head.indexOf('time'):0, ai=hasHeader?head.indexOf('activity'):1, si=head.indexOf('series');
+    const wide=hasHeader&&ai<0;
+    if(wide&&head.length<2)throw Error('Add at least one activity column after time.');
+    const rows=[];
+    for(const line of lines.slice(hasHeader?1:0)) {
+      const a=fields(line.s,sep);
+      if(a.length!==(hasHeader?head.length:2))throw Error(`Line ${line.i}: the number of columns does not match. Use time, activity, and optionally series.`);
+      const control=/^(unheated|control)$/i.test(a[ti]);
+      const t=control?null:Number(a[ti]);
+      if(!control&&(!a[ti]||!Number.isFinite(t)||t<0))throw Error(`Line ${line.i}: time must be a nonnegative number or “unheated”.`);
+      const add=(value,name)=>{
+        if(value==='')return;
+        const y=Number(value);
+        if(!Number.isFinite(y))throw Error(`Line ${line.i}: activity must be a number.`);
+        rows.push({id:rows.length,t,y,series:name||'Sample',control,on:true});
+      };
+      if(wide) fields(lines[0].s,sep).forEach((name,j)=>{if(j!==ti)add(a[j],name);});
+      else {if(a[ai]==='')throw Error(`Line ${line.i}: activity is missing.`);add(a[ai],si>=0?a[si]:'Sample');}
+    }
+    if(new Set(rows.map(x=>x.series)).size>8)throw Error('Use up to eight series in one comparison.');
+    if(!rows.length)throw Error('No measurements were found.');
+    return rows;
+  }
+  return {fit,parse};
+})();
+if(typeof module!=='undefined')module.exports=HeatFit;
+
+</script>
+<script>
+(() => {
+'use strict';
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=x=>x===null||x===undefined?'—':!Number.isFinite(x)?'∞':x===0?'0':Math.abs(x)<.001||Math.abs(x)>=10000?x.toExponential(2):Number(x.toPrecision(4)).toString();
+const palette=['--c1','--c2','--c3','--c4','--c5','--c6','--fg','--ref'];
+let rows=[],fits=[],example=false,dirty=false;
+function status(s,error=false){$('status').textContent=s;$('status').classList.toggle('status-error',error);}
+function colour(i){return `var(${palette[i%palette.length]})`;}
+function interval(f){return f.unresolved||f.fast?'Not resolved':`${fmt(f.halfLow)}–${fmt(f.halfHigh)}`;}
+function clearOutputs(){fits=[];$('cards').innerHTML='';$('plot').innerHTML='<div class="empty">Load your measurements or try the example.</div>';$('legend').innerHTML='';['resultsPanel','residualPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=true);['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=true);}
+function apply(){try{rows=HeatFit.parse($('pasteText').value);dirty=false;render();status(rows.length?`${rows.length} measurements · ${fits.length} series${example?' · example data':''}`:'Ready for your data.');}catch(e){rows=[];clearOutputs();status(e.message,true);}}
+function render(){
+  if(!rows.length){clearOutputs();$('exampleBadge').hidden=true;return;}
+  fits=[...new Set(rows.map(x=>x.series))].map((name,i)=>{
+    const points=rows.filter(x=>x.on&&!x.control&&x.series===name);
+    return {name,i,points,controls:rows.filter(x=>x.on&&x.control&&x.series===name),f:HeatFit.fit(points,$('model').value==='plateau')};
+  });
+  $('exampleBadge').hidden=!example;
+  $('cards').innerHTML=fits.map(s=>`<div class="card hot" style="border-color:${colour(s.i)}"><div class="k">${esc(s.name)} · ${$('model').value==='plateau'?'decaying-component half-life':'half-life'}</div><div class="v">${s.f.error?'—':s.f.unresolved||s.f.fast?'Not resolved':fmt(s.f.half)+' '+esc($('timeUnit').value)}</div><div class="s">${s.f.error?esc(s.f.error):'95% interval: '+interval(s.f)+(s.f.unresolved||s.f.fast?'':' '+esc($('timeUnit').value))}</div></div>`).join('');
+  $('plot').innerHTML=plot(false);$('residualPlot').innerHTML=plot(true);
+  $('legend').innerHTML=fits.map(s=>`<span><i style="background:${colour(s.i)}"></i>${esc(s.name)}</span>`).join('');
+  const u=esc($('timeUnit').value),a=esc($('activityUnit').value||'activity units');
+  $('results').innerHTML=`<table class="data"><thead><tr><th>Series</th><th>n</th><th>k (${u}⁻¹)</th><th>A₀</th>${$('model').value==='plateau'?'<th>A∞</th>':''}<th>Residual SD</th></tr></thead><tbody>`+fits.map(s=>s.f.error?`<tr><td>${esc(s.name)}</td><td colspan="5">${esc(s.f.error)}</td></tr>`:`<tr><td>${esc(s.name)}</td><td>${s.f.n}</td><td>${s.f.unresolved||s.f.fast?'Not resolved':fmt(s.f.k)}</td><td>${fmt(s.f.a0)}</td>${s.f.plateau?'<td>'+fmt(s.f.b)+'</td>':''}<td>${fmt(s.f.sd)}</td></tr>`).join('')+`</tbody></table><p class="hint">A₀, A∞, and residual SD are in ${a}. Residual SD = √[Σ(measured − fitted)² / (n − p)], with p = ${$('model').value==='plateau'?3:2} fitted parameters.</p>`;
+  $('notes').innerHTML=fits.map(s=>{
+    const f=s.f, notes=[];if(f.error)return '';
+    if(f.unresolved)notes.push('A decreasing exponential is not resolved; no finite half-life is reported.');
+    else if(f.fast)notes.push('The loss is too rapid to resolve with these holding times; no half-life is reported.');
+    else {
+      if(f.halfHigh===Infinity)notes.push('The upper half-life limit is unbounded: these measurements do not constrain slow inactivation.');
+      if(f.half>f.maxTime)notes.push('The fitted half-life extends beyond the last holding time.');
+      if(f.halfLow===0)notes.push('The data do not constrain the fastest possible decay.');
+      if(f.boundary)notes.push('The plateau fit reached A∞ = 0; the single exponential is the simpler description.');
+      if(!s.points.some(x=>x.t===0))notes.push('No ramp-only measurement is included; A₀ is extrapolated.');
+    }
+    if(s.controls.length){const avg=s.controls.reduce((v,x)=>v+x.y,0)/s.controls.length;if(avg>0)notes.push(`Fitted A₀ / mean unheated activity = ${fmt(100*f.a0/avg)}% (ramp retention; unheated references are not fitted).`);}
+    return notes.length?`<p><b>${esc(s.name)}:</b> ${notes.map(esc).join(' ')}</p>`:'';
+  }).join('');
+  $('dataSummary').textContent=`Measurements (${rows.length}; ${rows.filter(x=>x.on&&!x.control).length} used in fitting)`;
+  $('dataTable').innerHTML='<table class="data"><thead><tr><th>Include</th><th>Series</th><th>Time</th><th>Activity</th><th>Fitted</th><th>Residual</th></tr></thead><tbody>'+rows.map(r=>{
+    const f=fits.find(s=>s.name===r.series).f,v=!r.control&&!f.error?f.predict(r.t):null;
+    return `<tr class="${r.on?'':'off'}"><td><input type="checkbox" data-id="${r.id}" ${r.on?'checked':''} aria-label="Include measurement ${r.id+1}"></td><td>${esc(r.series)}</td><td>${r.control?'unheated':fmt(r.t)}</td><td>${fmt(r.y)}</td><td>${fmt(v)}</td><td>${v===null?'—':fmt(r.y-v)}</td></tr>`;
+  }).join('')+'</tbody></table>';
+  ['resultsPanel','residualPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=false);
+  ['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=dirty);
+}
+function plot(residual){
+  const controls=!residual&&rows.some(x=>x.on&&x.control),W=760,H=residual?210:360,L=85,R=controls?125:25,T=27,B=55;
+  const xmax=Math.max(1e-12,...rows.filter(x=>!x.control).map(x=>x.t));
+  const vals=[];
+  fits.forEach(s=>{if(residual){if(!s.f.error)vals.push(...s.f.residuals);}else{vals.push(...s.points.map(x=>x.y),...s.controls.map(x=>x.y));if(!s.f.error)vals.push(s.f.a0);}});
+  let ymin=Math.min(0,...vals), ymax=Math.max(0,...vals);if(ymin===ymax){ymin=-1;ymax=1;}
+  if(residual){const m=Math.max(Math.abs(ymin),Math.abs(ymax));ymin=-m*1.18;ymax=m*1.18;}else{const d=ymax-ymin;ymax+=d*.06;}
+  const rough=(ymax-ymin)/5,mag=10**Math.floor(Math.log10(rough));
+  const tick=[1,2,2.5,5,10].find(x=>x*mag>=rough)*mag;
+  ymin=residual?Math.floor(ymin/tick)*tick:Math.min(0,ymin-(ymax-ymin)*.03);ymax=Math.ceil(ymax/tick)*tick;
+  const X=t=>L+t/xmax*(W-L-R),Y=y=>H-B-(y-ymin)/(ymax-ymin)*(H-T-B);
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${residual?'Fit residuals':'Remaining activity and fitted inactivation curves'}"><title>${residual?'Residuals':'Heat inactivation'}${$('temperature').value?' at '+esc($('temperature').value)+' °C':''}</title><rect width="${W}" height="${H}" fill="var(--panel)"/>`;
+  for(let i=0;i<=5;i++){
+    const t=xmax*i/5;
+    svg+=`<path d="M${X(t)},${T}V${H-B}" stroke="var(--grid)" fill="none"/><text x="${X(t)}" y="${H-B+20}" text-anchor="middle">${fmt(t)}</text>`;
+  }
+  for(let j=Math.ceil(ymin/tick);j<=Math.round(ymax/tick);j++){const y=j*tick;svg+=`<path d="M${L},${Y(y)}H${W-R}" stroke="var(--grid)"/><text x="${L-10}" y="${Y(y)+4}" text-anchor="end">${fmt(Math.abs(y)<tick*1e-8?0:y)}</text>`;}
+  svg+=`<path d="M${L},${T}V${H-B}H${W-R}" stroke="var(--ref)" fill="none"/><text x="${(L+W-R)/2}" y="${H-8}" text-anchor="middle">Holding time (${esc($('timeUnit').value)})</text><text transform="translate(17 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">${residual?'Residual':'Activity'} (${esc($('activityUnit').value||'a.u.')})</text>`;
+  if(residual)svg+=`<path d="M${L},${Y(0)}H${W-R}" stroke="var(--ref)" stroke-dasharray="5 4"/>`;
+  if(controls)svg+=`<path d="M${W-100},${T}V${H-B}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${W-52}" y="16" text-anchor="middle">Unheated</text>`;
+  fits.forEach(s=>{
+    const c=colour(s.i),f=s.f;
+    if(!residual&&!f.error){let d='';for(let j=0;j<=180;j++){let t=xmax*j/180;d+=(j?'L':'M')+X(t).toFixed(2)+','+Y(f.predict(t)).toFixed(2);}svg+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2.4"/>`;}
+    s.points.forEach((p,j)=>{if(residual&&f.error)return;const y=residual?f.residuals[j]:p.y;svg+=`<circle cx="${X(p.t)}" cy="${Y(y)}" r="3.5" fill="${c}" stroke="var(--panel)" stroke-width=".8"><title>${esc(s.name)}: t = ${p.t}, ${residual?'residual':'activity'} = ${fmt(y)}</title></circle>`;});
+    if(controls)s.controls.forEach((p,j)=>{const x=W-52+(s.i-(fits.length-1)/2)*12,y=Y(p.y);svg+=`<path d="M${x},${y-4.5}l4.5,4.5 -4.5,4.5 -4.5,-4.5Z" fill="${c}"><title>${esc(s.name)} unheated: ${fmt(p.y)}</title></path>`;});
+  });
+  return svg+'</svg>';
+}
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+function csv(table){return '\uFEFF'+table.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');}
+function loadExample(){
+  const lines=['series,time,activity'];
+  for(const [name,half,a0] of [['WT',12,.110],['Mutant',5,.095]]){
+    lines.push(`${name},unheated,0.121`,`${name},unheated,0.119`);
+    [0,2,5,10,15,20,30].forEach((t,i)=>[-1,1].forEach((sign,j)=>{
+      const y=a0*Math.exp(-Math.LN2*t/half)+sign*(.0012+.0003*(i%3))+.0005*Math.sin(i*2+half);
+      lines.push(`${name},${t},${y.toFixed(5)}`);
+    }));
+  }
+  $('pasteText').value=lines.join('\n');$('model').value='single';$('timeUnit').value='min';$('activityUnit').value='ΔA340/min';$('temperature').value='';example=true;apply();
+}
+$('fitBtn').onclick=apply;$('exampleBtn').onclick=loadExample;
+$('clearBtn').onclick=()=>{rows=[];example=false;dirty=false;$('pasteText').value='';render();status('Ready for your data.');};
+$('pasteText').oninput=()=>{dirty=true;example=false;$('exampleBadge').hidden=true;clearOutputs();status('Table changed. Select Fit data to update the results.');};
+$('fileBtn').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=async()=>{const f=$('fileIn').files[0];if(!f)return;if(f.size>2e6){status('Please use a file smaller than 2 MB.',true);return;}try{$('pasteText').value=await f.text();example=false;apply();}catch(e){status('Could not read the file: '+e.message,true);}$('fileIn').value='';};
+['model','timeUnit','activityUnit','temperature'].forEach(id=>$(id).addEventListener('change',()=>{if(!dirty)render();}));
+$('theme').onchange=()=>{if($('theme').value==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=$('theme').value;};
+$('dataTable').onchange=e=>{const id=e.target.dataset.id;if(id!==undefined){rows[+id].on=e.target.checked;render();}};
+$('csvBtn').onclick=()=>{
+  const header=['series','model','time_unit','activity_unit','temperature_C','n','k','k_low_95','k_high_95','half_life','half_low_95','half_high_95','A0','plateau','residual_SD','SSE','status'];
+  download('heat-inactivation-results.csv',csv([header,...fits.map(s=>{const f=s.f,ok=!f.error&&!f.unresolved&&!f.fast;return[s.name,$('model').value,$('timeUnit').value,$('activityUnit').value,$('temperature').value,f.n??s.points.length,ok?f.k:'',ok?f.kLow:'',ok?f.kHigh:'',ok?f.half:'',ok?f.halfLow:'',ok?f.halfHigh:'',f.a0,f.b,f.sd,f.sse,f.error||(f.unresolved||f.fast?'Half-life not resolved':f.halfHigh===Infinity?'Upper half-life limit unbounded':'Fit')];})]),'text/csv;charset=utf-8');
+};
+$('dataBtn').onclick=()=>download('heat-inactivation-data.csv',csv([['series','time','activity','included','fitted','residual'],...rows.map(r=>{const f=fits.find(s=>s.name===r.series).f,v=!r.control&&!f.error?f.predict(r.t):'';return[r.series,r.control?'unheated':r.t,r.y,r.on,v,v===''?'':r.y-v];})]),'text/csv;charset=utf-8');
+$('svgBtn').onclick=()=>{
+  const source=$('plot').querySelector('svg');if(!source)return;
+  let svg=source.outerHTML,style=getComputedStyle(document.documentElement);
+  svg=svg.replace(/var\((--[\w-]+)\)/g,(_,v)=>style.getPropertyValue(v).trim());
+  const extra=30+fits.length*22+($('temperature').value?22:0);
+  const legend=fits.map((s,i)=>`<circle cx="87" cy="${380+i*22}" r="4" fill="${style.getPropertyValue(palette[s.i%palette.length]).trim()}"/><text x="100" y="${384+i*22}">${esc(s.name)}: t½ ${s.f.error||s.f.unresolved||s.f.fast?'not resolved':fmt(s.f.half)+' '+esc($('timeUnit').value)+' (95% interval '+interval(s.f)+')'}</text>`).join('');
+  const temp=$('temperature').value?`<text x="85" y="${384+fits.length*22}">Challenge temperature: ${esc($('temperature').value)} °C</text>`:'';
+  svg=svg.replace('</svg>',legend+temp+'</svg>').replace('viewBox="0 0 760 360"',`viewBox="0 0 760 ${360+extra}"`).replace('<rect width="760" height="360"',`<rect width="760" height="${360+extra}"`);
+  svg=svg.replace('<title>','<style>text{font-family:Arial,sans-serif;font-size:13px;fill:'+style.getPropertyValue('--muted').trim()+'}</style><title>');
+  download('heat-inactivation.svg',svg,'image/svg+xml');
+};
+})();
+</script>
+</body></html>
