@@ -1,0 +1,1404 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Urea Unfolding Fitting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Two tabs. Plan: urea stock, mixture volumes and plate map. Analyse: sticky control column left
+   (files, channels, fit options); right: plate overview, one-well spectrum, plate layout, spectra,
+   unfolding fit, fraction unfolded, F350/F330 ratio and repeat-read check. Each protein gets its own colour (c1..c6). */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --band: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --u0: #3347c9; --u1: #c8283c;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --band: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --u0: #8d9bff; --u1: #ff7a86;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --band: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --u0: #8d9bff; --u1: #ff7a86;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 14px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 84ch; }
+header a { color: var(--accent); }
+.tabs { margin: 12px 0 16px; max-width: 420px; }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 130px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 61px 61px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+textarea.wrapit { white-space: pre-wrap; height: 56px; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+svg .lbl { font-family: var(--mono); font-size: 10.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.toggles .lab { font-size: 12.5px; color: var(--muted); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.legend i.op { background: transparent !important; border: 1.6px solid; width: 9px; height: 9px; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-s] { cursor: pointer; }
+table.data tbody tr[data-s]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+td.neg { color: var(--warn); }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+/* plate overview */
+.plate { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
+.plate th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
+.plate td { padding: 0; }
+.wl { display: block; width: 66px; padding: 2px 3px 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--fg); cursor: pointer; font: inherit; position: relative; }
+.wl:hover { border-color: var(--accent); }
+.wl svg { height: 30px; }
+.wl .num { display: block; font-family: var(--mono); font-size: 10.5px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; }
+.wl .sx { display: block; font-size: 9.5px; line-height: 1.2; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl .bar { position: absolute; left: 3px; right: 3px; top: 0; height: 3px; border-radius: 0 0 2px 2px; }
+.wl .pp { position: absolute; right: 2px; top: 3px; font-size: 9px; font-weight: 600; color: var(--warn); }
+.wl.sel { border: 2px solid var(--accent); padding: 1px 2px 0; }
+.wl.off { opacity: 0.35; }
+.wl.off .num { text-decoration: line-through; }
+.wl.blank { border-style: dashed; border-color: var(--muted); }
+.wl.q2 { background: var(--q2); }
+.wl.q3 { background: var(--q3); }
+.wl.empty { cursor: default; opacity: 0.25; height: 52px; }
+.dctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; font-size: 13px; }
+.dctl label { display: inline-flex; gap: 6px; align-items: center; }
+.dctl select { width: auto; }
+.offnote { border: 1.5px dashed var(--line); border-radius: 8px; padding: 28px 16px; text-align: center; color: var(--muted); }
+.offnote p { margin: 0 0 10px; }
+.stats { font-family: var(--mono); font-size: 12.5px; margin-top: 6px; overflow-wrap: anywhere; }
+.stats b { font-weight: 500; color: var(--fg); }
+
+/* layout editor */
+.sgrid { border-collapse: separate; border-spacing: 3px; }
+.sgrid th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
+.sgrid td { padding: 0; }
+.sgrid input.na { opacity: 0.4; }
+.sgrid input { width: 44px; padding: 4px 5px; text-align: right; }
+.sgrid input.ser { width: 84px; text-align: left; font-family: var(--font); }
+.sgrid select { width: 108px; padding: 4px 4px; font-size: 12px; }
+.runrow { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.runrow select { flex: 1; }
+.readbox { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ubar { display: inline-block; width: 90px; height: 9px; border-radius: 3px; vertical-align: -1px; margin: 0 6px; background: linear-gradient(90deg, var(--u0), var(--u1)); }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Urea Unfolding Fitting</h1>
+    <p>Plan the urea series and plate map, then load the emission spectra from the plate reader (Tecan .xlsx as exported). The matching no-protein urea blank is subtracted from every spectrum. A chosen intensity channel is fit to a two-state model with sloping baselines to give C<sub>m</sub>, m and ΔG<sub>water</sub>; F350/F330 is shown as a separate view of the transition. Everything runs in your browser. <a href="index.html">All tools</a></p>
+    <div class="seg tabs" id="tabSeg"><button type="button" data-t="plan" aria-pressed="false">1 · Plan the experiment</button><button type="button" data-t="analyse" aria-pressed="true">2 · Analyse the spectra</button></div>
+  </header>
+
+  <!-- ===================== PLAN ===================== -->
+  <div class="grid" id="planView" hidden>
+    <div class="controls">
+      <section class="panel">
+        <h2><span class="step">1</span>Urea stock</h2>
+        <div class="seg" id="stockSeg"><button type="button" data-s="wt" aria-pressed="true">By weight</button><button type="button" data-s="ri" aria-pressed="false">Refractive index</button><button type="button" data-s="m" aria-pressed="false">Enter M</button></div>
+        <div style="margin-top:10px">
+          <div id="stWt">
+            <div class="field"><label for="pG">Urea weighed (g)</label><input type="number" id="pG" step="any" min="0"></div>
+            <div class="field"><label for="pML">Final volume (mL)</label><input type="number" id="pML" step="any" min="0"></div>
+          </div>
+          <div id="stRi" hidden>
+            <div class="field"><label for="pNU">n, urea stock</label><input type="number" id="pNU" step="any"></div>
+            <div class="field"><label for="pNB">n, buffer alone</label><input type="number" id="pNB" step="any"></div>
+          </div>
+          <div id="stM" hidden>
+            <div class="field"><label for="pM">Urea stock (M)</label><input type="number" id="pM" step="any" min="0"></div>
+          </div>
+        </div>
+        <div class="out" id="stockOut"></div>
+        <p class="hint">Make the urea stock fresh, in the same buffer as the final mixtures, so only urea changes along the series. By weight: M = g ÷ 60.06 g/mol ÷ L. The refractive index check (Pace) is more reliable: [urea] = 117.66ΔN + 29.753ΔN² + 185.56ΔN³, where ΔN is n(stock) − n(buffer).</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">2</span>Protein and wells</h2>
+        <div class="field"><label for="pPS">Protein stock (µM)</label><input type="number" id="pPS" step="any" min="0"></div>
+        <div class="field"><label for="pPF">Final protein (µM)</label><input type="number" id="pPF" step="any" min="0"></div>
+        <div class="field"><label for="pMW">Molar mass (kDa, optional)</label><input type="number" id="pMW" step="any" min="0" placeholder="for µg"></div>
+        <div class="field"><label for="pVol">Volume per well (µL)</label><input type="number" id="pVol" step="any" min="0"></div>
+        <div class="field"><label for="pExtra">Extra in each tube (%)</label><input type="number" id="pExtra" step="any" min="0"></div>
+        <p class="hint">Each replicate is mixed in its own tube (one well's volume plus the extra for pipetting loss), then dispensed. Protein concentration, buffer and volume stay the same in every well.</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">3</span>Series and plate</h2>
+        <div class="field" style="grid-template-columns:1fr"><label for="pConc">Final urea concentrations (M), comma separated</label><input type="text" id="pConc" spellcheck="false"></div>
+        <div class="field"><label for="pProt">Proteins (comma separated)</label><input type="text" id="pProt" spellcheck="false" style="font-family:var(--font)"></div>
+        <div class="field"><label for="pReps">Replicates per protein</label><input type="number" id="pReps" step="1" min="1" max="8"></div>
+        <div class="field"><label for="pBReps">No-protein blank rows</label><input type="number" id="pBReps" step="1" min="0" max="8"></div>
+        <label class="check"><input type="checkbox" id="pUse"><span>Fill the plate layout from this map when spectra are loaded</span></label>
+        <p class="hint">Each plate row is one series of 12 urea concentrations (columns 1–12). Space the points more closely where you expect the transition. A blank row has the same urea in buffer with no protein; it is subtracted from the protein wells at the same urea.</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="msgs" id="planMsgs"></div>
+      <section class="panel">
+        <div class="plothead"><h3>Mixtures</h3><span class="toggles lab" id="tubeNote"></span></div>
+        <div class="tablewrap" id="mixTbl"></div>
+        <p class="hint" id="mixHint"></p>
+      </section>
+      <div class="cards" id="planCards"></div>
+      <section class="panel plot">
+        <div class="plothead"><h3>Plate map</h3><span class="toggles lab">numbers = final [urea] (M)</span></div>
+        <svg id="planMap" viewBox="0 0 640 360" role="img" aria-label="Plate map with urea concentration in each well"></svg>
+        <div class="legend" id="legendMap"></div>
+      </section>
+      <section class="panel">
+        <h2>Record for the report</h2>
+        <textarea id="pNotes" class="wrapit" style="height:90px" aria-label="Preparation notes" placeholder="Urea lot and weighing, buffer recipe, protein stock and how it was measured, incubation temperature, time protein was added to urea…"></textarea>
+        <p class="hint" style="margin:12px 0 6px">Export</p>
+        <div class="btns" style="margin-top:0"><button type="button" class="btn" id="exPlanCsv">Mixture table (CSV)</button><button type="button" class="btn" id="exMapCsv">Plate map (CSV)</button><button type="button" class="btn" id="exMapPng">Plate map (PNG)</button></div>
+        <p class="hint" id="planExpMsg"></p>
+      </section>
+    </div>
+  </div>
+
+  <!-- ===================== ANALYSE ===================== -->
+  <div class="grid" id="anaView">
+    <div class="controls">
+      <section class="panel">
+        <h2><span class="step">1</span>Spectra files</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop the .xlsx here</b> or click to choose
+          <span>One file per read of the plate (first read, then the reread). Emission scans from the infinite 200Pro or Spark work as exported: wavelengths across with wells down, or wells across with wavelengths down. Plate-format grids read at single wavelengths also work.</span>
+          <input type="file" id="fileIn" multiple accept=".xlsx,.csv,.tsv,.txt" hidden>
+        </label>
+        <details>
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted spectra table" spellcheck="false" placeholder="Copy the block from “Wavel.” down to the last well and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
+        </details>
+        <div class="runrow" id="runRow" hidden>
+          <select id="runSel" aria-label="Read to view"></select>
+          <button type="button" class="btn" id="runDel" title="Remove this read">Remove</button>
+        </div>
+        <p class="hint" id="runInfo"></p>
+        <div class="readbox" id="readBox" hidden>
+          <div class="field"><label for="rTime">Time since protein was added to urea (min)</label><input type="number" id="rTime" step="any" min="0"></div>
+          <div class="field"><label for="rTemp">Temperature (°C)</label><input type="number" id="rTemp" step="any"></div>
+        </div>
+        <div class="btns"><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear all</button></div>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">2</span>Channels</h2>
+        <div class="field two"><label>F<sub>a</sub> and F<sub>b</sub> (nm)</label><input type="number" id="la" step="any" aria-label="Channel a wavelength, nm"><input type="number" id="lb" step="any" aria-label="Channel b wavelength, nm"></div>
+        <div class="field"><label for="bw">Average over ± (nm)</label><input type="number" id="bw" step="any" min="0"></div>
+        <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the matching urea blank (no-protein wells at the same urea, same read)</span></label>
+        <p class="hint">The ratio is F<sub>b</sub>/F<sub>a</sub> (F350/F330 by default). Tryptophan emission shifts to longer wavelength as it becomes exposed to water, so the ratio rises on unfolding. ± 0 uses the single nearest reading (interpolated if needed).</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">3</span>Fit</h2>
+        <div class="field" style="grid-template-columns:1fr"><label>Fit the intensity of</label></div>
+        <div class="seg" id="fitSeg"><button type="button" data-f="a" aria-pressed="true">F<sub>a</sub></button><button type="button" data-f="b" aria-pressed="false">F<sub>b</sub></button><button type="button" data-f="both" aria-pressed="false">both together</button></div>
+        <label class="check" style="margin-top:10px"><input type="checkbox" id="slopes" checked><span>Fit sloping baselines (b<sub>N</sub>, b<sub>U</sub>). Untick to fix both slopes at zero when a baseline has too few points.</span></label>
+        <p class="hint">“Both together” shares C<sub>m</sub> and m between the two channels and gives each channel its own baselines. Each channel is weighted by 1/(its scatter in a separate fit) so neither dominates.</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="msgs" id="topMsgs"></div>
+
+      <section class="panel" id="platePanel" hidden>
+        <div class="plothead">
+          <h3 id="plateTitle">Plate</h3>
+          <div class="toggles"><span class="lab">Click a well to</span>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false">mark no-protein blank</button></div>
+          </div>
+        </div>
+        <div class="tablewrap" id="plateGrid"></div>
+        <p class="hint">Each well shows its spectrum (blank subtracted for protein wells), the ratio F<sub>b</sub>/F<sub>a</sub> and the urea concentration. The coloured bar is the protein. Yellow: precipitate recorded (P). Red: the reader reported OVER (saturated) at some wavelength; lower the gain and reread. Dashed outline: no-protein blank.</p>
+      </section>
+
+      <section class="panel plot" id="wellPanel" hidden>
+        <div class="plothead">
+          <h3 id="wellTitle">Well</h3>
+          <div class="toggles"><button type="button" class="btn" id="prevW" aria-label="Previous well">‹</button><button type="button" class="btn" id="nextW" aria-label="Next well">›</button></div>
+        </div>
+        <svg id="plotW" viewBox="0 0 640 250" role="img" aria-label="Emission spectrum of the selected well"></svg>
+        <div class="legend" id="legendW"></div>
+        <div class="stats" id="wellStats"></div>
+        <div class="dctl">
+          <label>This well is <select id="wRole"><option value="sample">a protein sample</option><option value="blank">a no-protein blank</option><option value="off">left out</option></select></label>
+          <label class="check" style="margin:0"><input type="checkbox" id="wPrecip"><span>visible precipitate</span></label>
+        </div>
+      </section>
+
+      <section class="panel" id="layoutPanel" hidden>
+        <div class="plothead">
+          <h3>Plate layout: what is in each well?</h3>
+        </div>
+        <div class="tablewrap" id="layoutGrid"></div>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's urea to every row</button><button type="button" class="btn" id="fromPlan">Fill from the plan</button><button type="button" class="btn" id="copyReads">Use this layout for every read</button></div>
+        <p class="hint">Type the final urea concentration (M) in each well. For each row, enter the <b>protein</b> (WT, mutant…). Rows with the same protein in the same read are replicates and are fit together. Set a row to <b>blank</b> for the no-protein urea series; give the blank wells their urea too, so each protein well is matched to the blank at the same urea. Leave the urea empty for wells that should not be used. A reread of the same plate starts with the same layout.</p>
+      </section>
+
+      <section class="panel plot" id="specPanel" hidden>
+        <div class="plothead">
+          <h3>Spectra</h3>
+          <div class="toggles">
+            <select id="specSel" aria-label="Series whose spectra are shown" style="width:auto;max-width:220px"></select>
+            <div class="seg small" id="normSeg"><button type="button" data-n="raw" aria-pressed="true">RFU</button><button type="button" data-n="norm" aria-pressed="false">normalised</button></div>
+          </div>
+        </div>
+        <svg id="plotS" viewBox="0 0 640 300" role="img" aria-label="Emission spectra at each urea concentration"></svg>
+        <div class="legend" id="legendS"></div>
+        <p class="hint">Mean spectrum at each urea concentration (replicates averaged), blank subtracted. Normalised scales each spectrum to its own maximum, which shows the shift in the emission maximum.</p>
+      </section>
+
+      <div class="cards" id="cards"></div>
+      <div class="msgs" id="msgs"></div>
+
+      <section class="panel fitp" hidden>
+        <div class="plothead">
+          <h3>Fitted series</h3>
+          <div class="toggles"><label class="lab" for="refSel">Compare against</label><select id="refSel" style="width:auto"></select>
+            <div class="seg small" id="readsSeg"><button type="button" data-r="cur" aria-pressed="true">this read</button><button type="button" data-r="all" aria-pressed="false">all reads</button></div></div>
+        </div>
+        <div class="tablewrap" id="dsTbl"></div>
+        <p class="hint">Click a row to look at that series in detail. ΔG<sub>water</sub> = m·C<sub>m</sub>; its SE includes the correlation between m and C<sub>m</sub>. For oligomeric Lk-ADH these are apparent two-state parameters.</p>
+      </section>
+      <section class="panel plot fitp" hidden>
+        <div class="plothead">
+          <h3 id="unfTitle">Intensity vs. urea</h3>
+          <div class="toggles"><div class="seg small" id="ptsSeg"><button type="button" data-p="wells" aria-pressed="true">every well</button><button type="button" data-p="means" aria-pressed="false">means ± SD</button></div></div>
+        </div>
+        <svg id="plotA" viewBox="0 0 640 330" role="img" aria-label="Fluorescence intensity versus urea with fitted two-state curves"></svg>
+        <div class="legend" id="legendA"></div>
+      </section>
+      <section class="panel plot fitp" hidden>
+        <h3 id="resTitle">Residuals (data − fit)</h3>
+        <svg id="plotB" viewBox="0 0 640 170" role="img" aria-label="Residuals versus urea"></svg>
+      </section>
+      <section class="panel plot fitp" hidden>
+        <h3>Fraction unfolded</h3>
+        <svg id="plotF" viewBox="0 0 640 300" role="img" aria-label="Fraction unfolded versus urea"></svg>
+        <div class="legend" id="legendF"></div>
+        <p class="hint">Each point is converted with its own series' fitted baselines: f<sub>U</sub> = (F − F<sub>N</sub>) / (F<sub>U</sub> − F<sub>N</sub>), where F<sub>N</sub> = a<sub>N</sub> + b<sub>N</sub>D and F<sub>U</sub> = a<sub>U</sub> + b<sub>U</sub>D. This puts WT and mutant on one scale; the dotted lines mark each C<sub>m</sub>.</p>
+      </section>
+      <section class="panel plot" id="ratioPanel" hidden>
+        <div class="plothead"><h3 id="ratioTitle">Ratio vs. urea</h3></div>
+        <svg id="plotR" viewBox="0 0 640 300" role="img" aria-label="Fluorescence ratio versus urea"></svg>
+        <div class="legend" id="legendR"></div>
+        <p class="hint">The ratio is shown as a separate display of the transition and is not fit. A ratio is not proportional to the fraction unfolded when the two states differ in total brightness, so its midpoint can differ from the fitted C<sub>m</sub>.</p>
+      </section>
+      <section class="panel" id="repPanel" hidden>
+        <h2>Repeat reads: still changing?</h2>
+        <div class="tablewrap" id="repTbl"></div>
+        <p class="hint" id="repHint">Each protein fit separately in each read (same channels and options). If C<sub>m</sub> or the ratio still moves between reads by more than the uncertainty, the samples were not yet at equilibrium; use the later read, or incubate longer.</p>
+      </section>
+      <section class="panel" id="exportPanel" hidden>
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figures (PNG, light background, legend included)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+      <section class="panel fitp" hidden>
+        <h2>Model</h2>
+        <pre class="eq" id="eq"></pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"], DASH = [null, "6 4", "2 3", "9 3 2 3"];
+  var WELL_RE = /^([A-P])0?(\d{1,2})$/, R_GAS = 0.008314, MW_UREA = 60.06;
+  function $(id) { return document.getElementById(id); }
+  function sig(x, p) { return isFinite(x) ? String(Number(x.toPrecision(p || 3))) : "—"; }
+  function fx(x, d) { return isFinite(x) ? x.toFixed(d) : "—"; }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function num(v) { if (typeof v === "number") return v; if (typeof v !== "string" || !v.trim()) return NaN; return Number(v.trim().replace(",", ".")); }
+  function str(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+  function mean(a) { var s = 0, n = 0; a.forEach(function (x) { if (isFinite(x)) { s += x; n++; } }); return n ? s / n : NaN; }
+  function sd(a) { var m = mean(a), s = 0, n = 0; a.forEach(function (x) { if (isFinite(x)) { s += (x - m) * (x - m); n++; } }); return n > 1 ? Math.sqrt(s / (n - 1)) : NaN; }
+  function distinct(a) { var u = {}; a.forEach(function (x) { if (isFinite(x)) u[x.toFixed(4)] = 1; }); return Object.keys(u).length; }
+  function dkey(D) { return D.toFixed(4); }
+
+  // ---------- settings ----------
+  var G = { tab: "analyse", la: 330, lb: 350, bw: 0, sub: true, fit: "a", slopes: true, reads: "cur", pts: "wells", norm: false, click: "inspect", sel: null, refP: null, spec: null };
+  var P = { stockMode: "wt", g: 12.01, mL: 20, nU: 1.4152, nB: 1.3330, M: 10, ps: 20, pf: 1, mw: "", vol: 200, extra: 10,
+    conc: "0, 1, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8", prot: "WT, mutant", reps: 3, breps: 2, use: true, notes: "" };
+  var STORE = "bbmb_urea_unfolding_v1";
+  try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { if (sv.G) ["tab", "la", "lb", "bw", "sub", "fit", "slopes"].forEach(function (k) { if (sv.G[k] !== undefined) G[k] = sv.G[k]; }); if (sv.P) Object.keys(P).forEach(function (k) { if (sv.P[k] !== undefined) P[k] = sv.P[k]; }); } } catch (e) {}
+  function save() { try { localStorage.setItem(STORE, JSON.stringify({ G: { tab: G.tab, la: G.la, lb: G.lb, bw: G.bw, sub: G.sub, fit: G.fit, slopes: G.slopes }, P: P })); } catch (e) {} }
+
+  var runs = [], cur = -1, selWell = null;
+
+  // ---------- reading .xlsx (a zip of XML files) without a library ----------
+  function u16(d, o) { return d[o] | d[o + 1] << 8; }
+  function u32(d, o) { return (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | d[o + 3] << 24) >>> 0; }
+  function unzip(buf) {
+    var d = new Uint8Array(buf), e = -1, files = {}, td = new TextDecoder();
+    for (var i = d.length - 22; i >= Math.max(0, d.length - 65600); i--) if (u32(d, i) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error("This does not look like an .xlsx file.");
+    var n = u16(d, e + 10), p = u32(d, e + 16);
+    for (var k = 0; k < n && u32(d, p) === 0x02014b50; k++) {
+      var method = u16(d, p + 10), csize = u32(d, p + 20), nl = u16(d, p + 28), xl = u16(d, p + 30), cl = u16(d, p + 32), lo = u32(d, p + 42);
+      var name = td.decode(d.subarray(p + 46, p + 46 + nl)), start = lo + 30 + u16(d, lo + 26) + u16(d, lo + 28);
+      files[name] = { method: method, raw: d.subarray(start, start + csize) };
+      p += 46 + nl + xl + cl;
+    }
+    return files;
+  }
+  function inflate(f) {
+    if (!f) return Promise.resolve(null);
+    if (f.method === 0) return Promise.resolve(new TextDecoder().decode(f.raw));
+    if (typeof DecompressionStream === "undefined") return Promise.reject(new Error("This browser cannot open .xlsx files. Update it, or copy the cells from Excel and paste them instead."));
+    return new Response(new Blob([f.raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+  }
+  function tags(doc, name) { return Array.prototype.slice.call(doc.getElementsByTagNameNS("*", name)); }
+  function colIndex(ref) { var m = /^([A-Z]+)(\d+)$/.exec(ref), c = 0; if (!m) return null; for (var i = 0; i < m[1].length; i++) c = c * 26 + m[1].charCodeAt(i) - 64; return { c: c - 1, r: +m[2] - 1 }; }
+  function readXlsx(buf) {
+    var files = unzip(buf), Pp = new DOMParser();
+    function xml(t) { return t ? Pp.parseFromString(t, "application/xml") : null; }
+    return Promise.all([inflate(files["xl/workbook.xml"]), inflate(files["xl/_rels/workbook.xml.rels"]), inflate(files["xl/sharedStrings.xml"])]).then(function (r) {
+      if (!r[0]) throw new Error("No workbook found in this file.");
+      var wb = xml(r[0]), rel = {}, ss = [];
+      if (r[1]) tags(xml(r[1]), "Relationship").forEach(function (el) { rel[el.getAttribute("Id")] = el.getAttribute("Target"); });
+      if (r[2]) tags(xml(r[2]), "si").forEach(function (si) { ss.push(tags(si, "t").filter(function (t) { return t.parentNode.localName !== "rPh"; }).map(function (t) { return t.textContent; }).join("")); });
+      var sheets = tags(wb, "sheet").map(function (el, i) {
+        var id = el.getAttribute("r:id") || el.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id"), tgt = rel[id] || ("worksheets/sheet" + (i + 1) + ".xml");
+        return { name: el.getAttribute("name"), path: tgt.charAt(0) === "/" ? tgt.slice(1) : "xl/" + tgt.replace(/^\.\//, "") };
+      });
+      return Promise.all(sheets.map(function (s) { return inflate(files[s.path]); })).then(function (texts) {
+        return sheets.map(function (s, i) {
+          var rows = [];
+          if (!texts[i]) return { name: s.name, rows: rows };
+          tags(xml(texts[i]), "row").forEach(function (rowEl, ri) {
+            var rn = (+rowEl.getAttribute("r") || ri + 1) - 1, out = rows[rn] = rows[rn] || [], pos = 0;
+            tags(rowEl, "c").forEach(function (c) {
+              var ref = c.getAttribute("r"), at = ref ? colIndex(ref) : null, ci = at ? at.c : pos, t = c.getAttribute("t"), v = tags(c, "v")[0], val;
+              pos = ci + 1;
+              if (t === "s") val = v ? ss[+v.textContent] : "";
+              else if (t === "inlineStr") val = tags(c, "t").map(function (x) { return x.textContent; }).join("");
+              else if (t === "str" || t === "e") val = v ? v.textContent : "";
+              else if (t === "b") val = v ? v.textContent === "1" : "";
+              else val = v ? parseFloat(v.textContent) : null;
+              out[ci] = val;
+            });
+          });
+          for (var k = 0; k < rows.length; k++) if (!rows[k]) rows[k] = [];
+          return { name: s.name, rows: rows };
+        });
+      });
+    });
+  }
+  function readText(text) {
+    var lines = text.split(/\r?\n/), delim = text.indexOf("\t") >= 0 ? "\t" : (text.indexOf(";") >= 0 && text.indexOf(",") < 0 ? ";" : ",");
+    return lines.map(function (ln) { return ln.split(delim).map(function (c) { c = c.trim().replace(/^"|"$/g, ""); var x = Number(c); return c === "" ? null : isFinite(x) ? x : c; }); });
+  }
+
+  // ---------- finding spectra in a sheet ----------
+  var WL_LABEL = /^(wavel|wavelength|λ|lambda|em(ission)?\b|nm\b|\[nm\])/i;
+  function firstCell(r) { for (var i = 0; i < r.length; i++) if (r[i] !== null && r[i] !== undefined && r[i] !== "") return i; return -1; }
+  function wlNum(v) { var x = typeof v === "number" ? v : num(str(v).replace(/\s*nm$/i, "")); return x >= 200 && x <= 1000 ? x : NaN; }
+  function reading(v) { if (typeof v === "number") return v; var s = str(v); if (/^(over|sat)/i.test(s)) return "OVER"; var x = num(s); return isFinite(x) ? x : NaN; }
+  function metaBefore(rows, i, key) {
+    for (var k = i; k >= 0; k--) { var r = rows[k] || [], c = firstCell(r); if (c < 0 || str(r[c]).toLowerCase().indexOf(key) !== 0) continue; for (var j = c + 1; j < r.length; j++) if (str(r[j])) return str(r[j]); var m = /:\s*(.+)$/.exec(str(r[c])); if (m) return m[1]; }
+    return "";
+  }
+  function tempBefore(rows, i) {
+    for (var k = i; k >= 0; k--) { var r = rows[k] || [];
+      for (var j = 0; j < r.length; j++) { var s = str(r[j]); if (!/temperature/i.test(s)) continue; var m = /temperature[^\d-]*(-?\d+(?:\.\d+)?)/i.exec(s); if (m) return +m[1]; for (var q = j + 1; q < r.length; q++) { var x = num(str(r[q]).replace(/\s*°?\s*C$/i, "")); if (isFinite(x)) return x; } } }
+    return NaN;
+  }
+  function findRuns(rows, sheet) {
+    var out = [], grids = [], lastEnd = -1;
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || [], c = firstCell(r); if (c < 0) continue;
+      var lab = str(r[c]);
+      // A: a wavelength row, then one row per well
+      if (WL_LABEL.test(lab) || /^well/i.test(lab)) {
+        var wl = [];
+        for (var j = c + 1; j < r.length; j++) { var x = wlNum(r[j]); if (!isFinite(x)) break; wl.push(x); }
+        if (wl.length >= 2) {
+          var wells = {}, sat = {}, order = [], k = i + 1, gaps = 0;
+          for (; k < rows.length; k++) {
+            var rr = rows[k] || [], L = str(rr[c]);
+            if (!L && firstCell(rr) < 0) { if (order.length || ++gaps > 1) break; continue; }
+            var m = WELL_RE.exec(L); if (!m) { if (!order.length) continue; break; }
+            var w = m[1] + (+m[2]); if (wells[w]) continue;
+            var vals = wl.map(function (_, q) { return reading(rr[c + 1 + q]); });
+            sat[w] = vals.filter(function (v) { return v === "OVER"; }).length; wells[w] = vals.map(function (v) { return v === "OVER" ? NaN : v; }); order.push(w);
+          }
+          if (order.length) { out.push(mkRun(sheet, rows, i, wl, wells, sat, order)); i = k - 1; lastEnd = i; continue; }
+        }
+      }
+      // B: a header with a wavelength cell and well names, then one row per wavelength
+      var wc = -1, wcols = [];
+      r.forEach(function (v, j) { var s = str(v); if (wc < 0 && WL_LABEL.test(s)) wc = j; else { var m = WELL_RE.exec(s); if (m) wcols.push([j, m[1] + (+m[2])]); } });
+      if (wc >= 0 && wcols.length) {
+        var wl2 = [], w2 = {}, s2 = {}, k2 = i + 1;
+        wcols.forEach(function (x) { w2[x[1]] = []; s2[x[1]] = 0; });
+        for (; k2 < rows.length; k2++) { var r2 = rows[k2] || [], wv = wlNum(r2[wc]); if (!isFinite(wv)) break; wl2.push(wv); wcols.forEach(function (x) { var v = reading(r2[x[0]]); if (v === "OVER") { s2[x[1]]++; v = NaN; } w2[x[1]].push(v); }); }
+        if (wl2.length >= 2) { out.push(mkRun(sheet, rows, i, wl2, w2, s2, wcols.map(function (x) { return x[1]; }))); i = k2 - 1; lastEnd = i; continue; }
+      }
+      // C: a plate grid ("<>" then 1..12 across and A..H down) read at one wavelength
+      if (lab === "<>") {
+        var cols = []; for (var j3 = c + 1; j3 < r.length; j3++) { var cn = num(str(r[j3])); if (cn >= 1 && cn <= 48 && Math.round(cn) === cn) cols.push([j3, cn]); }
+        var vals3 = {}, sat3 = {}, k3 = i + 1;
+        for (; k3 < rows.length; k3++) { var r3 = rows[k3] || [], RL = str(r3[c]); if (!/^[A-P]$/.test(RL)) break; cols.forEach(function (cc) { var v = reading(r3[cc[0]]), w = RL + cc[1]; if (v === "OVER") { sat3[w] = 1; v = NaN; } if (isFinite(v) || sat3[w]) vals3[w] = v; }); }
+        var gw = NaN;
+        for (var b = i - 1; b > lastEnd && b >= 0 && !isFinite(gw); b--) { var rb = rows[b] || [];
+          for (var jb = 0; jb < rb.length && !isFinite(gw); jb++) { var sb = str(rb[jb]), mm = /(?:emission|em\.?)\s*wavelength[^\d]*(\d{3}(?:\.\d+)?)/i.exec(sb) || /\b(\d{3}(?:\.\d+)?)\s*nm\b/i.exec(sb);
+            if (mm) gw = +mm[1]; else if (/emission wavelength/i.test(sb)) for (var q3 = jb + 1; q3 < rb.length; q3++) { var x3 = wlNum(rb[q3]); if (isFinite(x3)) { gw = x3; break; } } } }
+        if (isFinite(gw) && Object.keys(vals3).length) grids.push({ wl: gw, vals: vals3, sat: sat3, row: i });
+        i = k3 - 1; lastEnd = i; continue;
+      }
+    }
+    // consecutive single-wavelength grids make one read; a repeated wavelength starts a new read
+    var group = [];
+    function flush() {
+      if (group.length < 1) return;
+      group.sort(function (a, b) { return a.wl - b.wl; });
+      var wl = group.map(function (g) { return g.wl; }), wells = {}, sat = {}, order = [];
+      group.forEach(function (g) { Object.keys(g.vals).forEach(function (w) { if (!wells[w]) { wells[w] = wl.map(function () { return NaN; }); sat[w] = 0; order.push(w); } }); });
+      group.forEach(function (g, gi) { Object.keys(g.vals).forEach(function (w) { wells[w][gi] = g.vals[w]; if (g.sat[w]) sat[w]++; }); });
+      out.push(mkRun(sheet, rows, group[0].row, wl, wells, sat, order)); group = [];
+    }
+    grids.forEach(function (g) { if (group.some(function (x) { return x.wl === g.wl; })) flush(); group.push(g); });
+    flush();
+    return out;
+  }
+  function mkRun(sheet, rows, i, wl, wells, sat, order) {
+    order = order.filter(function (w) { return wells[w].filter(isFinite).length >= 1 || sat[w] > 0; });
+    order.sort(function (a, b) { return a.charCodeAt(0) - b.charCodeAt(0) || +a.slice(1) - +b.slice(1); });
+    // put the wavelengths in increasing order
+    var idx = wl.map(function (_, q) { return q; }).sort(function (a, b) { return wl[a] - wl[b]; });
+    var wls = idx.map(function (q) { return wl[q]; }), ws = {};
+    order.forEach(function (w) { ws[w] = idx.map(function (q) { return wells[w][q]; }); });
+    var st = metaBefore(rows, i, "start time"), tm = /(\d{1,2}:\d{2}(:\d{2})?\s*[AP]M)/i.exec(st) || /\b(\d{1,2}:\d{2})(:\d{2})?\s*$/.exec(st);
+    var dev = ""; rows.slice(0, i).forEach(function (r) { (r || []).forEach(function (c) { var m = /^Device:\s*(\S.*)$/i.exec(str(c)); if (m && !dev) dev = m[1]; }); });
+    return { sheet: sheet, wl: wls, wells: ws, sat: sat, order: order, start: tm ? tm[1] : st, ex: metaBefore(rows, i, "excitation wavelength"), gain: metaBefore(rows, i, "gain"), device: dev, temp: tempBefore(rows, i) };
+  }
+  function sameRun(a, b) {
+    if (a.wl.length !== b.wl.length || a.order.join() !== b.order.join()) return false;
+    for (var q = 0; q < a.wl.length; q++) if (Math.abs(a.wl[q] - b.wl[q]) > 1e-6) return false;
+    var w = a.order[0]; for (q = 0; q < a.wl.length; q++) if (!(Math.abs(a.wells[w][q] - b.wells[w][q]) < 1e-9) && !(isNaN(a.wells[w][q]) && isNaN(b.wells[w][q]))) return false;
+    return true;
+  }
+
+  // ---------- layout ----------
+  function blankCfg(run) {
+    var wells = {}, rows = {}, ncol = 12;
+    run.order.forEach(function (w) { wells[w] = { role: "sample", D: NaN, precip: false }; rows[w.charAt(0)] = rows[w.charAt(0)] || { protein: "WT" }; ncol = Math.max(ncol, +w.slice(1)); });
+    run.rowsUsed = Object.keys(rows).sort();
+    run.colsUsed = []; for (var c = 1; c <= ncol; c++) if (run.order.some(function (w) { return +w.slice(1) === c; })) run.colsUsed.push(c);
+    run.cfg = { wells: wells, rows: rows };
+  }
+  function copyCfg(from, to) {
+    to.order.forEach(function (w) { var s = from.cfg.wells[w]; if (s) { to.cfg.wells[w].role = s.role; to.cfg.wells[w].D = s.D; } });
+    to.rowsUsed.forEach(function (R) { if (from.cfg.rows[R]) to.cfg.rows[R].protein = from.cfg.rows[R].protein; });
+  }
+  function applyPlan(run) {
+    var pr = planRows(), conc = planConc();
+    run.rowsUsed.forEach(function (R) {
+      var i = R.charCodeAt(0) - 65, p = pr[i];
+      run.cfg.rows[R].protein = p ? p.protein : "";
+      run.order.forEach(function (w) { if (w.charAt(0) !== R) return; var c = +w.slice(1); run.cfg.wells[w].role = p && p.blank ? "blank" : p ? "sample" : "off"; run.cfg.wells[w].D = p && c <= conc.length ? conc[c - 1] : NaN; });
+    });
+  }
+  function addRuns(found, base) {
+    var fresh = found.filter(function (r) { return !runs.some(function (o) { return sameRun(o, r); }) && !found.some(function (o) { return o !== r && found.indexOf(o) < found.indexOf(r) && sameRun(o, r); }); });
+    if (!fresh.length) { topMsg(found.length ? "That read is already loaded." : "No spectra found in " + esc(base) + ". Expected a “Wavel.” row followed by rows named A1, A2…, or a Wavelength column with well names as headers.", "warn"); return; }
+    var note = "";
+    fresh.forEach(function (r) {
+      r.file = base; r.label = base + (fresh.length > 1 ? " · " + r.sheet : "") + (r.start ? " · " + r.start : "");
+      r.tmin = NaN; r.T = isFinite(r.temp) ? r.temp : (runs.length ? runs[runs.length - 1].T : 25);
+      blankCfg(r);
+      var prev = runs.length ? runs[runs.length - 1] : null;
+      if (prev) { copyCfg(prev, r); note = "The layout was copied from the previous read."; }
+      else if (P.use) { applyPlan(r); note = "The plate layout was filled from the plan (Plan tab). Check that it matches your plate."; }
+      runs.push(r);
+    });
+    cur = runs.length - fresh.length; selWell = runs[cur].order[0];
+    topMsg(note + (fresh.length > 1 ? " " + fresh.length + " reads found." : "") + " Enter the time since protein was added for each read (step 1).");
+    syncInputs(); buildRunSel(); buildLayout(); render();
+  }
+  function readFiles(list) {
+    Array.prototype.slice.call(list).sort(function (a, b) { return a.name < b.name ? -1 : 1; }).reduce(function (p, f) {
+      return p.then(function () {
+        var base = f.name.replace(/\.[^.]+$/, "");
+        if (/\.xls[xm]$/i.test(f.name)) return f.arrayBuffer().then(readXlsx).then(function (sheets) { var all = []; sheets.forEach(function (s) { all = all.concat(findRuns(s.rows, s.name)); }); addRuns(all, base); }).catch(function (e) { topMsg("Could not read " + esc(f.name) + ": " + esc(e.message), "warn"); });
+        if (/\.xls$/i.test(f.name)) { topMsg("Old .xls files cannot be read here. Save as .xlsx in Excel, or copy the cells and paste them.", "warn"); return; }
+        return f.text().then(function (t) { addRuns(findRuns(readText(t), "text"), base); });
+      });
+    }, Promise.resolve());
+  }
+
+  // ---------- example (simulated; WT and a less stable mutant, two reads) ----------
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(rnd) { var u = 0; while (u === 0) u = rnd(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * rnd()); }
+  function simSpec(l, D, fU, scale, rnd) {
+    // folded Trp emission near 333 nm, unfolded near 351 nm (Gaussian in wavenumber), plus the water Raman band (~328 nm at 295 nm excitation) and a little urea background
+    var nu = 1e7 / l, sN = Math.exp(-Math.pow(nu - 1e7 / 333, 2) / (2 * 2150 * 2150)), sU = Math.exp(-Math.pow(nu - 1e7 / 351, 2) / (2 * 2250 * 2250));
+    var N = 1000 * (1 - 0.012 * D) * sN, U = 840 * (1 + 0.006 * D) * sU;
+    var blank = 12 + 70 * (1 - 0.035 * D) * Math.exp(-Math.pow(l - 328, 2) / (2 * 3.2 * 3.2)) + 2.5 * D * Math.exp(-Math.pow(l - 365, 2) / (2 * 35 * 35));
+    var sig2 = scale > 0 ? scale * ((1 - fU) * N + fU * U) : 0, v = sig2 + blank;
+    return Math.round((v + gauss(rnd) * (3 + 0.008 * v)) * 10) / 10;
+  }
+  function loadExample() {
+    var rnd = mulberry(29), wl = [], conc = [0, 1, 2, 2.5, 3, 3.5, 4, 4.5, 5, 6, 7, 8], RT = R_GAS * 298.15;
+    for (var l = 310; l <= 400; l += 2) wl.push(l);
+    var reads = [{ t: 30, mutCm: 3.65 }, { t: 150, mutCm: 3.30 }], built = [];
+    reads.forEach(function (rd, ri) {
+      var wells = {}, order = [], sat = {};
+      ["A", "B", "C", "D", "E", "F", "G", "H"].forEach(function (R, rix) {
+        var prot = rix < 3 ? "WT" : rix < 6 ? "mutant" : "blank", Cm = prot === "WT" ? 4.55 : rd.mutCm, m = prot === "WT" ? 9.2 : 8.6, scale = prot === "blank" ? 0 : 1 + 0.025 * gauss(rnd);
+        conc.forEach(function (D, ci) {
+          var w = R + (ci + 1), fU = 1 / (1 + Math.exp(m * (Cm - D) / RT)), sc = scale * (1 + 0.012 * gauss(rnd));
+          if (w === "E7") sc *= 1.22;
+          wells[w] = wl.map(function (l) { return simSpec(l, D, fU, sc, rnd); }); sat[w] = 0; order.push(w);
+        });
+      });
+      var run = mkRun("Sheet1", [], 0, wl, wells, sat, order); run.ex = "295"; run.gain = "90"; run.device = "infinite 200Pro"; run.temp = 25;
+      built.push([run, rd.t]);
+    });
+    runs = []; cur = -1;
+    var keepUse = P.use; P.use = true;
+    var savedPlan = { conc: P.conc, prot: P.prot, reps: P.reps, breps: P.breps };
+    P.conc = conc.join(", "); P.prot = "WT, mutant"; P.reps = 3; P.breps = 2;
+    built.forEach(function (b, i) { addRuns([b[0]], "Example read " + (i + 1)); runs[runs.length - 1].tmin = b[1]; });
+    P.use = keepUse; Object.keys(savedPlan).forEach(function (k) { P[k] = savedPlan[k]; });
+    cur = 0; selWell = "A1"; G.reads = "cur";
+    syncInputs(); buildRunSel(); buildLayout(); render();
+    topMsg("Simulated example: rows A–C WT, D–F mutant, G–H no-protein blanks; urea 0–8 M across columns 1–12; 295 nm excitation, 25 °C. Read 1 was taken 30 min after mixing and read 2 after 150 min. The mutant is still unfolding at 30 min; compare the reads. Well E7 is too bright (a pipetting error): click it and leave it out.");
+  }
+
+  // ---------- spectra → channels ----------
+  function interpAt(wl, y, l) {
+    var n = wl.length; if (!n || l < wl[0] - 1e-9 || l > wl[n - 1] + 1e-9) return NaN;
+    for (var i = 0; i < n - 1; i++) if (l <= wl[i + 1] + 1e-9) { var a = y[i], b = y[i + 1], t = (l - wl[i]) / ((wl[i + 1] - wl[i]) || 1); if (Math.abs(l - wl[i]) < 1e-9) return a; if (Math.abs(l - wl[i + 1]) < 1e-9) return b; return a + (b - a) * t; }
+    return Math.abs(l - wl[n - 1]) < 1e-9 ? y[n - 1] : NaN;
+  }
+  function channel(wl, y, l) {
+    if (!y) return NaN;
+    if (G.bw > 0) { var v = []; wl.forEach(function (x, i) { if (Math.abs(x - l) <= G.bw + 1e-9 && isFinite(y[i])) v.push(y[i]); }); if (v.length) return mean(v); }
+    return interpAt(wl, y, l);
+  }
+  function meanSpec(list) { return list[0].map(function (_, q) { return mean(list.map(function (s) { return s[q]; })); }); }
+  var calc = [];
+  function computeRun(run) {
+    var bk = {}, pooled = [], out = { w: {}, blanks: [] };
+    run.order.forEach(function (w) { var c = run.cfg.wells[w]; if (c.role !== "blank") return; if (isFinite(c.D)) { var k = dkey(c.D); (bk[k] = bk[k] || { D: c.D, specs: [], wells: [] }).specs.push(run.wells[w]); bk[k].wells.push(w); } else pooled.push(run.wells[w]); });
+    var bl = Object.keys(bk).map(function (k) { var b = bk[k]; return { D: b.D, spec: meanSpec(b.specs), wells: b.wells }; }).sort(function (a, b) { return a.D - b.D; });
+    var pool = pooled.length ? meanSpec(pooled) : null;
+    out.blanks = bl;
+    function blankAt(D) {
+      if (!G.sub) return { spec: null, kind: "off" };
+      if (!bl.length) return pool ? { spec: pool, kind: "pooled", text: "mean of the blanks (they have no urea entered)" } : { spec: null, kind: "none" };
+      if (!isFinite(D)) return { spec: null, kind: "none" };
+      for (var i = 0; i < bl.length; i++) if (Math.abs(bl[i].D - D) < 1e-6) return { spec: bl[i].spec, kind: "exact", text: bl[i].wells.join(", ") + " (" + sig(D) + " M)" };
+      if (D < bl[0].D || D > bl[bl.length - 1].D) { var e = D < bl[0].D ? bl[0] : bl[bl.length - 1]; return { spec: e.spec, kind: "nearest", text: "no blank at " + sig(D) + " M; nearest blank " + sig(e.D) + " M used" }; }
+      for (i = 0; i < bl.length - 1; i++) if (D > bl[i].D && D < bl[i + 1].D) { var a = bl[i], b = bl[i + 1], t = (D - a.D) / (b.D - a.D); return { spec: a.spec.map(function (v, q) { return v + (b.spec[q] - v) * t; }), kind: "interp", text: "no blank at " + sig(D) + " M; interpolated between " + sig(a.D) + " and " + sig(b.D) + " M" }; }
+      return { spec: null, kind: "none" };
+    }
+    run.order.forEach(function (w) {
+      var c = run.cfg.wells[w], raw = run.wells[w], o = { role: c.role, D: c.D, precip: c.precip, protein: (run.cfg.rows[w.charAt(0)].protein || "").trim() || "Protein", raw: raw, sat: run.sat[w] || 0 };
+      if (c.role === "sample") { var b = blankAt(c.D); o.blank = b.spec; o.bkind = b.kind; o.btext = b.text; o.corr = b.spec ? raw.map(function (v, q) { return v - b.spec[q]; }) : raw; }
+      else { o.blank = null; o.bkind = "self"; o.corr = raw; }
+      o.Fa = channel(run.wl, o.corr, G.la); o.Fb = channel(run.wl, o.corr, G.lb); o.R = o.Fb / o.Fa;
+      o.FaRaw = channel(run.wl, raw, G.la); o.FbRaw = channel(run.wl, raw, G.lb);
+      o.FaBl = o.blank ? channel(run.wl, o.blank, G.la) : NaN; o.FbBl = o.blank ? channel(run.wl, o.blank, G.lb) : NaN;
+      out.w[w] = o;
+    });
+    return out;
+  }
+  function computeAll() { calc = runs.map(computeRun); }
+  function readName(ri) { var r = runs[ri]; return "read " + (ri + 1) + (isFinite(r.tmin) ? " (" + sig(r.tmin) + " min)" : ""); }
+  var PROT = [];
+  function protColor(p) { var i = PROT.indexOf(p); return COLORS[(i < 0 ? 0 : i) % 6]; }
+  function datasets() {
+    var map = {}, list = []; PROT = [];
+    runs.forEach(function (run, ri) {
+      run.order.forEach(function (w) {
+        var o = calc[ri].w[w];
+        if (o.role !== "sample" || !isFinite(o.D)) return;
+        if (PROT.indexOf(o.protein) < 0) PROT.push(o.protein);
+        var k = o.protein + "|" + ri;
+        if (!map[k]) { map[k] = { key: k, protein: o.protein, ri: ri, D: [], Fa: [], Fb: [], R: [], wells: [] }; list.push(map[k]); }
+        var d = map[k]; d.D.push(o.D); d.Fa.push(o.Fa); d.Fb.push(o.Fb); d.R.push(o.R); d.wells.push(w);
+      });
+    });
+    list.forEach(function (d) { d.name = d.protein + (runs.length > 1 ? " · " + readName(d.ri) : ""); d.short = d.protein; });
+    return list;
+  }
+
+  // ---------- linear algebra and Levenberg-Marquardt ----------
+  function solve(A, b) {
+    var n = b.length, Mx = A.map(function (r, i) { return r.concat([b[i]]); });
+    for (var c = 0; c < n; c++) {
+      var p = c; for (var r = c + 1; r < n; r++) if (Math.abs(Mx[r][c]) > Math.abs(Mx[p][c])) p = r;
+      if (Math.abs(Mx[p][c]) < 1e-300) return null;
+      var tmp = Mx[c]; Mx[c] = Mx[p]; Mx[p] = tmp;
+      for (r = 0; r < n; r++) if (r !== c) { var f = Mx[r][c] / Mx[c][c]; for (var k = c; k <= n; k++) Mx[r][k] -= f * Mx[c][k]; }
+    }
+    return Mx.map(function (r, i) { return r[n] / r[i]; });
+  }
+  function invert(A) {
+    var n = A.length, cols = [];
+    for (var j = 0; j < n; j++) { var e = A.map(function (_, i) { return i === j ? 1 : 0; }), s = solve(A, e); if (!s) return null; cols.push(s); }
+    return A.map(function (_, i) { return cols.map(function (c) { return c[i]; }); });
+  }
+  function lm(pred, y, starts, clamp) {
+    var n = y.length, np = starts[0].length;
+    function sse(th) { var m = pred(th), s = 0; for (var i = 0; i < n; i++) { var r = y[i] - m[i]; s += r * r; } return isFinite(s) ? s : Infinity; }
+    function jac(th) {
+      var m0 = pred(th), J = [], i, j;
+      for (i = 0; i < n; i++) J.push(new Array(np));
+      for (j = 0; j < np; j++) { var t2 = th.slice(), h = 1e-6 * Math.max(1, Math.abs(th[j])); t2[j] += h; var m1 = pred(t2); for (i = 0; i < n; i++) J[i][j] = (m1[i] - m0[i]) / h; }
+      return { J: J, m: m0 };
+    }
+    var best = null;
+    starts.forEach(function (th0) {
+      var th = th0.slice(); clamp(th); var cur = sse(th), lam = 1e-2;
+      for (var it = 0; it < 200; it++) {
+        var jm = jac(th), A = [], g = [], a, b, i;
+        for (a = 0; a < np; a++) { A.push(new Array(np).fill(0)); g.push(0); }
+        for (i = 0; i < n; i++) { var r = y[i] - jm.m[i]; for (a = 0; a < np; a++) { g[a] += jm.J[i][a] * r; for (b = 0; b < np; b++) A[a][b] += jm.J[i][a] * jm.J[i][b]; } }
+        var ok = false;
+        for (var tr = 0; tr < 12; tr++) {
+          var Ad = A.map(function (row, ri) { return row.map(function (v, ci) { return ri === ci ? v * (1 + lam) + 1e-12 : v; }); });
+          var d = solve(Ad, g); if (!d) { lam *= 10; continue; }
+          var th2 = th.map(function (v, ix) { return v + Math.max(-2, Math.min(2, d[ix])); }); clamp(th2);
+          var s2 = sse(th2);
+          if (s2 < cur) { var rel = (cur - s2) / (cur + 1e-30); th = th2; cur = s2; lam = Math.max(lam / 5, 1e-9); ok = true; if (rel < 1e-12) tr = 99; break; }
+          lam *= 5;
+        }
+        if (!ok) break;
+      }
+      if (!best || cur < best.sse) best = { th: th, sse: cur };
+    });
+    return best;
+  }
+
+  // ---------- two-state fit ----------
+  // fU = 1/(1 + exp(m(Cm − D)/RT)), so ΔG(D) = ΔGwater − mD with ΔGwater = m·Cm.
+  // The baselines enter linearly: for each trial (Cm, m) they are solved exactly (variable projection);
+  // LM then refines Cm and m, and the covariance is taken from the full Jacobian (Cm, m and every baseline).
+  function fuOf(D, Cm, m, RT) { var x = m * (Cm - D) / RT; return x > 700 ? 0 : x < -700 ? 1 : 1 / (1 + Math.exp(x)); }
+  function fitUnfold(d, T, keysOverride) {
+    var RT = R_GAS * (T + 273.15), keys = keysOverride || (G.fit === "both" ? ["Fa", "Fb"] : [G.fit === "b" ? "Fb" : "Fa"]), nb = G.slopes ? 4 : 2;
+    var data = keys.map(function (k) { var D = [], y = [], wl = []; d.D.forEach(function (x, i) { if (isFinite(d[k][i])) { D.push(x); y.push(d[k][i]); wl.push(d.wells[i]); } }); return { k: k, D: D, y: y, wells: wl }; });
+    for (var c0 = 0; c0 < data.length; c0++) if (distinct(data[c0].D) < nb + 2) return { err: "needs at least " + (nb + 2) + " different urea concentrations" + (nb === 4 ? " (or untick sloping baselines)" : "") };
+    var w = keys.map(function () { return 1; });
+    if (keys.length > 1) {
+      var sub = keys.map(function (k) { return fitUnfold(d, T, [k]); });
+      if (sub.some(function (f) { return f.err; })) return { err: sub.filter(function (f) { return f.err; })[0].err };
+      w = sub.map(function (f) { return 1 / Math.max(f.rms[0], 1e-9); });
+    }
+    var Dall = [].concat.apply([], data.map(function (c) { return c.D; })), Dmin = Math.min.apply(null, Dall), Dmax = Math.max.apply(null, Dall), span = Dmax - Dmin;
+    function bas(D, f) { return nb === 4 ? [1 - f, D * (1 - f), f, D * f] : [1 - f, f]; }
+    function project(Cm, m) {
+      var B = [], fits = [], sse = 0;
+      data.forEach(function (c, ci) {
+        var A = [], g = [], a, b2, tr = 0;
+        for (a = 0; a < nb; a++) { A.push(new Array(nb).fill(0)); g.push(0); }
+        var bs = c.D.map(function (D) { return bas(D, fuOf(D, Cm, m, RT)); });
+        bs.forEach(function (bv, i) { for (a = 0; a < nb; a++) { g[a] += bv[a] * c.y[i]; for (b2 = 0; b2 < nb; b2++) A[a][b2] += bv[a] * bv[b2]; } });
+        for (a = 0; a < nb; a++) tr += A[a][a];
+        for (a = 0; a < nb; a++) A[a][a] += 1e-10 * tr + 1e-300;
+        var beta = solve(A, g) || new Array(nb).fill(0);
+        var fit = bs.map(function (bv) { var s = 0; for (var q = 0; q < nb; q++) s += bv[q] * beta[q]; return s; });
+        fit.forEach(function (v, i) { var r = c.y[i] - v; sse += w[ci] * w[ci] * r * r; });
+        B.push(beta); fits.push(fit);
+      });
+      return { sse: sse, B: B, fits: fits };
+    }
+    // grid search for a start
+    var best = null, cLo = Dmin - 0.25 * span, cHi = Dmax + 0.25 * span;
+    for (var gi = 0; gi <= 120; gi++) for (var mj = 0; mj < 32; mj++) {
+      var Cm = cLo + (cHi - cLo) * gi / 120, m = 0.5 * Math.pow(120, mj / 31), pr = project(Cm, m);
+      if (!best || pr.sse < best.sse) best = { Cm: Cm, m: m, sse: pr.sse };
+    }
+    var Y = [], N = 0; data.forEach(function (c, ci) { c.y.forEach(function (v) { Y.push(w[ci] * v); }); N += c.y.length; });
+    function predVP(th) { var pr = project(th[0], th[1]), out = []; pr.fits.forEach(function (f, ci) { f.forEach(function (v) { out.push(w[ci] * v); }); }); return out; }
+    var MMAX = 300, clamp = function (th) { th[0] = Math.min(Math.max(th[0], Dmin - span), Dmax + span); th[1] = Math.min(Math.max(th[1], 0.05), MMAX); };
+    var F = lm(predVP, Y, [[best.Cm, best.m]], clamp), CmF = F.th[0], mF = F.th[1], fin = project(CmF, mF);
+    // covariance from the full model
+    var theta = [CmF, mF].concat([].concat.apply([], fin.B)), np = theta.length;
+    function full(th) { var out = []; data.forEach(function (c, ci) { var be = th.slice(2 + ci * nb, 2 + (ci + 1) * nb); c.D.forEach(function (D) { var bv = bas(D, fuOf(D, th[0], th[1], RT)), s = 0; for (var q = 0; q < nb; q++) s += bv[q] * be[q]; out.push(w[ci] * s); }); }); return out; }
+    var m0 = full(theta), J = m0.map(function () { return new Array(np); });
+    for (var j = 0; j < np; j++) { var t2 = theta.slice(), h = 1e-6 * Math.max(1, Math.abs(theta[j])); t2[j] += h; var m1 = full(t2); for (var i = 0; i < m0.length; i++) J[i][j] = (m1[i] - m0[i]) / h; }
+    var JTJ = []; for (var a = 0; a < np; a++) { JTJ.push(new Array(np).fill(0)); for (var b = 0; b < np; b++) for (i = 0; i < m0.length; i++) JTJ[a][b] += J[i][a] * J[i][b]; }
+    var inv = invert(JTJ), s2 = fin.sse / Math.max(N - np, 1), cov = inv ? inv.map(function (r) { return r.map(function (v) { return v * s2; }); }) : null;
+    function se(k) { return cov ? Math.sqrt(Math.max(cov[k][k], 0)) : NaN; }
+    var dG = mF * CmF, seDG = cov ? Math.sqrt(Math.max(CmF * CmF * cov[1][1] + mF * mF * cov[0][0] + 2 * mF * CmF * cov[0][1], 0)) : NaN;
+    var rms = data.map(function (c, ci) { var s = 0; c.y.forEach(function (v, k) { s += (v - fin.fits[ci][k]) * (v - fin.fits[ci][k]); }); return Math.sqrt(s / Math.max(c.y.length - nb - 2 / data.length, 1)); });
+    var base = fin.B.map(function (be, ci) { var o = nb === 4 ? { aN: be[0], bN: be[1], aU: be[2], bU: be[3] } : { aN: be[0], bN: 0, aU: be[1], bU: 0 }; var off = 2 + ci * nb; o.se = nb === 4 ? { aN: se(off), bN: se(off + 1), aU: se(off + 2), bU: se(off + 3) } : { aN: se(off), bN: NaN, aU: se(off + 1), bU: NaN }; return o; });
+    var uD = {}; Dall.forEach(function (D) { uD[dkey(D)] = D; });
+    var nN = 0, nU = 0; Object.keys(uD).forEach(function (k) { var f = fuOf(uD[k], CmF, mF, RT); if (f < 0.1) nN++; if (f > 0.9) nU++; });
+    var res = { keys: keys, data: data, w: w, Cm: CmF, m: mF, dG: dG, seCm: se(0), seM: se(1), seDG: seDG, base: base, rms: rms, n: N, np: np, Dmin: Dmin, Dmax: Dmax, RT: RT, T: T, nN: nN, nU: nU, nb: nb, fits: fin.fits, warn: [] };
+    if (CmF < Dmin || CmF > Dmax) res.warn.push("C<sub>m</sub> lies outside the urea range measured, so it is an extrapolation.");
+    if (nN < 2) res.warn.push("Fewer than two urea concentrations lie on the folded baseline (f<sub>U</sub> &lt; 0.1), so the folded baseline and C<sub>m</sub> are uncertain." + (nb === 4 ? " Untick sloping baselines, or add lower urea concentrations." : ""));
+    if (nU < 2) res.warn.push("Fewer than two urea concentrations lie on the unfolded baseline (f<sub>U</sub> &gt; 0.9), so the unfolded baseline and C<sub>m</sub> are uncertain." + (nb === 4 ? " Untick sloping baselines, or extend the urea range." : ""));
+    if (mF >= MMAX * 0.99 || mF <= 0.051) res.warn.push("m reached the edge of its allowed range (0.05–300 kJ mol⁻¹ M⁻¹); the transition is not resolved by these points.");
+    else if (res.seM / mF > 0.5 || res.seCm / Math.abs(CmF) > 0.25) res.warn.push("Poorly determined (SE over 50% of m, or over 25% of C<sub>m</sub>).");
+    base.forEach(function (bs, ci) { var amp = Math.abs((bs.aU + bs.bU * CmF) - (bs.aN + bs.bN * CmF)); if (amp < 3 * rms[ci]) res.warn.push("In " + chName(keys[ci]) + " the change on unfolding is less than 3× the scatter about the fit."); });
+    return res;
+  }
+  function fitVal(f, ci, D) { var b = f.base[ci], u = fuOf(D, f.Cm, f.m, f.RT); return (b.aN + b.bN * D) * (1 - u) + (b.aU + b.bU * D) * u; }
+  function chName(k) { return "F" + sig(k === "Fa" ? G.la : G.lb, 4); }
+  function fitLabel(f) { return f.keys.map(chName).join(" + "); }
+
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { if (!(hi > lo)) return [lo]; var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w, extra) { pts = pts.filter(function (p) { return isFinite(p[0]) && isFinite(p[1]); }); if (pts.length < 2) return ""; return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + (extra || "") + ' stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
+  var M = { l: 58, r: 14, t: 12, b: 42 };
+  function frame(W, H, xr, yr, xl, yl) {
+    var sx = function (x) { return M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); }, s = "";
+    ticksFor(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    ticksFor(xr[0], xr[1], 8).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+    var zy = yr[0] < 0 && yr[1] > 0 ? sy(0) : H - M.b;
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + zy + '" y2="' + zy + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+  function range(vals, padFrac, incl0) { var v = vals.filter(isFinite); if (!v.length) return [0, 1]; var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v); if (incl0) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); } var p = (hi - lo) * (padFrac || 0.08) || Math.abs(hi) * 0.1 || 1; return [lo - p, hi + p]; }
+  // marker: shape by channel (circle = Fa, square = Fb), open symbols for later reads
+  function mark(x, y, shape, col, open, title, r) {
+    if (!isFinite(x) || !isFinite(y)) return "";
+    r = r || 3.3; var st = open ? ' fill="var(--panel)" stroke="' + col + '" stroke-width="1.6"' : ' fill="' + col + '" opacity="0.88"', t = title ? '<title>' + esc(title) + '</title>' : "";
+    return shape === "sq" ? '<rect x="' + (x - r).toFixed(1) + '" y="' + (y - r).toFixed(1) + '" width="' + (2 * r) + '" height="' + (2 * r) + '"' + st + '>' + t + '</rect>' : '<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="' + r + '"' + st + '>' + t + '</circle>';
+  }
+  function ebar(x, y1, y2, col) { if (!isFinite(y1) || !isFinite(y2)) return ""; return '<line x1="' + x.toFixed(1) + '" x2="' + x.toFixed(1) + '" y1="' + y1.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + col + '" stroke-width="1.3"/><line x1="' + (x - 3).toFixed(1) + '" x2="' + (x + 3).toFixed(1) + '" y1="' + y1.toFixed(1) + '" y2="' + y1.toFixed(1) + '" stroke="' + col + '" stroke-width="1.3"/><line x1="' + (x - 3).toFixed(1) + '" x2="' + (x + 3).toFixed(1) + '" y1="' + y2.toFixed(1) + '" y2="' + y2.toFixed(1) + '" stroke="' + col + '" stroke-width="1.3"/>'; }
+  function ucol(t) { var p = Math.round(Math.max(0, Math.min(1, t)) * 100); return "color-mix(in srgb, var(--u1) " + p + "%, var(--u0))"; }
+  function groupMeans(D, y) { var g = {}, out = []; D.forEach(function (x, i) { if (!isFinite(y[i])) return; var k = dkey(x); if (!g[k]) { g[k] = { D: x, v: [] }; out.push(g[k]); } g[k].v.push(y[i]); }); out.forEach(function (o) { o.m = mean(o.v); o.sd = sd(o.v); o.n = o.v.length; }); return out.sort(function (a, b) { return a.D - b.D; }); }
+
+  // ---------- UI: inputs ----------
+  function topMsg(t, kind) { $("topMsgs").innerHTML = t ? '<p class="msg ' + (kind || "") + '">' + t + '</p>' : ""; }
+  function pressed(id, attr, val) { Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset[attr] === val)); }); }
+  function syncInputs() {
+    $("la").value = G.la; $("lb").value = G.lb; $("bw").value = G.bw; $("subBlank").checked = G.sub; $("slopes").checked = G.slopes;
+    pressed("fitSeg", "f", G.fit); pressed("tabSeg", "t", G.tab); pressed("readsSeg", "r", G.reads); pressed("ptsSeg", "p", G.pts); pressed("normSeg", "n", G.norm ? "norm" : "raw"); pressed("clickSeg", "a", G.click);
+    $("planView").hidden = G.tab !== "plan"; $("anaView").hidden = G.tab !== "analyse";
+    $("pG").value = P.g; $("pML").value = P.mL; $("pNU").value = P.nU; $("pNB").value = P.nB; $("pM").value = P.M; $("pPS").value = P.ps; $("pPF").value = P.pf; $("pMW").value = P.mw; $("pVol").value = P.vol; $("pExtra").value = P.extra;
+    $("pConc").value = P.conc; $("pProt").value = P.prot; $("pReps").value = P.reps; $("pBReps").value = P.breps; $("pUse").checked = P.use; $("pNotes").value = P.notes;
+    pressed("stockSeg", "s", P.stockMode); $("stWt").hidden = P.stockMode !== "wt"; $("stRi").hidden = P.stockMode !== "ri"; $("stM").hidden = P.stockMode !== "m";
+    if (cur >= 0) { $("rTime").value = isFinite(runs[cur].tmin) ? runs[cur].tmin : ""; $("rTemp").value = isFinite(runs[cur].T) ? runs[cur].T : ""; }
+  }
+  function buildRunSel() {
+    $("runRow").hidden = !runs.length; $("readBox").hidden = cur < 0;
+    $("runSel").innerHTML = runs.map(function (r, i) { return '<option value="' + i + '">' + esc("Read " + (i + 1) + ": " + r.label) + '</option>'; }).join("");
+    if (cur >= 0) $("runSel").value = String(cur);
+  }
+  function runInfo() {
+    if (cur < 0) { $("runInfo").textContent = runs.length ? "" : "No data loaded yet."; return; }
+    var r = runs[cur], step = r.wl.length > 1 ? (r.wl[r.wl.length - 1] - r.wl[0]) / (r.wl.length - 1) : NaN;
+    var t = (r.device ? "Tecan " + r.device.replace(/^tecan\s*/i, "") + ": " : "") + r.order.length + " wells, emission " + sig(r.wl[0], 4) + "–" + sig(r.wl[r.wl.length - 1], 4) + " nm" + (r.wl.length > 2 ? " every " + sig(step) + " nm" : " (" + r.wl.map(function (x) { return sig(x, 4); }).join(", ") + " nm)") + (r.ex ? ", excitation " + r.ex + " nm" : "") + (r.gain ? ", gain " + r.gain : "") + (isFinite(r.temp) ? ", " + sig(r.temp) + " °C in file" : "");
+    var warn = [];
+    if ([G.la, G.lb].some(function (l) { return l < r.wl[0] - 1e-9 || l > r.wl[r.wl.length - 1] + 1e-9; })) warn.push("A channel wavelength is outside the scan.");
+    $("runInfo").innerHTML = esc(t) + (warn.length ? ' <b style="color:var(--warn)">' + warn.join(" ") + '</b>' : "");
+  }
+  function buildLayout() {
+    var host = $("layoutGrid");
+    if (cur < 0) { host.innerHTML = ""; return; }
+    var r = runs[cur], cfg = r.cfg, h = "";
+    function val(x) { return isFinite(x) ? String(x) : ""; }
+    function roleSel(R) {
+      var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
+      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no protein)" : "protein") + '</option>'; }).join("") + '</select>';
+    }
+    h += '<table class="sgrid"><thead><tr><th></th>' + r.colsUsed.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Protein</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
+    r.rowsUsed.forEach(function (R, ri) {
+      h += '<tr><th>' + R + '</th>';
+      r.colsUsed.forEach(function (c, ci) { var w = R + c, cw = cfg.wells[w]; h += '<td>' + (cw ? '<input type="text" inputmode="decimal" data-wd="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cw.D) + '" aria-label="Urea (M) in well ' + w + '"' + (cw.role === "off" ? ' class="na" title="left out"' : "") + '>' : "") + '</td>'; });
+      h += '<td><input type="text" class="ser" data-prot="' + R + '" value="' + esc(cfg.rows[R].protein) + '" aria-label="Protein in row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
+    });
+    host.innerHTML = h + '</tbody></table>';
+  }
+
+  // ---------- render ----------
+  var pending = false;
+  function render() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); }); }
+  function draw() {
+    if (G.tab === "plan") { drawPlan(); return; }
+    runInfo();
+    var has = cur >= 0;
+    ["platePanel", "wellPanel", "layoutPanel"].forEach(function (id) { $(id).hidden = !has; });
+    $("readBox").hidden = !has;
+    if (!has) { hideFit(); $("specPanel").hidden = true; $("ratioPanel").hidden = true; $("repPanel").hidden = true; $("exportPanel").hidden = true; if (!$("topMsgs").innerHTML) topMsg("Load the spectra (step 1), or try <b>Load example</b> to see how this works. Plan the urea series and plate map on the Plan tab first."); return; }
+    computeAll();
+    var D = datasets();
+    drawPlate(); drawWell(); drawSpectra(D); drawFit(D); drawRatio(D); drawRepeat(D);
+    $("exportPanel").hidden = false;
+  }
+  function drawPlate() {
+    var r = runs[cur], C = calc[cur], h = '<table class="plate"><thead><tr><th></th>';
+    r.colsUsed.forEach(function (c) { h += '<th>' + c + '</th>'; });
+    h += '</tr></thead><tbody>';
+    var allD = []; r.order.forEach(function (w) { if (isFinite(C.w[w].D)) allD.push(C.w[w].D); });
+    r.rowsUsed.forEach(function (R) {
+      h += '<tr><th>' + R + '</th>';
+      r.colsUsed.forEach(function (c) {
+        var w = R + c, o = C.w[w];
+        if (!o) { h += '<td><div class="wl empty"></div></td>'; return; }
+        var y = o.corr, fin = y.filter(isFinite), lo = Math.min.apply(null, fin.concat([0])), hi = Math.max.apply(null, fin), rg = (hi - lo) || 1, x0 = r.wl[0], x1 = r.wl[r.wl.length - 1], xr = (x1 - x0) || 1;
+        var X = function (l) { return 1 + (l - x0) / xr * 58; }, Y = function (a) { return 28 - (a - lo) / rg * 25; };
+        var s = '<svg viewBox="0 0 60 30" preserveAspectRatio="none" aria-hidden="true">';
+        [G.la, G.lb].forEach(function (l) { if (l >= x0 && l <= x1) s += '<line x1="' + X(l).toFixed(1) + '" x2="' + X(l).toFixed(1) + '" y1="0" y2="30" stroke="var(--grid)" stroke-width="1"/>'; });
+        s += r.wl.length > 2 ? polyline(r.wl.map(function (l, k) { return [X(l), Y(y[k])]; }), o.role === "blank" ? "var(--muted)" : protColor(o.protein), null, 1.3) : r.wl.map(function (l, k) { return isFinite(y[k]) ? '<circle cx="' + X(l) + '" cy="' + Y(y[k]) + '" r="2" fill="var(--muted)"/>' : ""; }).join("");
+        s += '</svg>';
+        var q = o.sat ? " q3" : o.precip ? " q2" : "", cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "") + q;
+        var tip = w + ": " + (o.role === "blank" ? "blank" : o.role === "off" ? "left out" : o.protein) + (isFinite(o.D) ? ", " + sig(o.D) + " M urea" : "") + (isFinite(o.R) ? ", ratio " + o.R.toFixed(3) : "") + (o.sat ? ", OVER at " + o.sat + " wavelength" + (o.sat > 1 ? "s" : "") : "") + (o.precip ? ", precipitate recorded" : "") + (o.bkind === "interp" || o.bkind === "nearest" ? ", " + o.btext : "");
+        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(tip) + '">' + (o.role === "sample" ? '<i class="bar" style="background:' + protColor(o.protein) + '"></i>' : "") + (o.precip ? '<span class="pp">P</span>' : "") + s +
+          '<span class="num">' + (o.role !== "blank" && isFinite(o.R) ? o.R.toFixed(3) : o.role === "blank" ? "blank" : "—") + '</span><span class="sx">' + (isFinite(o.D) ? sig(o.D) + " M" : "&nbsp;") + '</span></button></td>';
+      });
+      h += '</tr>';
+    });
+    $("plateGrid").innerHTML = h + '</tbody></table>';
+    $("plateTitle").textContent = "Plate: read " + (cur + 1) + " · " + runs[cur].label + (isFinite(runs[cur].tmin) ? " · " + sig(runs[cur].tmin) + " min" : "");
+  }
+  function drawWell() {
+    var r = runs[cur], C = calc[cur];
+    if (!selWell || !C.w[selWell]) selWell = r.order[0];
+    var w = selWell, o = C.w[w], cfg = r.cfg.wells[w];
+    var vals = o.raw.concat(o.blank || [], o.corr, [0]), f = frame(640, 250, [r.wl[0], r.wl[r.wl.length - 1]], range(vals, 0.06), "emission wavelength (nm)", "fluorescence (RFU)"), s = f.svg;
+    [G.la, G.lb].forEach(function (l, i) {
+      if (G.bw > 0) s += '<rect x="' + f.sx(Math.max(l - G.bw, r.wl[0])) + '" y="' + M.t + '" width="' + Math.max(0, f.sx(Math.min(l + G.bw, r.wl[r.wl.length - 1])) - f.sx(Math.max(l - G.bw, r.wl[0]))) + '" height="' + (250 - M.b - M.t) + '" fill="var(--band)"/>';
+      s += '<line x1="' + f.sx(l) + '" x2="' + f.sx(l) + '" y1="' + M.t + '" y2="' + (250 - M.b) + '" stroke="var(--ref)" stroke-dasharray="3 3"/><text x="' + (f.sx(l) + 3) + '" y="' + (M.t + 10) + '">F' + (i ? "b" : "a") + '</text>';
+    });
+    var line = function (y, col, dash, wd) { return r.wl.length > 2 ? polyline(r.wl.map(function (l, k) { return [f.sx(l), f.sy(y[k])]; }), col, dash, wd) : r.wl.map(function (l, k) { return mark(f.sx(l), f.sy(y[k]), "c", col, false, null, 3.5); }).join(""); };
+    var leg = [];
+    if (o.role === "sample") {
+      s += line(o.raw, "var(--muted)", null, 1.4); leg.push('<span><i class="ln" style="border-color:var(--muted)"></i>as read</span>');
+      if (o.blank) { s += line(o.blank, "var(--ref)", "5 4", 1.4); leg.push('<span><i class="ln" style="border-color:var(--ref);border-top-style:dashed"></i>matching blank</span>'); }
+      s += line(o.corr, protColor(o.protein), null, 2.6); leg.push('<span><i class="ln" style="border-color:' + protColor(o.protein) + '"></i>' + (o.blank ? "blank subtracted" : "used") + '</span>');
+    } else { s += line(o.raw, o.role === "off" ? "var(--ref)" : "var(--muted)", o.role === "off" ? "5 4" : null, 2); leg.push('<span><i class="ln" style="border-color:var(--muted)"></i>as read</span>'); }
+    $("plotW").innerHTML = s; $("legendW").innerHTML = leg.join("");
+    $("wellTitle").textContent = "Well " + w + " · " + (o.role === "blank" ? "no-protein blank" : o.role === "off" ? "left out" : o.protein) + (isFinite(o.D) ? " · " + sig(o.D) + " M urea" : " · no urea entered") + " · read " + (cur + 1);
+    var st = "", la = sig(G.la, 4), lb = sig(G.lb, 4);
+    if (o.role === "sample") {
+      st = "F" + la + " <b>" + sig(o.Fa, 4) + "</b>" + (o.blank ? " (" + sig(o.FaRaw, 4) + " − " + sig(o.FaBl, 4) + ")" : "") + " · F" + lb + " <b>" + sig(o.Fb, 4) + "</b>" + (o.blank ? " (" + sig(o.FbRaw, 4) + " − " + sig(o.FbBl, 4) + ")" : "") + " · F" + lb + "/F" + la + " <b>" + (isFinite(o.R) ? o.R.toFixed(4) : "—") + "</b>";
+      var lmax = NaN, ymax = -Infinity; o.corr.forEach(function (v, k) { if (v > ymax) { ymax = v; lmax = r.wl[k]; } }); if (r.wl.length > 4) st += " · maximum near " + sig(lmax, 4) + " nm";
+      st += '<br><span style="color:' + (o.bkind === "exact" || o.bkind === "off" ? "var(--muted)" : "var(--warn)") + '">' + (o.bkind === "exact" ? "Blank: " + esc(o.btext) : o.bkind === "off" ? "Blank subtraction is off." : o.bkind === "none" ? "No blank subtracted (no blank wells, or no urea entered for this well)." : esc(o.btext)) + '</span>';
+    } else if (o.role === "blank") st = "F" + la + " " + sig(o.Fa, 4) + " · F" + lb + " " + sig(o.Fb, 4) + " (no protein; the water Raman band from 295 nm excitation sits near 328 nm)";
+    else st = "This well is left out of the fits and plots.";
+    if (o.sat) st += '<br><span style="color:var(--warn)">The reader reported OVER at ' + o.sat + ' wavelength' + (o.sat > 1 ? "s" : "") + ' (shown as gaps). Lower the gain and reread, keeping the same gain for every sample.</span>';
+    $("wellStats").innerHTML = st;
+    $("wRole").value = cfg.role; $("wPrecip").checked = !!cfg.precip;
+  }
+
+  // spectra panel
+  function drawSpectra(D) {
+    var host = $("specSel"), opts = D.filter(function (d) { return d.ri === cur; }).map(function (d) { return [d.key, d.protein]; }), r = runs[cur];
+    if (r.wl.length < 3) { $("specPanel").hidden = true; return; }
+    opts.push(["blank|" + cur, "no-protein blanks (as read)"]);
+    $("specPanel").hidden = false;
+    var kk = opts.map(function (o) { return o[0]; }).join("|");
+    if (host.dataset.key !== kk) { host.innerHTML = opts.map(function (o) { return '<option value="' + esc(o[0]) + '">' + esc(o[1] + " · read " + (cur + 1)) + '</option>'; }).join(""); host.dataset.key = kk; }
+    if (!opts.some(function (o) { return o[0] === G.spec; })) G.spec = opts[0][0];
+    host.value = G.spec;
+    var groups = {}, list = [], C = calc[cur], isBlank = G.spec.indexOf("blank|") === 0, prot = isBlank ? null : G.spec.split("|")[0];
+    r.order.forEach(function (w) { var o = C.w[w]; if (!isFinite(o.D)) return; if (isBlank ? o.role !== "blank" : o.role !== "sample" || o.protein !== prot) return; var k = dkey(o.D); if (!groups[k]) { groups[k] = { D: o.D, specs: [] }; list.push(groups[k]); } groups[k].specs.push(o.corr); });
+    list.sort(function (a, b) { return a.D - b.D; });
+    list.forEach(function (g) { g.spec = meanSpec(g.specs); if (G.norm) { var mx = Math.max.apply(null, g.spec.filter(isFinite)); g.spec = g.spec.map(function (v) { return v / mx; }); } });
+    var Dmax = Math.max.apply(null, list.map(function (g) { return g.D; }).concat([1e-9])), Dmin = Math.min.apply(null, list.map(function (g) { return g.D; }).concat([0]));
+    var f = frame(640, 300, [r.wl[0], r.wl[r.wl.length - 1]], range([].concat.apply([0], list.map(function (g) { return g.spec; })), 0.05), "emission wavelength (nm)", G.norm ? "fluorescence / maximum" : "fluorescence (RFU)"), s = f.svg;
+    [G.la, G.lb].forEach(function (l) { s += '<line x1="' + f.sx(l) + '" x2="' + f.sx(l) + '" y1="' + M.t + '" y2="' + (300 - M.b) + '" stroke="var(--ref)" stroke-dasharray="3 3"/><text x="' + (f.sx(l) + 3) + '" y="' + (M.t + 10) + '">' + sig(l, 4) + '</text>'; });
+    list.forEach(function (g) {
+      var t = (g.D - Dmin) / ((Dmax - Dmin) || 1), pts = r.wl.map(function (l, k) { return [f.sx(l), f.sy(g.spec[k])]; }).filter(function (p) { return isFinite(p[1]); });
+      s += '<polyline fill="none" stroke-width="1.8" stroke-linejoin="round" style="stroke:' + ucol(t) + '" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"><title>' + sig(g.D) + ' M urea (' + g.specs.length + ' well' + (g.specs.length > 1 ? "s" : "") + ')</title></polyline>';
+    });
+    $("plotS").innerHTML = s;
+    $("legendS").innerHTML = list.length ? '<span>' + sig(Dmin) + ' M<i class="ubar"></i>' + sig(Dmax) + ' M urea</span><span>' + list.length + ' urea concentrations</span>' : '<span>Enter urea concentrations in the plate layout.</span>';
+  }
+
+  // ---------- fit panels ----------
+  var exportTables = {};
+  function hideFit() { Array.prototype.forEach.call(document.querySelectorAll(".fitp"), function (p) { p.hidden = true; }); $("cards").innerHTML = ""; $("msgs").innerHTML = ""; }
+  var FITS = {};
+  function fitsFor(D) { FITS = {}; D.forEach(function (d) { FITS[d.key] = fitUnfold(d, runs[d.ri].T); }); return FITS; }
+  function drawFit(D) {
+    exportTables = { wells: wellRows(), spectra: spectraRows(), parameters: null, data_fit: null, curves: null, ratio: null, repeat: null };
+    fitsFor(D);
+    var scope = G.reads === "all" && runs.length > 1 ? D : D.filter(function (d) { return d.ri === cur; });
+    var msgs = $("msgs"), m = [];
+    var C = calc[cur], prec = runs[cur].order.filter(function (w) { return C.w[w].precip; }), satW = runs[cur].order.filter(function (w) { return C.w[w].sat && C.w[w].role !== "off"; });
+    if (prec.length) m.push(["warn", "Visible precipitate recorded in " + prec.join(", ") + ". Aggregated protein scatters light and is not part of a two-state equilibrium; consider leaving these wells out."]);
+    if (satW.length) m.push(["warn", "OVER (saturated) readings in " + satW.join(", ") + ". Reread with a lower gain, the same for every well."]);
+    var gains = runs.map(function (r) { return r.gain; }).filter(Boolean); if (gains.length > 1 && gains.some(function (g) { return g !== gains[0]; })) m.push(["warn", "The reads were taken at different gains (" + gains.join(", ") + "), so their intensities cannot be compared directly. The ratio is less affected."]);
+    var nb = 0; C && runs[cur].order.forEach(function (w) { if (C.w[w].role === "blank") nb++; });
+    if (G.sub && !nb) m.push(["warn", "No wells are marked as no-protein blanks, so nothing is subtracted. Mark the blank row in the plate layout."]);
+    var interp = runs[cur].order.filter(function (w) { var o = C.w[w]; return o.role === "sample" && (o.bkind === "interp" || o.bkind === "nearest"); });
+    if (interp.length) m.push(["", "No blank at the same urea for " + interp.length + " well" + (interp.length > 1 ? "s" : "") + " (" + interp.slice(0, 6).join(", ") + (interp.length > 6 ? "…" : "") + "); the blank was interpolated from the neighbouring blank concentrations."]);
+    if (!scope.length) { hideFit(); m.push(["", "Enter the urea concentration for each well, and the protein for each row, in the plate layout. The fit appears once a protein has at least six different urea concentrations."]); msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join(""); return; }
+    var fitted = scope.filter(function (d) { return !FITS[d.key].err; });
+    if (!fitted.length) { hideFit(); m.push(["warn", scope.map(function (d) { return esc(d.name) + ": " + FITS[d.key].err; }).join("<br>")]); msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join(""); return; }
+    Array.prototype.forEach.call(document.querySelectorAll(".fitp"), function (p) { p.hidden = false; });
+    pressed("readsSeg", "r", G.reads); $("readsSeg").hidden = runs.length < 2; pressed("ptsSeg", "p", G.pts);
+    if (!fitted.some(function (d) { return d.key === G.sel; })) { var pick = fitted.filter(function (d) { return d.ri === cur; })[0] || fitted[0]; G.sel = pick.key; }
+    var sel = fitted.filter(function (d) { return d.key === G.sel; })[0], F = FITS[sel.key];
+    // reference protein for comparisons
+    var prots = []; fitted.forEach(function (d) { if (prots.indexOf(d.protein) < 0) prots.push(d.protein); });
+    if (prots.indexOf(G.refP) < 0) G.refP = prots.filter(function (p) { return /^(wt|wild)/i.test(p); })[0] || prots[0];
+    var rs = $("refSel"), rk = prots.join("|"); if (rs.dataset.key !== rk) { rs.innerHTML = prots.map(function (p) { return '<option>' + esc(p) + '</option>'; }).join(""); rs.dataset.key = rk; } rs.value = G.refP;
+    var refD = fitted.filter(function (d) { return d.protein === G.refP && d.ri === sel.ri; })[0], RF = refD ? FITS[refD.key] : null;
+    function cmp(d) { var f = FITS[d.key], rd = fitted.filter(function (x) { return x.protein === G.refP && x.ri === d.ri; })[0]; if (!rd || rd === d) return null; var r = FITS[rd.key], dCm = f.Cm - r.Cm, se = Math.sqrt(f.seCm * f.seCm + r.seCm * r.seCm), mbar = (f.m + r.m) / 2; return { dCm: dCm, se: se, ddG: mbar * dCm, seDDG: mbar * se, ddGw: f.dG - r.dG, seDDGw: Math.sqrt(f.seDG * f.seDG + r.seDG * r.seDG), mbar: mbar, ref: rd }; }
+    var cs = cmp(sel);
+    $("cards").innerHTML =
+      '<div class="card hot"><div class="k">C<sub>m</sub> · ' + esc(sel.name) + '</div><div class="v">' + sig(F.Cm) + ' M</div><div class="s">± ' + sig(F.seCm) + ' SE</div></div>' +
+      '<div class="card"><div class="k">m (kJ mol⁻¹ M⁻¹)</div><div class="v">' + sig(F.m) + '</div><div class="s">± ' + sig(F.seM) + ' SE</div></div>' +
+      '<div class="card"><div class="k">ΔG<sub>water</sub> (kJ/mol)</div><div class="v">' + sig(F.dG) + '</div><div class="s">± ' + sig(F.seDG) + ' SE · ' + sig(F.dG / 4.184) + ' kcal/mol</div></div>' +
+      (cs ? '<div class="card"><div class="k">ΔC<sub>m</sub> vs ' + esc(G.refP) + ' (M)</div><div class="v">' + (cs.dCm > 0 ? "+" : "") + sig(cs.dCm) + '</div><div class="s">± ' + sig(cs.se) + ' SE</div></div>' +
+        '<div class="card"><div class="k">ΔΔG ≈ m̄·ΔC<sub>m</sub> (kJ/mol)</div><div class="v">' + (cs.ddG > 0 ? "+" : "") + sig(cs.ddG) + '</div><div class="s">± ' + sig(cs.seDDG) + ' · m̄ = ' + sig(cs.mbar) + '</div></div>' : "") +
+      '<div class="card"><div class="k">Fit</div><div class="v" style="font-size:14px">' + fitLabel(F) + '</div><div class="s">' + F.n + ' points · ' + sig(F.T) + ' °C · RMS ' + F.rms.map(function (x) { return sig(x); }).join(", ") + '</div></div>';
+    F.warn.forEach(function (t) { m.push(["warn", esc(sel.name) + ": " + t]); });
+    if (cs) m.push(["", (cs.dCm < 0 ? "The " + esc(sel.protein) + " midpoint is " + sig(-cs.dCm) + " M lower than " + esc(G.refP) + ", so it unfolds at lower urea (less stable under these conditions)" : "The " + esc(sel.protein) + " midpoint is " + sig(cs.dCm) + " M higher than " + esc(G.refP) + ", so more urea is needed to unfold it (more stable under these conditions)") + (Math.abs(cs.dCm) < 2 * cs.se ? ", but the difference is less than 2 SE and may not be real." : " (difference " + sig(Math.abs(cs.dCm) / cs.se, 2) + " × its SE).") + " ΔΔG = m̄·ΔC<sub>m</sub> uses the average m, which is usually more precise than the difference of the extrapolated ΔG<sub>water</sub> values (" + (cs.ddGw > 0 ? "+" : "") + sig(cs.ddGw) + " ± " + sig(cs.seDDGw) + " kJ/mol)."]);
+    msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+
+    // series table
+    $("dsTbl").innerHTML = '<table class="data"><thead><tr><th>Series</th><th>read</th><th>points</th><th>C<sub>m</sub> (M)</th><th>m (kJ mol⁻¹ M⁻¹)</th><th>ΔG<sub>water</sub> (kJ/mol)</th><th>ΔC<sub>m</sub> vs ' + esc(G.refP) + '</th><th>RMS</th><th style="text-align:left">note</th></tr></thead><tbody>' + scope.map(function (d) {
+      var f = FITS[d.key], col = protColor(d.protein), dot = '<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + col + '"></i>';
+      if (f.err) return '<tr><td>' + dot + esc(d.protein) + '</td><td>' + (d.ri + 1) + '</td><td>' + d.D.length + '</td><td colspan="6" style="text-align:left;font-family:var(--font);color:var(--muted)">' + esc(f.err) + '</td></tr>';
+      var c = cmp(d);
+      return '<tr data-s="' + esc(d.key) + '" class="' + (d.key === G.sel ? "sel" : "") + '"><td>' + dot + esc(d.protein) + '</td><td>' + esc(readName(d.ri)) + '</td><td>' + f.n + '</td><td>' + sig(f.Cm) + ' ± ' + sig(f.seCm) + '</td><td>' + sig(f.m) + ' ± ' + sig(f.seM) + '</td><td>' + sig(f.dG) + ' ± ' + sig(f.seDG) + '</td><td>' + (c ? (c.dCm > 0 ? "+" : "") + sig(c.dCm) + ' ± ' + sig(c.se) : "") + '</td><td>' + f.rms.map(function (x) { return sig(x); }).join(", ") + '</td><td class="l">' + (f.warn.length ? '<span class="flag">' + f.warn.length + ' warning' + (f.warn.length > 1 ? "s" : "") + '</span>' : "") + '</td></tr>';
+    }).join("") + '</tbody></table>';
+
+    // unfolding plot
+    var keys = F.keys, xr = [Math.min(0, F.Dmin) - 0.25, Math.max.apply(null, fitted.map(function (d) { return FITS[d.key].Dmax; })) + 0.3];
+    var yv = []; fitted.forEach(function (d) { keys.forEach(function (k) { yv = yv.concat(d[k]); }); });
+    var fa = frame(640, 330, xr, range(yv, 0.08), "[urea] (M)", "fluorescence (RFU)"), sA = fa.svg, grid = [];
+    for (var q = 0; q <= 200; q++) grid.push(xr[0] + (xr[1] - xr[0]) * q / 200);
+    var readIdx = []; fitted.forEach(function (d) { if (readIdx.indexOf(d.ri) < 0) readIdx.push(d.ri); }); readIdx.sort();
+    fitted.forEach(function (d) {
+      var f = FITS[d.key], col = protColor(d.protein), dash = DASH[readIdx.indexOf(d.ri) % 4], open = readIdx.indexOf(d.ri) > 0, isSel = d.key === G.sel;
+      f.keys.forEach(function (k, ci) {
+        sA += polyline(grid.map(function (x) { return [fa.sx(x), fa.sy(fitVal(f, ci, x))]; }), col, dash, isSel ? 2.8 : 1.8);
+        if (G.pts === "means") groupMeans(d.D, d[k]).forEach(function (g) { sA += ebar(fa.sx(g.D), fa.sy(g.m - (g.sd || 0)), fa.sy(g.m + (g.sd || 0)), col) + mark(fa.sx(g.D), fa.sy(g.m), ci ? "sq" : "c", col, open, d.name + " " + chName(k) + ": " + sig(g.D) + " M, mean " + sig(g.m, 4) + " (n " + g.n + ")", 3.6); });
+        else d.D.forEach(function (x, i) { sA += mark(fa.sx(x), fa.sy(d[k][i]), ci ? "sq" : "c", col, open, d.wells[i] + " " + chName(k) + ": " + sig(x) + " M, " + sig(d[k][i], 4)); });
+      });
+    });
+    $("plotA").innerHTML = sA;
+    $("unfTitle").textContent = fitLabel(F) + " vs. urea (blank subtracted)";
+    $("legendA").innerHTML = legendSeries(fitted, readIdx) + (keys.length > 1 ? '<span><i style="background:var(--muted)"></i>' + chName("Fa") + '</span><span><i style="background:var(--muted);border-radius:1px"></i>' + chName("Fb") + '</span>' : "");
+
+    // residuals for the selected series
+    var res = [], fb, sB;
+    F.keys.forEach(function (k, ci) { F.data[ci].D.forEach(function (x, i) { res.push([x, F.data[ci].y[i] - F.fits[ci][i], ci, F.data[ci].wells[i]]); }); });
+    var rm = Math.max.apply(null, res.map(function (r) { return Math.abs(r[1]); })) * 1.2 || 1;
+    fb = frame(640, 170, xr, [-rm, rm], "[urea] (M)", "residual (RFU)"); sB = fb.svg;
+    res.forEach(function (r) { sB += mark(fb.sx(r[0]), fb.sy(r[1]), r[2] ? "sq" : "c", protColor(sel.protein), false, r[3] + ": " + sig(r[1], 3)); });
+    $("plotB").innerHTML = sB; $("resTitle").textContent = "Residuals (data − fit) · " + sel.name;
+
+    // fraction unfolded
+    var ff = frame(640, 300, xr, [-0.12, 1.12], "[urea] (M)", "fraction unfolded, fU"), sF = ff.svg;
+    sF += '<line x1="' + M.l + '" x2="' + (640 - M.r) + '" y1="' + ff.sy(0.5) + '" y2="' + ff.sy(0.5) + '" stroke="var(--ref)" stroke-dasharray="2 3"/>';
+    fitted.forEach(function (d) {
+      var f = FITS[d.key], col = protColor(d.protein), dash = DASH[readIdx.indexOf(d.ri) % 4], open = readIdx.indexOf(d.ri) > 0;
+      if (f.Cm >= xr[0] && f.Cm <= xr[1]) sF += '<line x1="' + ff.sx(f.Cm) + '" x2="' + ff.sx(f.Cm) + '" y1="' + ff.sy(0.5) + '" y2="' + (300 - M.b) + '" stroke="' + col + '" stroke-dasharray="2 3" stroke-width="1.3"/>';
+      sF += polyline(grid.map(function (x) { return [ff.sx(x), ff.sy(fuOf(x, f.Cm, f.m, f.RT))]; }), col, dash, d.key === G.sel ? 2.8 : 2);
+      f.keys.forEach(function (k, ci) {
+        var b = f.base[ci], conv = function (x, y) { var n = b.aN + b.bN * x, u = b.aU + b.bU * x; return (y - n) / (u - n); };
+        if (G.pts === "means") groupMeans(f.data[ci].D, f.data[ci].y).forEach(function (g) { var vs = g.v.map(function (y) { return conv(g.D, y); }), mu = mean(vs), s2 = sd(vs) || 0; sF += ebar(ff.sx(g.D), ff.sy(mu - s2), ff.sy(mu + s2), col) + mark(ff.sx(g.D), ff.sy(mu), ci ? "sq" : "c", col, open, d.name + ": " + sig(g.D) + " M, fU " + sig(mu, 3), 3.6); });
+        else f.data[ci].D.forEach(function (x, i) { sF += mark(ff.sx(x), ff.sy(conv(x, f.data[ci].y[i])), ci ? "sq" : "c", col, open, f.data[ci].wells[i] + ": fU " + sig(conv(x, f.data[ci].y[i]), 3)); });
+      });
+    });
+    $("plotF").innerHTML = sF;
+    $("legendF").innerHTML = legendSeries(fitted, readIdx, true);
+
+    // model text
+    var B = F.base.map(function (b, ci) { return "  " + chName(F.keys[ci]) + ":  aN = " + sig(b.aN, 4) + " ± " + sig(b.se.aN, 2) + (F.nb === 4 ? ",  bN = " + sig(b.bN, 3) + " ± " + sig(b.se.bN, 2) : "") + ",  aU = " + sig(b.aU, 4) + " ± " + sig(b.se.aU, 2) + (F.nb === 4 ? ",  bU = " + sig(b.bU, 3) + " ± " + sig(b.se.bU, 2) : "") + "   (RMS " + sig(F.rms[ci]) + ")"; }).join("\n");
+    $("eq").textContent = "Blank:   F = F(protein well) − F(no-protein blank at the same urea, same read)\n" +
+      "Model:   ΔG(D) = ΔGwater − m·D          fU = 1 / (1 + exp((ΔGwater − m·D) / RT))\n" +
+      "         F(D) = (aN + bN·D)(1 − fU) + (aU + bU·D)·fU          Cm = ΔGwater / m\n" +
+      "         R = 0.008314 kJ mol⁻¹ K⁻¹, T = " + sig(F.T) + " °C = " + sig(F.T + 273.15, 5) + " K, RT = " + sig(F.RT, 4) + " kJ/mol\n\n" +
+      "Fitted as Cm and m (ΔGwater = m·Cm). Baselines for " + sel.name + (F.nb === 2 ? " (slopes fixed at 0)" : "") + ":\n" + B + "\n\n" +
+      "Every well is fit (not the means) by nonlinear least squares. For each trial Cm and m the baselines are solved exactly;\n" +
+      "Cm and m are then refined by Levenberg–Marquardt. SEs come from the covariance matrix of all parameters." + (F.keys.length > 1 ? "\nBoth channels share Cm and m; each has its own baselines and is weighted by 1/(its RMS in a separate fit)." : "");
+
+    // export tables
+    var tp = [["series", "protein", "read", "time_min", "T_C", "channels", "slopes", "n", "Cm (M)", "SE_Cm", "m (kJ/mol/M)", "SE_m", "dG_water (kJ/mol)", "SE_dG", "dCm_vs_" + G.refP + " (M)", "SE_dCm", "ddG_mbar_dCm (kJ/mol)", "channel", "aN", "SE_aN", "bN", "SE_bN", "aU", "SE_aU", "bU", "SE_bU", "RMS"]];
+    var td = [["series", "well", "urea (M)", "channel", "F (RFU)", "fit", "residual", "fU_observed", "fU_model"]], tc = [["series", "urea (M)", "fU", "fit_" + chName("Fa"), "fit_" + chName("Fb")]];
+    D.forEach(function (d) {
+      var f = FITS[d.key]; if (f.err) return; var c = cmp(d);
+      f.base.forEach(function (b, ci) { tp.push([d.name, d.protein, d.ri + 1, runs[d.ri].tmin, f.T, fitLabel(f), f.nb === 4 ? "fitted" : "fixed 0", f.n, f.Cm, f.seCm, f.m, f.seM, f.dG, f.seDG, c ? c.dCm : "", c ? c.se : "", c ? c.ddG : "", chName(f.keys[ci]), b.aN, b.se.aN, b.bN, b.se.bN, b.aU, b.se.aU, b.bU, b.se.bU, f.rms[ci]]); });
+      f.keys.forEach(function (k, ci) { var b = f.base[ci]; f.data[ci].D.forEach(function (x, i) { var y = f.data[ci].y[i], n = b.aN + b.bN * x, u = b.aU + b.bU * x; td.push([d.name, f.data[ci].wells[i], x, chName(k), y, f.fits[ci][i], y - f.fits[ci][i], (y - n) / (u - n), fuOf(x, f.Cm, f.m, f.RT)]); }); });
+      for (var q2 = 0; q2 <= 160; q2++) { var x = f.Dmax * 1.02 * q2 / 160, ia = f.keys.indexOf("Fa"), ib = f.keys.indexOf("Fb"); tc.push([d.name, x, fuOf(x, f.Cm, f.m, f.RT), ia >= 0 ? fitVal(f, ia, x) : "", ib >= 0 ? fitVal(f, ib, x) : ""]); }
+    });
+    exportTables.parameters = tp; exportTables.data_fit = td; exportTables.curves = tc;
+  }
+  function legendSeries(list, readIdx, lines) {
+    var seen = {}, out = [];
+    list.forEach(function (d) { if (seen[d.protein]) return; seen[d.protein] = 1; out.push('<span><i style="background:' + protColor(d.protein) + '"></i>' + esc(d.protein) + '</span>'); });
+    if (readIdx.length > 1) readIdx.forEach(function (ri, i) { out.push('<span><i class="ln" style="border-color:var(--muted)' + (i ? ";border-top-style:dashed" : "") + '"></i>' + esc(readName(ri)) + (i ? ", open symbols" : "") + '</span>'); });
+    return out.join("");
+  }
+  function drawRatio(D) {
+    var scope = G.reads === "all" && runs.length > 1 ? D : D.filter(function (d) { return d.ri === cur; });
+    $("ratioPanel").hidden = !scope.length; if (!scope.length) return;
+    var yv = [], Dm = 0; scope.forEach(function (d) { yv = yv.concat(d.R); Dm = Math.max(Dm, Math.max.apply(null, d.D)); });
+    var xr = [-0.25, Dm + 0.3], lab = "F" + sig(G.lb, 4) + "/F" + sig(G.la, 4), f = frame(640, 300, xr, range(yv, 0.08), "[urea] (M)", lab), s = f.svg;
+    var readIdx = []; scope.forEach(function (d) { if (readIdx.indexOf(d.ri) < 0) readIdx.push(d.ri); }); readIdx.sort();
+    var tr = [["series", "protein", "read", "time_min", "urea (M)", "n", "mean ratio " + lab, "SD", "wells"]];
+    scope.forEach(function (d) {
+      var col = protColor(d.protein), dash = DASH[readIdx.indexOf(d.ri) % 4], open = readIdx.indexOf(d.ri) > 0, gm = groupMeans(d.D, d.R);
+      s += polyline(gm.map(function (g) { return [f.sx(g.D), f.sy(g.m)]; }), col, dash, d.key === G.sel ? 2.4 : 1.6, ' opacity="0.8"');
+      if (G.pts === "means") gm.forEach(function (g) { s += ebar(f.sx(g.D), f.sy(g.m - (g.sd || 0)), f.sy(g.m + (g.sd || 0)), col) + mark(f.sx(g.D), f.sy(g.m), "c", col, open, d.name + ": " + sig(g.D) + " M, " + g.m.toFixed(4), 3.6); });
+      else d.D.forEach(function (x, i) { s += mark(f.sx(x), f.sy(d.R[i]), "c", col, open, d.wells[i] + ": " + sig(x) + " M, " + (isFinite(d.R[i]) ? d.R[i].toFixed(4) : "—")); });
+      gm.forEach(function (g) { tr.push([d.name, d.protein, d.ri + 1, runs[d.ri].tmin, g.D, g.n, g.m, g.sd, d.wells.filter(function (w, i) { return Math.abs(d.D[i] - g.D) < 1e-6; }).join(" ")]); });
+    });
+    $("plotR").innerHTML = s; $("ratioTitle").textContent = lab + " vs. urea (blank subtracted)";
+    $("legendR").innerHTML = legendSeries(scope, readIdx) + '<span>lines join the means</span>';
+    exportTables.ratio = tr;
+  }
+  function drawRepeat(D) {
+    $("repPanel").hidden = runs.length < 2; if (runs.length < 2) return;
+    var prots = []; D.forEach(function (d) { if (prots.indexOf(d.protein) < 0) prots.push(d.protein); });
+    var head = '<tr><th>Protein</th>' + runs.map(function (r, ri) { return '<th>C<sub>m</sub>, ' + esc(readName(ri)) + '</th>'; }).join("") + '<th>change in C<sub>m</sub> (last − first)</th><th>mean |Δ ratio|</th><th style="text-align:left">verdict</th></tr>';
+    var rows = [["protein"].concat(runs.map(function (r, ri) { return "Cm read " + (ri + 1) + " (" + (isFinite(r.tmin) ? r.tmin + " min" : "time?") + ")"; }), runs.map(function (r, ri) { return "SE read " + (ri + 1); }), ["dCm_last_minus_first", "SE", "mean_abs_dRatio"])];
+    var body = prots.map(function (p) {
+      var ds = runs.map(function (r, ri) { return D.filter(function (d) { return d.protein === p && d.ri === ri; })[0]; }), fs = ds.map(function (d) { return d && !FITS[d.key].err ? FITS[d.key] : null; });
+      var first = null, last = null; fs.forEach(function (f) { if (f) { if (!first) first = f; last = f; } });
+      var dCm = first && last && first !== last ? last.Cm - first.Cm : NaN, se = first && last ? Math.sqrt(first.seCm * first.seCm + last.seCm * last.seCm) : NaN;
+      var dfirst = ds.filter(Boolean)[0], dlast = ds.filter(Boolean).slice(-1)[0], dr = NaN;
+      if (dfirst && dlast && dfirst !== dlast) { var g1 = groupMeans(dfirst.D, dfirst.R), g2 = groupMeans(dlast.D, dlast.R), diffs = []; g1.forEach(function (a) { var b = g2.filter(function (x) { return Math.abs(x.D - a.D) < 1e-6; })[0]; if (b) diffs.push(Math.abs(b.m - a.m)); }); dr = mean(diffs); }
+      var verdict = !isFinite(dCm) ? "needs a fit in two reads" : Math.abs(dCm) > 2 * se && Math.abs(dCm) > 0.05 ? "still changing: not at equilibrium at the first read" : "no clear change (within 2 SE)";
+      rows.push([p].concat(fs.map(function (f) { return f ? f.Cm : ""; }), fs.map(function (f) { return f ? f.seCm : ""; }), [dCm, se, dr]));
+      return '<tr><td>' + esc(p) + '</td>' + fs.map(function (f) { return '<td>' + (f ? sig(f.Cm) + ' ± ' + sig(f.seCm) : "—") + '</td>'; }).join("") + '<td' + (Math.abs(dCm) > 2 * se ? ' class="neg"' : "") + '>' + (isFinite(dCm) ? (dCm > 0 ? "+" : "") + sig(dCm) + ' ± ' + sig(se) : "—") + '</td><td>' + (isFinite(dr) ? dr.toFixed(4) : "—") + '</td><td class="l">' + verdict + '</td></tr>';
+    }).join("");
+    $("repTbl").innerHTML = '<table class="data"><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+    exportTables.repeat = rows;
+    if (runs.some(function (r) { return !isFinite(r.tmin); })) $("repHint").innerHTML = '<b style="color:var(--warn)">Enter the time since protein was added for each read (step 1).</b> Each protein is fit separately in each read. If C<sub>m</sub> or the ratio still moves between reads by more than the uncertainty, the samples were not at equilibrium; use the later read, or incubate longer.';
+    else $("repHint").innerHTML = "Each protein is fit separately in each read (same channels and options). If C<sub>m</sub> or the ratio still moves between reads by more than the uncertainty, the samples were not at equilibrium; use the later read, or incubate longer. Use “all reads” above the series table to overlay the reads in the plots.";
+  }
+  function wellRows() {
+    var la = sig(G.la, 4), lb = sig(G.lb, 4), out = [["read", "time_min", "T_C", "well", "use", "protein", "urea (M)", "F" + la + "_raw", "F" + la + "_blank", "F" + la, "F" + lb + "_raw", "F" + lb + "_blank", "F" + lb, "ratio F" + lb + "/F" + la, "blank_used", "precipitate", "OVER_points"]];
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w]; out.push([ri + 1, run.tmin, run.T, w, o.role === "off" ? "left out" : o.role === "blank" ? "blank" : "protein", o.role === "sample" ? o.protein : "", o.D, o.FaRaw, o.FaBl, o.Fa, o.FbRaw, o.FbBl, o.Fb, o.role === "sample" ? o.R : "", o.role === "sample" ? (o.bkind === "exact" ? "same urea" : o.bkind || "") : "", o.precip ? "yes" : "", o.sat || ""]); }); });
+    return out;
+  }
+  function spectraRows() {
+    if (cur < 0) return null;
+    var r = runs[cur], C = calc[cur], ws = r.order.filter(function (w) { return C.w[w].role !== "off"; }), out = [["wavelength (nm)"].concat(ws.map(function (w) { var o = C.w[w]; return w + " " + (o.role === "blank" ? "blank" : o.protein) + " " + (isFinite(o.D) ? o.D + "M" : ""); }))];
+    r.wl.forEach(function (l, k) { out.push([l].concat(ws.map(function (w) { return C.w[w].corr[k]; }))); });
+    return out;
+  }
+
+  // ---------- plan ----------
+  function planConc() { return String(P.conc).split(/[\s,;]+/).map(function (s) { return num(s); }).filter(isFinite); }
+  function planProteins() { return String(P.prot).split(/[,;]+/).map(function (s) { return s.trim(); }).filter(Boolean); }
+  function planRows() { var out = []; planProteins().forEach(function (p) { for (var r = 1; r <= P.reps; r++) out.push({ protein: p, rep: r, blank: false }); }); for (var r = 1; r <= P.breps; r++) out.push({ protein: "blank", rep: r, blank: true }); return out; }
+  function stockM() { if (P.stockMode === "wt") return P.g / MW_UREA / (P.mL / 1000); if (P.stockMode === "ri") { var dn = P.nU - P.nB; return 117.66 * dn + 29.753 * dn * dn + 185.56 * dn * dn * dn; } return P.M; }
+  var planTable = [];
+  function drawPlan() {
+    var S = stockM(), conc = planConc(), prots = planProteins(), V = P.vol, tube = V * (1 + P.extra / 100), vp = P.pf / P.ps * tube, msgs = [], prow = planRows();
+    $("stockOut").textContent = isFinite(S) && S > 0 ? "Urea stock = " + sig(S, 4) + " M" + (P.stockMode === "ri" ? " (ΔN = " + sig(P.nU - P.nB, 4) + ")" : P.stockMode === "wt" ? " (" + sig(P.g / MW_UREA * 1000, 4) + " mmol in " + sig(P.mL) + " mL)" : "") + (S > 10.5 ? ". That is near or above the solubility of urea; check it." : "") : "Enter the stock values.";
+    var maxD = S * (1 - P.pf / P.ps);
+    if (conc.length !== 12) msgs.push(["", "The handout asks for 12 urea concentrations; this list has " + conc.length + "."]);
+    if (conc.some(function (D) { return D > maxD + 1e-9; })) msgs.push(["warn", "The highest urea that fits is " + sig(maxD, 3) + " M (urea stock " + sig(S, 3) + " M, protein stock taking " + sig(100 * P.pf / P.ps, 2) + "% of the volume). Use a more concentrated urea or protein stock, or lower the top concentration."]);
+    if (vp < 1) msgs.push(["warn", "Only " + sig(vp, 2) + " µL of protein stock per tube; that is hard to pipette accurately. Dilute the protein stock (in the same buffer) or mix a larger volume."]);
+    if (prow.length > 8) msgs.push(["warn", prow.length + " rows are needed but a 96-well plate has 8. Use fewer replicates, fewer blank rows, or two plates."]);
+    if (!(P.ps > P.pf)) msgs.push(["warn", "The protein stock must be more concentrated than the final protein."]);
+    $("planMsgs").innerHTML = msgs.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+    $("tubeNote").textContent = "per replicate tube: " + sig(tube, 4) + " µL (" + sig(V) + " µL well + " + sig(P.extra) + "%)";
+    planTable = [["#", "urea (M)", "urea stock (uL)", "protein stock (uL)", "buffer (uL)", "blank: urea stock (uL)", "blank: buffer (uL)", "tube volume (uL)", "dispense per well (uL)"]];
+    var h = '<table class="data"><thead><tr><th>#</th><th>final [urea] (M)</th><th>urea stock (µL)</th><th>protein stock (µL)</th><th>buffer (µL)</th><th>blank: buffer (µL)</th></tr></thead><tbody>', totU = 0, totB = 0, nProtTubes = prots.length * P.reps;
+    conc.forEach(function (D, i) {
+      var vu = D / S * tube, vb = tube - vu - vp, neg = vb < -1e-9;
+      totU += vu * (nProtTubes + P.breps); totB += Math.max(vb, 0) * nProtTubes + Math.max(vb + vp, 0) * P.breps;
+      planTable.push([i + 1, D, vu, vp, vb, vu, vb + vp, tube, V]);
+      h += '<tr><td>' + (i + 1) + '</td><td>' + sig(D) + '</td><td>' + fx(vu, 1) + '</td><td>' + fx(vp, 1) + '</td><td' + (neg ? ' class="neg"' : "") + '>' + fx(vb, 1) + (neg ? " (too much)" : "") + '</td><td>' + fx(vb + vp, 1) + '</td></tr>';
+    });
+    $("mixTbl").innerHTML = h + '</tbody></table>';
+    $("mixHint").innerHTML = "Volumes for one replicate tube. Mix urea stock, buffer and protein (protein last), then dispense " + sig(V) + " µL into the well. The blank tube is the same with buffer in place of the protein stock (use the protein's storage buffer if it differs). Prepare each replicate tube separately.";
+    var vprotTot = vp * conc.length * P.reps, pmol = P.ps * vprotTot, mw = num(String(P.mw));
+    $("planCards").innerHTML =
+      '<div class="card"><div class="k">Urea stock needed</div><div class="v">' + sig(totU / 1000, 3) + ' mL</div><div class="s">' + (nProtTubes + P.breps) + ' series × ' + conc.length + ' tubes</div></div>' +
+      '<div class="card"><div class="k">Protein stock, per protein</div><div class="v">' + sig(vprotTot, 3) + ' µL</div><div class="s">' + sig(pmol / 1000, 3) + ' nmol' + (mw > 0 ? " · " + sig(pmol / 1000 * mw, 3) + " µg" : "") + ' at ' + sig(P.ps) + ' µM</div></div>' +
+      '<div class="card"><div class="k">Buffer</div><div class="v">' + sig(totB / 1000, 3) + ' mL</div><div class="s">all tubes</div></div>' +
+      '<div class="card"><div class="k">Wells</div><div class="v">' + (prow.length * conc.length) + '</div><div class="s">' + prow.length + ' rows × ' + conc.length + ' columns</div></div>';
+    drawMap(prow, conc);
+  }
+  var mapTable = [];
+  function drawMap(prow, conc) {
+    var ncol = Math.max(12, conc.length), nrow = Math.max(8, prow.length), cw = (640 - 34 - 104) / ncol, rh = 36, H = 26 + nrow * rh + 8, s = "", prots = planProteins();
+    mapTable = [[""].concat(Array.apply(null, Array(ncol)).map(function (_, i) { return String(i + 1); }), ["contents"])];
+    for (var c = 0; c < ncol; c++) s += '<text x="' + (34 + cw * (c + 0.5)) + '" y="16" text-anchor="middle">' + (c + 1) + '</text>';
+    for (var r = 0; r < nrow; r++) {
+      var y = 26 + rh * (r + 0.5), p = prow[r], col = p ? (p.blank ? "var(--muted)" : COLORS[prots.indexOf(p.protein) % 6]) : "var(--line)", R = String.fromCharCode(65 + r), mrow = [R];
+      s += '<text x="14" y="' + (y + 4) + '" text-anchor="middle" class="ttl">' + R + '</text>';
+      for (c = 0; c < ncol; c++) {
+        var x = 34 + cw * (c + 0.5), has = p && c < conc.length;
+        s += '<circle cx="' + x.toFixed(1) + '" cy="' + y + '" r="' + Math.min(15, cw / 2 - 2).toFixed(1) + '" fill="' + (has ? col : "none") + '" fill-opacity="' + (has ? (p.blank ? 0.08 : 0.16) : 0) + '" stroke="' + (has ? col : "var(--line)") + '" stroke-width="' + (has ? 1.6 : 1) + '"' + (p && p.blank ? ' stroke-dasharray="3 2"' : "") + '/>';
+        if (has) s += '<text x="' + x.toFixed(1) + '" y="' + (y + 3.5) + '" text-anchor="middle" class="lbl">' + sig(conc[c]) + '</text>';
+        mrow.push(has ? sig(conc[c]) : "");
+      }
+      if (p) s += '<text x="' + (640 - 100) + '" y="' + (y + 4) + '" class="ttl">' + esc(p.blank ? "blank " + p.rep : p.protein + " · rep " + p.rep) + '</text>';
+      mrow.push(p ? (p.blank ? "no-protein blank " + p.rep : p.protein + " replicate " + p.rep) : "");
+      mapTable.push(mrow);
+    }
+    var svg = $("planMap"); svg.setAttribute("viewBox", "0 0 640 " + H); svg.innerHTML = s;
+    $("legendMap").innerHTML = prots.map(function (p, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(p) + ' (' + P.reps + ' rows)</span>'; }).join("") + (P.breps ? '<span><i class="op" style="border-color:var(--muted)"></i>no-protein blank (' + P.breps + ' row' + (P.breps > 1 ? "s" : "") + ')</span>' : "") + '<span>' + sig(P.pf) + ' µM protein, ' + sig(P.vol) + ' µL per well</span>';
+  }
+
+  // ---------- export: PNG figures and CSV tables ----------
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "ref", "warn", "band", "c1", "c2", "c3", "c4", "c5", "c6", "u0", "u1"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && $(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) { var cs = getComputedStyle(i); if (i.classList.contains("ln")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; } else if (i.classList.contains("ubar")) { item.kind = null; } else if (i.classList.contains("op")) { item.kind = "open"; item.color = cs.borderTopColor; } else { item.kind = "dot"; item.color = cs.backgroundColor; } }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = $(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "open") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="none" stroke="' + it.color + '" stroke-dasharray="2 1.5"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}.lbl{font-family:Consolas,monospace;font-size:10.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function saveFile(filename, data, note) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) return dl.save({ filename: filename, data: data }).then(function () { note("Saved " + filename + "."); }, function (e) { note(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + "."); });
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); note("Downloaded " + filename + ".");
+      } catch (e) { note("Saving files is not available in this view."); }
+    });
+  }
+  function exportNote(t) { $("exportMsg").textContent = t; }
+  function planNote(t) { $("planExpMsg").textContent = t; }
+  var EXP = { plots: [{ svg: "plotA", legend: "legendA", label: "Intensity fit", file: "intensity_fit" }, { svg: "plotB", legend: null, label: "Residuals", file: "residuals" }, { svg: "plotF", legend: "legendF", label: "Fraction unfolded", file: "fraction_unfolded" }, { svg: "plotR", legend: "legendR", label: "Ratio", file: "ratio" }, { svg: "plotS", legend: "legendS", label: "Spectra", file: "spectra" }, { svg: "plotW", legend: "legendW", label: "Selected well spectrum", file: "well" }],
+    tables: [{ key: "wells", label: "Every well: channels and blanks", file: "wells" }, { key: "spectra", label: "Spectra, this read (blank subtracted)", file: "spectra" }, { key: "parameters", label: "Fit parameters", file: "parameters" }, { key: "data_fit", label: "Data + fitted values", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves", file: "fit_curves" }, { key: "ratio", label: "Ratio means", file: "ratio_means" }, { key: "repeat", label: "Repeat-read comparison", file: "repeat_reads" }] };
+  $("exportPng").innerHTML = EXP.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+  $("exportCsv").innerHTML = EXP.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+  function prefix() { return cur >= 0 ? runs[cur].file.replace(/[^\w.-]+/g, "_") : "urea"; }
+  $("exportPng").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-png]"); if (!b) return; var p = EXP.plots[+b.dataset.png], el = $(p.svg);
+    if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+    exportNote("Preparing the figure...");
+    svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(prefix() + "_" + (p.file === "well" ? selWell : p.file) + ".png", blob, exportNote); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+  });
+  $("exportCsv").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-csv]"); if (!b) return; var t = EXP.tables[+b.dataset.csv], rows = exportTables[t.key];
+    if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+    saveFile(prefix() + "_" + t.file + ".csv", csvText(rows), exportNote);
+  });
+  $("exPlanCsv").addEventListener("click", function () {
+    var rows = [["urea stock (M)", stockM()], ["protein stock (uM)", P.ps], ["final protein (uM)", P.pf], ["volume per well (uL)", P.vol], ["extra per tube (%)", P.extra], ["notes", P.notes], []].concat(planTable);
+    saveFile("urea_mixtures.csv", csvText(rows), planNote);
+  });
+  $("exMapCsv").addEventListener("click", function () { saveFile("urea_plate_map.csv", csvText(mapTable), planNote); });
+  $("exMapPng").addEventListener("click", function () { planNote("Preparing the figure..."); svgToPng("planMap", "legendMap", 3).then(function (b) { return saveFile("urea_plate_map.png", b, planNote); }, function (err) { planNote("Could not make the figure: " + err.message); }); });
+
+  // ---------- events ----------
+  $("tabSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-t]"); if (!b) return; G.tab = b.dataset.t; syncInputs(); save(); render(); });
+  $("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
+  var dropEl = $("drop");
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });
+  $("pasteBtn").addEventListener("click", function () { var box = $("pasteText"), found = findRuns(readText(box.value), "pasted"); if (found.length) box.value = ""; addRuns(found, "Pasted"); });
+  $("exampleBtn").addEventListener("click", loadExample);
+  $("clearBtn").addEventListener("click", function () { runs = []; cur = -1; selWell = null; G.sel = null; topMsg(""); buildRunSel(); buildLayout(); render(); });
+  $("runSel").addEventListener("change", function (e) { cur = +e.target.value; if (!runs[cur].cfg.wells[selWell]) selWell = runs[cur].order[0]; syncInputs(); buildLayout(); render(); });
+  $("runDel").addEventListener("click", function () { if (cur < 0) return; runs.splice(cur, 1); cur = runs.length ? Math.min(cur, runs.length - 1) : -1; selWell = cur >= 0 ? runs[cur].order[0] : null; syncInputs(); buildRunSel(); buildLayout(); render(); });
+  $("rTime").addEventListener("input", function (e) { if (cur < 0) return; var v = parseFloat(e.target.value); runs[cur].tmin = isFinite(v) ? v : NaN; buildRunSel(); render(); });
+  $("rTemp").addEventListener("input", function (e) { if (cur < 0) return; var v = parseFloat(e.target.value); if (isFinite(v)) { runs[cur].T = v; render(); } });
+
+  function numIn(id, fn) { $(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v)) { fn(v); save(); render(); } }); }
+  numIn("la", function (v) { G.la = v; }); numIn("lb", function (v) { G.lb = v; }); numIn("bw", function (v) { G.bw = Math.max(0, v); });
+  $("subBlank").addEventListener("change", function (e) { G.sub = e.target.checked; save(); render(); });
+  $("slopes").addEventListener("change", function (e) { G.slopes = e.target.checked; save(); render(); });
+  $("fitSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-f]"); if (!b) return; G.fit = b.dataset.f; pressed("fitSeg", "f", G.fit); save(); render(); });
+  $("readsSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; G.reads = b.dataset.r; render(); });
+  $("ptsSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-p]"); if (!b) return; G.pts = b.dataset.p; render(); });
+  $("normSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-n]"); if (!b) return; G.norm = b.dataset.n === "norm"; pressed("normSeg", "n", b.dataset.n); render(); });
+  $("specSel").addEventListener("change", function (e) { G.spec = e.target.value; render(); });
+  $("refSel").addEventListener("change", function (e) { G.refP = e.target.value; render(); });
+  $("dsTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-s]"); if (!tr) return; G.sel = tr.dataset.s; render(); });
+
+  $("clickSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-a]"); if (!b) return; G.click = b.dataset.a; pressed("clickSeg", "a", G.click); });
+  $("plateGrid").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-w]"); if (!b) return; var w = b.dataset.w, cfg = runs[cur].cfg.wells[w];
+    selWell = w;
+    if (G.click === "off") cfg.role = cfg.role === "off" ? "sample" : "off";
+    else if (G.click === "blank") cfg.role = cfg.role === "blank" ? "sample" : "blank";
+    if (G.click !== "inspect") buildLayout();
+    render();
+  });
+  function step(d) { var o = runs[cur].order, i = o.indexOf(selWell); selWell = o[(i + d + o.length) % o.length]; render(); }
+  $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
+  $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; buildLayout(); render(); });
+  $("wPrecip").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].precip = e.target.checked; render(); });
+
+  $("copyTop").addEventListener("click", function () {
+    if (cur < 0) return; var r = runs[cur], top = r.rowsUsed[0];
+    r.order.forEach(function (w) { var src = r.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src) r.cfg.wells[w].D = src.D; });
+    buildLayout(); render();
+  });
+  $("fromPlan").addEventListener("click", function () { if (cur < 0) return; applyPlan(runs[cur]); buildLayout(); render(); topMsg("Layout filled from the plan: " + planRows().length + " rows × " + planConc().length + " urea concentrations."); });
+  $("copyReads").addEventListener("click", function () { if (cur < 0) return; runs.forEach(function (r) { if (r !== runs[cur]) copyCfg(runs[cur], r); }); render(); topMsg("This layout now applies to all " + runs.length + " reads."); });
+  var lg = $("layoutGrid");
+  lg.addEventListener("input", function (e) {
+    var el = e.target, cfg = runs[cur].cfg;
+    if (el.dataset.prot !== undefined) { cfg.rows[el.dataset.prot].protein = el.value; render(); return; }
+    if (el.dataset.wd !== undefined) { cfg.wells[el.dataset.wd].D = el.value.trim() === "" ? NaN : num(el.value); render(); }
+  });
+  lg.addEventListener("change", function (e) {
+    var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return;
+    var r = runs[cur]; r.order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) r.cfg.wells[w].role = el.value; });
+    if (el.value === "blank" && !r.cfg.rows[el.dataset.rrole].protein.trim()) r.cfg.rows[el.dataset.rrole].protein = "blank";
+    buildLayout(); render();
+  });
+  lg.addEventListener("paste", function (e) {
+    var el = e.target; if (el.tagName !== "INPUT" || el.dataset.wd === undefined) return;
+    var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n,; ]/.test(t.trim())) return;
+    e.preventDefault();
+    var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
+    var r0 = +el.dataset.r, c0 = +el.dataset.c, cfg = runs[cur].cfg;
+    grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); cfg.wells[x.dataset.wd].D = v.trim() === "" ? NaN : num(v); } }); });
+    render();
+  });
+
+  // plan inputs
+  $("stockSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-s]"); if (!b) return; P.stockMode = b.dataset.s; syncInputs(); save(); render(); });
+  [["pG", "g"], ["pML", "mL"], ["pNU", "nU"], ["pNB", "nB"], ["pM", "M"], ["pPS", "ps"], ["pPF", "pf"], ["pVol", "vol"], ["pExtra", "extra"]].forEach(function (x) { numIn(x[0], function (v) { P[x[1]] = v; }); });
+  numIn("pReps", function (v) { P.reps = Math.max(1, Math.min(16, Math.round(v))); }); numIn("pBReps", function (v) { P.breps = Math.max(0, Math.min(16, Math.round(v))); });
+  $("pMW").addEventListener("input", function (e) { P.mw = e.target.value; save(); render(); });
+  $("pConc").addEventListener("input", function (e) { P.conc = e.target.value; save(); render(); });
+  $("pProt").addEventListener("input", function (e) { P.prot = e.target.value; save(); render(); });
+  $("pUse").addEventListener("change", function (e) { P.use = e.target.checked; save(); });
+  $("pNotes").addEventListener("input", function (e) { P.notes = e.target.value; save(); });
+
+  syncInputs(); buildRunSel(); render();
+})();
+</script>
+</body>
+</html>
