@@ -122,6 +122,28 @@ tbody tr.best td:first-child { font-weight: 600; }
 ul.try { margin: 0; padding-left: 18px; }
 ul.try li { margin-bottom: 4px; }
 [hidden] { display: none !important; }
+/* plate reader file: plate grid with a mini trace per well */
+.pctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin: 4px 0 10px; font-size: 13px; }
+.pctl label { display: inline-flex; gap: 6px; align-items: center; }
+.pctl input[type=number] { width: 68px; font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.pctl select { width: auto; font: inherit; font-size: 12.5px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.plate { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
+.plate th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; white-space: nowrap; }
+.plate td { padding: 0; }
+.plate input, .plate select { font: inherit; font-family: var(--mono); font-size: 12px; padding: 3px 4px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--fg); }
+.plate input.sc { width: 46px; text-align: right; }
+.plate input.ri { width: 48px; text-align: right; }
+.plate select { font-family: var(--font); width: 78px; }
+.wl { display: block; width: 46px; padding: 2px 3px 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--fg); cursor: pointer; font: inherit; }
+.wl:hover { border-color: var(--accent); }
+.wl svg { display: block; width: 100%; height: 28px; }
+.wl .num { display: block; font-family: var(--mono); font-size: 10.5px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; }
+.wl.off { opacity: 0.35; }
+.wl.off .num { text-decoration: line-through; }
+.wl.blank { border-style: dashed; border-color: var(--muted); }
+.wl.bad { background: var(--warn-bg); }
+.wl.empty { cursor: default; opacity: 0.25; height: 46px; }
+[hidden] { display: none !important; }
 </style>
 
 <div class="wrap">
@@ -155,8 +177,8 @@ ul.try li { margin-bottom: 4px; }
         <h2>Your data</h2>
         <label class="drop" id="drop" for="fileIn">
           <b>Drop a file here</b> or click to choose
-          <span>First column [S]; each other column is the velocity at one inhibitor concentration. Put the [I] values in the header row. CSV, TSV or text.</span>
-          <input type="file" id="fileIn" accept=".csv,.tsv,.txt,.dat,text/*" hidden>
+          <span><b>Plate reader .xlsx:</b> the A<sub>340</sub> time courses as exported by the infinite 200Pro (i-control) or the Spark (SparkControl); the format is detected automatically. A slope is taken from each well, and [S] and [I] come from the plate layout. <b>Or a table:</b> first column [S], one column of velocities per inhibitor concentration, [I] values in the header row (CSV, TSV or text).</span>
+          <input type="file" id="fileIn" accept=".xlsx,.xlsm,.csv,.tsv,.txt,.dat,text/*" hidden>
         </label>
         <details id="pasteBox">
           <summary>Or paste from Excel</summary>
@@ -181,6 +203,19 @@ ul.try li { margin-bottom: 4px; }
     </div>
 
     <div class="main">
+      <div id="plateWrap" hidden><section class="panel">
+        <div class="plothead"><h3 id="plateTitle">Plate</h3><select id="runSel" aria-label="Kinetic run" hidden></select></div>
+        <p class="hint" id="plateInfo" style="margin:0 0 8px"></p>
+        <div class="pctl">
+          <label>Slope window <input type="number" id="pwA" step="any" min="0" aria-label="Window start, min"> to <input type="number" id="pwB" step="any" min="0" aria-label="Window end, min"> min</label>
+          <label>A₃₄₀ <select id="pDir"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></label>
+          <label><input type="checkbox" id="pSub" checked> subtract the mean slope of blank rows</label>
+          <label>Rates as <select id="pUnits"><option value="mA">mA340/min</option><option value="uM">µM NADPH/min</option></select></label>
+          <span id="pConv" hidden><label>volume <input type="number" id="pVol" step="any" min="0"> µL</label> <label>well diameter <input type="number" id="pDiam" step="any" min="0"> mm</label></span>
+        </div>
+        <div class="tablewrap" id="plateGrid"></div>
+        <p class="hint">Each well shows its A<sub>340</sub> trace (shaded = slope window) and its slope in mA<sub>340</sub>/min; orange wells fit a straight line poorly in the window (R² below 0.95); look at them and shorten the window if the trace bends. Click a well to leave it out, or to use it again. Type the substrate concentration [S] above each <b>column</b> and the inhibitor concentration [I] at the left of each <b>row</b>, in the same units (mM). The layout starts as the class plate map: [S] = 2, 5, 10, 20, 40, 80 mM in columns 1–6, repeated in 7–12, and [I] = 0, 1.5, 3, 9 mM in rows A–D. Rows with the same [I] are pooled. A row marked <b>blank (no enzyme)</b> gives the background slope. The rates go straight into the fit below; for µM/min the light path is volume ÷ well area (ε<sub>340</sub> = 6220 M⁻¹cm⁻¹).</p>
+      </section></div>
       <div class="cards" id="cards"></div>
       <div class="msgs" id="msgs"></div>
       <section class="panel" id="exportPanel">
@@ -318,7 +353,7 @@ ul.try li { margin-bottom: 4px; }
         '<div class="crvin"><label>[I] for this series<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.I) ? c.I : "") + '"></label></div></div>';
     }).join("");
   }
-  function setSeries(list) { series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
+  function setSeries(list, keepPlate) { if (!keepPlate) plate = null; document.getElementById("plateWrap").hidden = !plate; series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
 
   // ---------- Levenberg-Marquardt (generic, log-parameter space) ----------
   function solve(A, b) {
@@ -456,9 +491,251 @@ ul.try li { margin-bottom: 4px; }
   bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.sel = "auto"; });
   bindSeg("diagSeg", "d", function (v) { state.diag = v; });
   document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
+
+  // ---------- plate reader .xlsx (time courses; infinite 200Pro and Spark formats) ----------
+  // The reader below is the same code as the Plate Reader Kinetics tool.
+  var PR = (function () {
+    var WELL_RE = /^([A-P])0?(\d{1,2})$/;
+    function num(v) { if (typeof v === "number") return v; if (typeof v !== "string" || !v.trim()) return NaN; return Number(v.trim()); }
+  // ---------- reading .xlsx (a zip of XML files) without a library ----------
+    function u16(d, o) { return d[o] | d[o + 1] << 8; }
+    function u32(d, o) { return (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | d[o + 3] << 24) >>> 0; }
+    function unzip(buf) {
+      var d = new Uint8Array(buf), e = -1, files = {}, td = new TextDecoder();
+      for (var i = d.length - 22; i >= Math.max(0, d.length - 65600); i--) if (u32(d, i) === 0x06054b50) { e = i; break; }
+      if (e < 0) throw new Error("This does not look like an .xlsx file.");
+      var n = u16(d, e + 10), p = u32(d, e + 16);
+      for (var k = 0; k < n && u32(d, p) === 0x02014b50; k++) {
+        var method = u16(d, p + 10), csize = u32(d, p + 20), nl = u16(d, p + 28), xl = u16(d, p + 30), cl = u16(d, p + 32), lo = u32(d, p + 42);
+        var name = td.decode(d.subarray(p + 46, p + 46 + nl)), start = lo + 30 + u16(d, lo + 26) + u16(d, lo + 28);
+        files[name] = { method: method, raw: d.subarray(start, start + csize) };
+        p += 46 + nl + xl + cl;
+      }
+      return files;
+    }
+    function inflate(f) {
+      if (!f) return Promise.resolve(null);
+      if (f.method === 0) return Promise.resolve(new TextDecoder().decode(f.raw));
+      if (typeof DecompressionStream === "undefined") return Promise.reject(new Error("This browser cannot open .xlsx files. Update it, or copy the cells from Excel and paste them instead."));
+      return new Response(new Blob([f.raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+    }
+    function tags(doc, name) { return Array.prototype.slice.call(doc.getElementsByTagNameNS("*", name)); }
+    function colIndex(ref) { var m = /^([A-Z]+)(\d+)$/.exec(ref), c = 0; if (!m) return null; for (var i = 0; i < m[1].length; i++) c = c * 26 + m[1].charCodeAt(i) - 64; return { c: c - 1, r: +m[2] - 1 }; }
+    function readXlsx(buf) {
+      var files = unzip(buf), P = new DOMParser();
+      function xml(t) { return t ? P.parseFromString(t, "application/xml") : null; }
+      return Promise.all([inflate(files["xl/workbook.xml"]), inflate(files["xl/_rels/workbook.xml.rels"]), inflate(files["xl/sharedStrings.xml"])]).then(function (r) {
+        if (!r[0]) throw new Error("No workbook found in this file.");
+        var wb = xml(r[0]), rel = {}, ss = [];
+        if (r[1]) tags(xml(r[1]), "Relationship").forEach(function (el) { rel[el.getAttribute("Id")] = el.getAttribute("Target"); });
+        if (r[2]) tags(xml(r[2]), "si").forEach(function (si) { ss.push(tags(si, "t").filter(function (t) { return t.parentNode.localName !== "rPh"; }).map(function (t) { return t.textContent; }).join("")); });
+        var sheets = tags(wb, "sheet").map(function (el, i) {
+          var id = el.getAttribute("r:id") || el.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id"), tgt = rel[id] || ("worksheets/sheet" + (i + 1) + ".xml");
+          return { name: el.getAttribute("name"), path: tgt.charAt(0) === "/" ? tgt.slice(1) : "xl/" + tgt.replace(/^\.\//, "") };
+        });
+        return Promise.all(sheets.map(function (s) { return inflate(files[s.path]); })).then(function (texts) {
+          return sheets.map(function (s, i) {
+            var rows = [];
+            if (!texts[i]) return { name: s.name, rows: rows };
+            tags(xml(texts[i]), "row").forEach(function (rowEl, ri) {
+              var rn = (+rowEl.getAttribute("r") || ri + 1) - 1, out = rows[rn] = rows[rn] || [], pos = 0;
+              tags(rowEl, "c").forEach(function (c) {
+                var ref = c.getAttribute("r"), at = ref ? colIndex(ref) : null, ci = at ? at.c : pos, t = c.getAttribute("t"), v = tags(c, "v")[0], val;
+                pos = ci + 1;
+                if (t === "s") val = v ? ss[+v.textContent] : "";
+                else if (t === "inlineStr") val = tags(c, "t").map(function (x) { return x.textContent; }).join("");
+                else if (t === "str" || t === "e") val = v ? v.textContent : "";
+                else if (t === "b") val = v ? v.textContent === "1" : "";
+                else val = v ? parseFloat(v.textContent) : null;
+                out[ci] = val;
+              });
+            });
+            for (var k = 0; k < rows.length; k++) if (!rows[k]) rows[k] = [];
+            return { name: s.name, rows: rows };
+          });
+        });
+      });
+    }
+    // ---------- finding kinetic runs in a sheet ----------
+    function parseTime(v) {
+      if (typeof v === "number") return v;
+      if (typeof v !== "string") return NaN;
+      var m = /^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(v.trim()); if (m) return +m[1] * 3600 + +m[2] * 60 + +m[3];
+      m = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(v.trim()); if (m) return +m[1] * 60 + +m[2];
+      return num(v);
+    }
+    function timeScale(label) { var l = String(label).toLowerCase(); return /\bh(ou)?r|\[h\]|\(h\)/.test(l) ? 3600 : /min/.test(l) ? 60 : 1; }
+    function firstCell(r) { for (var i = 0; i < r.length; i++) if (r[i] !== null && r[i] !== undefined && r[i] !== "") return i; return -1; }
+    function str(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+    function metaBefore(rows, i, key) {
+      for (var k = i; k >= 0; k--) { var r = rows[k] || [], c = firstCell(r); if (c < 0 || str(r[c]).toLowerCase().indexOf(key) !== 0) continue; for (var j = c + 1; j < r.length; j++) if (str(r[j])) return str(r[j]); }
+      return "";
+    }
+    function findRuns(rows, sheet) {
+      var out = [];
+      for (var i = 0; i < rows.length; i++) {
+        var r = rows[i] || [], c = firstCell(r); if (c < 0) continue;
+        // wells in rows: a "Time" row, then one row per well (Tecan default)
+        if (/^time\b/i.test(str(r[c]))) {
+          var sc = timeScale(r[c]), t = [];
+          for (var j = c + 1; j < r.length; j++) { var tv = parseTime(r[j]); if (!isFinite(tv)) break; t.push(tv * sc); }
+          if (t.length >= 3) {
+            var wells = {}, order = [], k = i + 1, gaps = 0;
+            for (; k < rows.length; k++) {
+              var rr = rows[k] || [], lab = str(rr[c]);
+              if (!lab && firstCell(rr) < 0) { if (order.length || ++gaps > 1) break; continue; }
+              if (/^(temp|cycle)/i.test(lab) || (!lab && !order.length)) continue;
+              var m = WELL_RE.exec(lab); if (!m) break;
+              var w = m[1] + (+m[2]); if (wells[w]) continue;
+              wells[w] = t.map(function (_, q) { var x = num(rr[c + 1 + q]); return isFinite(x) ? x : NaN; }); order.push(w);
+            }
+            if (order.length) { out.push(mkRun(sheet, rows, i, t, wells, order)); i = k - 1; continue; }
+          }
+        }
+        // wells in columns: a header row with a Time cell and well names
+        var tc = -1, wcols = [];
+        r.forEach(function (v, j) { var s = str(v); if (tc < 0 && /^time\b/i.test(s)) tc = j; else { var m = WELL_RE.exec(s); if (m) wcols.push([j, m[1] + (+m[2])]); } });
+        if (tc >= 0 && wcols.length) {
+          var sc2 = timeScale(r[tc]), t2 = [], w2 = {}, k2 = i + 1;
+          wcols.forEach(function (x) { w2[x[1]] = []; });
+          for (; k2 < rows.length; k2++) { var r2 = rows[k2] || [], tt = parseTime(r2[tc]); if (!isFinite(tt)) break; t2.push(tt * sc2); wcols.forEach(function (x) { var v = num(r2[x[0]]); w2[x[1]].push(isFinite(v) ? v : NaN); }); }
+          if (t2.length >= 3) { out.push(mkRun(sheet, rows, i, t2, w2, wcols.map(function (x) { return x[1]; }))); i = k2 - 1; }
+        }
+      }
+      return out;
+    }
+    function mkRun(sheet, rows, i, t, wells, order) {
+      // the Spark lists all 96 wells even when only part of the plate was read: keep wells that have readings
+      order = order.filter(function (w) { return wells[w].filter(isFinite).length >= 3; });
+      order.sort(function (a, b) { return a.charCodeAt(0) - b.charCodeAt(0) || +a.slice(1) - +b.slice(1); });
+      var st = metaBefore(rows, i, "start time"), part = metaBefore(rows, i, "part of plate"), wl = metaBefore(rows, i, "measurement wavelength");
+      var tm = /(\d{1,2}:\d{2}(:\d{2})?\s*[AP]M)/i.exec(st) || /\b(\d{1,2}:\d{2})(:\d{2})?\s*$/.exec(st);
+      var dev = ""; rows.slice(0, i).forEach(function (r) { (r || []).forEach(function (c) { var m = /^Device:\s*(\S.*)$/i.exec(str(c)); if (m && !dev) dev = m[1]; }); });
+      return { sheet: sheet, t: t, wells: wells, order: order, start: tm ? tm[1] : st, part: part, wl: wl, device: dev };
+    }
+    function sameRun(a, b) {
+      if (a.t.length !== b.t.length || a.order.join() !== b.order.join()) return false;
+      for (var q = 0; q < a.t.length; q++) if (Math.abs(a.t[q] - b.t[q]) > 1e-6) return false;
+      var w = a.order[0]; for (q = 0; q < a.t.length; q++) if (!(Math.abs(a.wells[w][q] - b.wells[w][q]) < 1e-9) && !(isNaN(a.wells[w][q]) && isNaN(b.wells[w][q]))) return false;
+      return true;
+    }
+    return { readXlsx: readXlsx, findRuns: findRuns };
+  })();
+  var MAP_S = [2, 5, 10, 20, 40, 80, 2, 5, 10, 20, 40, 80], MAP_I = { A: 0, B: 1.5, C: 3, D: 9 };
+  var plate = null;   // { runs, ri, file, S: {col}, I: {row}, role: {row}, off: {well}, win, dir, sub, units, vol, diam }
+  function pRun() { return plate.runs[plate.ri]; }
+  function pRows(run) { var u = {}; run.order.forEach(function (w) { u[w.charAt(0)] = 1; }); return Object.keys(u).sort(); }
+  function pCols(run) { var u = {}; run.order.forEach(function (w) { u[+w.slice(1)] = 1; }); return Object.keys(u).map(Number).sort(function (a, b) { return a - b; }); }
+  function loadPlate(runs, fname) {
+    var keep = plate;
+    plate = { runs: runs, ri: 0, file: fname, S: {}, I: {}, role: {}, off: {}, win: keep ? keep.win : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, units: keep ? keep.units : "mA", vol: keep ? keep.vol : 200, diam: keep ? keep.diam : 6.6 };
+    document.getElementById("cunit").value = "mM";
+    setupRun(); updatePlate(true);
+  }
+  function setupRun() {
+    var run = pRun(), tmax = run.t[run.t.length - 1] / 60;
+    if (plate.win[0] >= tmax) plate.win = [0, Math.min(5, tmax)];
+    pCols(run).forEach(function (c) { if (plate.S[c] === undefined) plate.S[c] = c <= MAP_S.length ? MAP_S[c - 1] : NaN; });
+    pRows(run).forEach(function (R) { if (plate.I[R] === undefined) { plate.I[R] = MAP_I[R] !== undefined ? MAP_I[R] : NaN; plate.role[R] = MAP_I[R] !== undefined ? "sample" : "off"; } });
+    buildPlate();
+  }
+  function pLinreg(x, y) {
+    var n = x.length, mx = 0, my = 0, i; for (i = 0; i < n; i++) { mx += x[i]; my += y[i]; } mx /= n; my /= n;
+    var sxx = 0, sxy = 0, syy = 0; for (i = 0; i < n; i++) { sxx += (x[i] - mx) * (x[i] - mx); sxy += (x[i] - mx) * (y[i] - my); syy += (y[i] - my) * (y[i] - my); }
+    var b = sxy / sxx; return { b: b, a: my - b * mx, r2: syy > 0 ? 1 - Math.max(syy - b * sxy, 0) / syy : 1 };
+  }
+  function pSlopes() {
+    var run = pRun(), w0 = Math.min(plate.win[0], plate.win[1]), w1 = Math.max(plate.win[0], plate.win[1]), out = {}, bl = [];
+    run.order.forEach(function (w) {
+      var y = run.wells[w], x = [], yy = [];
+      run.t.forEach(function (t, k) { var m = t / 60; if (m >= w0 - 1e-9 && m <= w1 + 1e-9 && isFinite(y[k])) { x.push(m); yy.push(y[k]); } });
+      var f = x.length >= 3 ? pLinreg(x, yy) : null;
+      out[w] = { f: f, signed: f ? (plate.dir === "down" ? -1 : 1) * f.b : NaN, role: plate.off[w] ? "off" : plate.role[w.charAt(0)] };
+      if (f && out[w].role === "blank") bl.push(out[w].signed);
+    });
+    var blank = bl.length ? bl.reduce(function (a, b) { return a + b; }, 0) / bl.length : 0, r = plate.diam / 20, path = plate.vol * 1e-3 / (Math.PI * r * r);
+    run.order.forEach(function (w) { var o = out[w], c = o.signed - (plate.sub ? blank : 0); o.v = plate.units === "uM" ? c / (6220 * path * 1e-6) : c * 1000; });
+    return { w: out, blank: blank, nb: bl.length, path: path };
+  }
+  function buildPlate() {
+    var run = pRun(), cols = pCols(run), rows = pRows(run), h = '<table class="plate"><thead><tr><th></th><th></th><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '</tr>';
+    function val(x) { return isFinite(x) ? String(x) : ""; }
+    h += '<tr><th></th><th>[I]</th><th>row is</th>' + cols.map(function (c, i) { return '<th><input type="text" inputmode="decimal" class="sc" data-sc="' + c + '" data-ci="' + i + '" value="' + val(plate.S[c]) + '" aria-label="[S] in column ' + c + '" title="[S] in column ' + c + '"></th>'; }).join("") + '</tr></thead><tbody>';
+    rows.forEach(function (R) {
+      h += '<tr><th>' + R + '</th><td><input type="text" inputmode="decimal" class="ri" data-ri="' + R + '" value="' + val(plate.I[R]) + '" aria-label="[I] in row ' + R + '"></td><td><select data-role="' + R + '" aria-label="Use of row ' + R + '">' +
+        [["sample", "enzyme"], ["blank", "blank (no enzyme)"], ["off", "not used"]].map(function (o) { return '<option value="' + o[0] + '"' + (plate.role[R] === o[0] ? " selected" : "") + '>' + o[1] + '</option>'; }).join("") + '</select></td>';
+      h += cols.map(function (c) { var w = R + c; return '<td>' + (run.wells[w] ? '<button type="button" class="wl" id="pw_' + w + '" data-w="' + w + '"></button>' : '<div class="wl empty"></div>') + '</td>'; }).join("") + '</tr>';
+    });
+    document.getElementById("plateGrid").innerHTML = h + '</tbody></table>';
+    var rs = document.getElementById("runSel"); rs.hidden = plate.runs.length < 2;
+    rs.innerHTML = plate.runs.map(function (r, i) { return '<option value="' + i + '">' + esc("Run " + (i + 1) + " · " + r.sheet + (r.start ? " · " + r.start : "")) + '</option>'; }).join(""); rs.value = String(plate.ri);
+    document.getElementById("pwA").value = plate.win[0]; document.getElementById("pwB").value = plate.win[1]; document.getElementById("pDir").value = plate.dir; document.getElementById("pSub").checked = plate.sub;
+    document.getElementById("pUnits").value = plate.units; document.getElementById("pVol").value = plate.vol; document.getElementById("pDiam").value = plate.diam; document.getElementById("pConv").hidden = plate.units !== "uM";
+  }
+  function plateSeries(C) {
+    var run = pRun(), map = {}, list = [];
+    run.order.forEach(function (w) {
+      var R = w.charAt(0), o = C.w[w], S = plate.S[+w.slice(1)], I = plate.I[R];
+      if (o.role !== "sample" || !o.f || !isFinite(S) || !(S > 0) || !isFinite(I) || !isFinite(o.v)) return;
+      var k = String(I); if (!map[k]) { map[k] = { name: "[I] = " + sig(I) + " " + (document.getElementById("cunit").value || ""), I: I, S: [], v: [] }; list.push(map[k]); }
+      map[k].S.push(S); map[k].v.push(o.v);
+    });
+    return list.sort(function (a, b) { return a.I - b.I; });
+  }
+  function updatePlate(fresh) {
+    var run = pRun(), C = pSlopes(), tmax = run.t[run.t.length - 1] / 60, w0 = Math.min(plate.win[0], plate.win[1]), w1 = Math.min(Math.max(plate.win[0], plate.win[1]), tmax);
+    run.order.forEach(function (w) {
+      var b = document.getElementById("pw_" + w); if (!b) return;
+      var o = C.w[w], y = run.wells[w], fin = y.filter(isFinite), lo = Math.min.apply(null, fin), hi = Math.max.apply(null, fin), rg = (hi - lo) || 1e-3;
+      var X = function (m) { return 1 + m / tmax * 58; }, Y = function (a) { return 27 - (a - lo) / rg * 25; };
+      var s = '<svg viewBox="0 0 60 28" preserveAspectRatio="none" aria-hidden="true"><rect x="' + X(w0).toFixed(1) + '" y="0" width="' + Math.max(0, X(w1) - X(w0)).toFixed(1) + '" height="28" fill="var(--accent-soft)"/>';
+      s += '<polyline fill="none" stroke="var(--muted)" stroke-width="1" points="' + run.t.map(function (t, k) { return isFinite(y[k]) ? X(t / 60).toFixed(1) + "," + Y(y[k]).toFixed(1) : ""; }).join(" ").trim() + '"/>';
+      if (o.f) s += '<line x1="' + X(w0).toFixed(1) + '" x2="' + X(w1).toFixed(1) + '" y1="' + Y(o.f.a + o.f.b * w0).toFixed(1) + '" y2="' + Y(o.f.a + o.f.b * w1).toFixed(1) + '" stroke="var(--accent)" stroke-width="1.6"/>';
+      b.innerHTML = s + '</svg><span class="num">' + (o.f ? sig(o.f.b * 1000) : "—") + '</span>';
+      b.className = "wl" + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : o.f && o.f.r2 < 0.95 && Math.abs(o.f.b) > 0.003 ? " bad" : "");
+      b.title = w + ": " + (o.f ? "slope " + sig(o.f.b * 1000) + " mA/min, R² " + o.f.r2.toFixed(3) + ", rate " + sig(o.v) + " " + (plate.units === "uM" ? "µM/min" : "mA/min") : "too few points in the window") + (o.role === "off" ? " (not used)" : o.role === "blank" ? " (blank)" : "");
+    });
+    var dt = run.t.length > 1 ? (run.t[run.t.length - 1] - run.t[0]) / (run.t.length - 1) : NaN;
+    document.getElementById("plateTitle").textContent = "Plate: " + plate.file;
+    document.getElementById("plateInfo").textContent = (run.device ? "Tecan " + run.device.replace(/^tecan\s*/i, "") + ": " : "") + run.order.length + " wells, " + run.t.length + " reads about every " + sig(dt) + " s over " + sig(tmax) + " min" + (run.wl ? ", " + run.wl + " nm" : "") + ". " +
+      (C.nb ? "Blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted." : " (not subtracted).") : "No blank row, so no background is subtracted.") + (plate.units === "uM" ? " Path " + sig(C.path) + " cm." : "");
+    document.getElementById("vunit").value = plate.units === "uM" ? "µM/min" : "mA340/min";
+    var list = plateSeries(C);
+    if (fresh) setSeries(list, true); else { series = list.slice(0, 12); rebuildList(); render(); }
+  }
+  function pNum(v) { v = String(v).trim().replace(",", "."); return v === "" ? NaN : Number(v); }
+  (function () {
+    var grid = document.getElementById("plateGrid");
+    grid.addEventListener("click", function (e) { var b = e.target.closest("button[data-w]"); if (!b) return; var w = b.dataset.w; if (plate.off[w]) delete plate.off[w]; else plate.off[w] = true; updatePlate(); });
+    grid.addEventListener("input", function (e) { var el = e.target; if (el.dataset.sc !== undefined) plate.S[+el.dataset.sc] = pNum(el.value); else if (el.dataset.ri !== undefined) plate.I[el.dataset.ri] = pNum(el.value); else return; updatePlate(); });
+    grid.addEventListener("change", function (e) { var el = e.target; if (el.dataset.role === undefined) return; plate.role[el.dataset.role] = el.value; updatePlate(); });
+    grid.addEventListener("paste", function (e) {
+      var el = e.target; if (el.dataset.ci === undefined) return;
+      var t = (e.clipboardData || window.clipboardData).getData("text").trim(); if (!/[\t\n,; ]/.test(t)) return;
+      e.preventDefault(); var vals = t.split(/[\t\n,;]+|\s+/), ins = grid.querySelectorAll("input[data-ci]");
+      vals.forEach(function (v, k) { var x = ins[+el.dataset.ci + k]; if (x) { x.value = v.trim(); plate.S[+x.dataset.sc] = pNum(v); } }); updatePlate();
+    });
+    function num2(id, fn) { document.getElementById(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v) && plate) { fn(v); updatePlate(); } }); }
+    num2("pwA", function (v) { plate.win[0] = v; }); num2("pwB", function (v) { plate.win[1] = v; }); num2("pVol", function (v) { plate.vol = v; }); num2("pDiam", function (v) { plate.diam = v; });
+    document.getElementById("pDir").addEventListener("change", function (e) { plate.dir = e.target.value; updatePlate(); });
+    document.getElementById("pSub").addEventListener("change", function (e) { plate.sub = e.target.checked; updatePlate(); });
+    document.getElementById("pUnits").addEventListener("change", function (e) { plate.units = e.target.value; document.getElementById("pConv").hidden = plate.units !== "uM"; updatePlate(); });
+    document.getElementById("runSel").addEventListener("change", function (e) { plate.ri = +e.target.value; setupRun(); updatePlate(true); });
+  })();
   var dropEl = document.getElementById("drop");
+  function plateMsg(t) { var m = document.getElementById("msgs"); if (m) m.innerHTML = '<p class="msg warn">' + t + '</p>'; }
   function readFile(f) {
-    if (!f) return; var r = new FileReader();
+    if (!f) return;
+    if (/\.xls[xm]$/i.test(f.name)) {
+      f.arrayBuffer().then(PR.readXlsx).then(function (sheets) {
+        var all = []; sheets.forEach(function (sh) { all = all.concat(PR.findRuns(sh.rows, sh.name)); });
+        if (!all.length) { plateMsg("No kinetic data found in " + esc(f.name) + ". Expected a “Time [s]” row followed by rows named A1, A2… (infinite 200Pro), or a Time column with well names as headers (Spark)."); return; }
+        loadPlate(all, f.name.replace(/\.[^.]+$/, ""));
+      }).catch(function (e) { plateMsg("Could not read " + esc(f.name) + ": " + esc(e.message)); });
+      return;
+    }
+    if (/\.xls$/i.test(f.name)) { plateMsg("Old .xls files cannot be read here. Save as .xlsx in Excel."); return; }
+    var r = new FileReader();
     r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); };
     r.readAsText(f);
   }
@@ -482,7 +759,7 @@ ul.try li { margin-bottom: 4px; }
     document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
     setSeries(EXAMPLE.map(function (s) { return { name: s.name, I: s.I, S: s.S.slice(), v: s.v.slice() }; }));
   });
-  document.getElementById("clearBtn").addEventListener("click", function () { series = []; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("clearBtn").addEventListener("click", function () { plate = null; document.getElementById("plateWrap").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
   // Template: the example data written out in the layout the parser expects, so the format can be seen rather than read.
   document.getElementById("templateBtn").addEventListener("click", function () {
     var note = document.getElementById("tmplMsg");
