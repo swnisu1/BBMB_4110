@@ -213,7 +213,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         </details>
         <h2 style="margin-top:14px">Inhibitor series</h2>
         <div id="curveList"></div>
-        <div class="btns"><button type="button" class="btn" id="templateBtn">Download template</button><button type="button" class="btn" id="exampleBtn">Load example</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
+        <div class="btns"><button type="button" class="btn" id="templateBtn">Download template</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
         <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
         <p class="hint" style="margin-top:12px">Practice plate (simulated, competitive inhibitor, class plate map), in either reader's format:</p>
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_spark.xlsx" download>⤓ Spark .xlsx</a></div>
@@ -453,7 +453,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
 
   function rebuildList() {
     var host = document.getElementById("curveList");
-    if (!series.length) { host.innerHTML = '<p class="hint" style="margin:0">No data yet. Drop a file, paste from Excel, or load the example.</p>'; return; }
+    if (!series.length) { host.innerHTML = '<p class="hint" style="margin:0">No data yet. Drop a plate reader .xlsx or a table, or paste from Excel.</p>'; return; }
     host.innerHTML = series.map(function (c, i) {
       return '<div class="crv"><div class="crvhead"><span class="crvname" title="' + esc(c.name) + '">' + esc(c.name) + '</span><span class="crvn">' + c.S.length + ' pts</span>' +
         '<button type="button" class="x" data-del="' + i + '" aria-label="Remove series">×</button></div>' +
@@ -1095,10 +1095,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var b = e.target.closest("button[data-del]"); if (!b) return;
     series.splice(+b.dataset.del, 1); state.fitted = false; rebuildList(); render();
   });
-  document.getElementById("exampleBtn").addEventListener("click", function () {
-    document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
-    setSeries(EXAMPLE.map(function (s) { return { name: s.name, I: s.I, S: s.S.slice(), v: s.v.slice() }; }));
-  });
   document.getElementById("clearBtn").addEventListener("click", function () { plate = null; document.getElementById("plateWrap").hidden = true; document.getElementById("convPanel").hidden = true; document.getElementById("slopePanel").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
   // Template: the example data written out in the layout the parser expects, so the format can be seen rather than read.
   document.getElementById("templateBtn").addEventListener("click", function () {
@@ -1274,7 +1270,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
     function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC1", "plotC2", "plotD", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); }
     if (!simOn && plate && !series.length) { empty(plate.missing && plate.missing.length ? plate.missing.join("<br>") : "Plate loaded. Enter [S] for each well, and [I] and [E] for each row, in the plate layout above (or press <b>Fill the class plate map</b>)."); msgs.firstChild.className = "msg warn"; return; }
-    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a file or paste from Excel in the panel on the left, or choose Load example to see how this works."); return; }
+    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a plate reader .xlsx or a table, or paste from Excel, in the panel on the left. To practise, download a practice plate there and load it."); return; }
     var ok = D.series.filter(function (s) { return isFinite(s.I) && s.I >= 0 && s.S.length >= 3; }), skipped = D.series.length - ok.length;
     var P = { S: [], I: [], v: [] };
     ok.forEach(function (s) { s.S.forEach(function (x, j) { if (x > 0 && isFinite(s.v[j])) { P.S.push(x); P.I.push(s.I); P.v.push(s.v[j]); } }); });
