@@ -891,9 +891,28 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     $("dsPanel").hidden = true; $("cards").innerHTML = ""; $("msgs").innerHTML = "";
     $("exportPanel").hidden = cur < 0;
   }
+  // no fit until every row in use has its [S] values and its [E]
+  function missingInputs() {
+    var noS = [], noE = [];
+    runs.forEach(function (run, ri) {
+      run.rowsUsed.forEach(function (R) {
+        var ws = run.order.filter(function (w) { return w.charAt(0) === R && run.cfg.wells[w].role === "sample"; });
+        if (!ws.length) return;
+        var lab = (runs.length > 1 ? "run " + (ri + 1) + " " : "") + R;
+        if (!ws.some(function (w) { return isFinite(run.cfg.wells[w].S); })) noS.push(lab);
+        else if (!(run.cfg.rows[R].E > 0)) noE.push(lab);
+      });
+    });
+    var m = [];
+    if (noS.length) m.push("<b>Missing substrate concentrations</b> for row" + (noS.length > 1 ? "s " : " ") + noS.join(", ") + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
+    if (noE.length) m.push("<b>Missing enzyme concentration</b> for row" + (noE.length > 1 ? "s " : " ") + noE.join(", ") + ". Enter the final [E] in the well for each row in the plate layout.");
+    return m;
+  }
   function drawFit() {
     var D = datasets(), cards = $("cards"), msgs = $("msgs"), wmode = G.wmode, vu = vUnit(), su = sLabel(), A = aPerUM();
     exportTables = { wells: wellRows(), means: meanRows(), parameters: null, data_fit: null, curves: null };
+    var miss = missingInputs();
+    if (miss.length) { hideFit(); msgs.innerHTML = miss.map(function (t) { return '<p class="msg warn">' + t + '</p>'; }).join(""); return; }
     if (!D.length) { hideFit(); msgs.innerHTML = '<p class="msg">Enter the substrate concentration for each well in the plate layout. The fits appear as soon as a series has at least three different [S] values.</p>'; return; }
     var all = D.map(function (d) {
       var fits = {}, ok = [];

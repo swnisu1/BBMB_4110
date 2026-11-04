@@ -805,6 +805,23 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     });
     return { w: out, blank: blank, nb: bl.length };
   }
+  // no fit until every row in use has [S] in its wells, [I] and [E]
+  function pMissing() {
+    var run = pRun(), noS = [], noI = [], noE = [];
+    pRows(run).forEach(function (R) {
+      var ws = run.order.filter(function (w) { return w.charAt(0) === R && plate.cfg.wells[w].role === "sample"; });
+      if (!ws.length) return;
+      if (!ws.some(function (w) { return isFinite(plate.cfg.wells[w].S); })) { noS.push(R); return; }
+      if (!isFinite(plate.cfg.rows[R].I)) noI.push(R);
+      if (!(plate.cfg.rows[R].E > 0)) noE.push(R);
+    });
+    function rows(l) { return "row" + (l.length > 1 ? "s " : " ") + l.join(", "); }
+    var m = [];
+    if (noS.length) m.push("<b>Missing substrate concentrations</b> for " + rows(noS) + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
+    if (noI.length) m.push("<b>Missing inhibitor concentration</b> for " + rows(noI) + ". Enter [I] for each row (0 for no inhibitor).");
+    if (noE.length) m.push("<b>Missing enzyme concentration</b> for " + rows(noE) + ". Enter the final [E] in the well for each row.");
+    return m;
+  }
   function plateSeries(C) {
     var map = {}, list = [];
     pRun().order.forEach(function (w) {
@@ -960,7 +977,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     convOut();
     document.getElementById("cunit").value = pCU();
     document.getElementById("vunit").value = rUnit();
-    var list = plateSeries(C);
+    plate.missing = pMissing();
+    var list = plate.missing.length ? [] : plateSeries(C);
     if (fresh) setSeries(list, true); else { series = list.slice(0, 12); rebuildList(); render(); }
   }
   var pPending = false;
@@ -1255,7 +1273,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var D = simOn ? simulate() : { series: series, truth: null };
     var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
     function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC1", "plotC2", "plotD", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); }
-    if (!simOn && plate && !series.length) { empty("Plate loaded. Enter [S] for each well and [I] for each row in the plate layout above (or press <b>Fill the class plate map</b>); the fit appears once there are rates at two or more [I]."); return; }
+    if (!simOn && plate && !series.length) { empty(plate.missing && plate.missing.length ? plate.missing.join("<br>") : "Plate loaded. Enter [S] for each well, and [I] and [E] for each row, in the plate layout above (or press <b>Fill the class plate map</b>)."); msgs.firstChild.className = "msg warn"; return; }
     if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a file or paste from Excel in the panel on the left, or choose Load example to see how this works."); return; }
     var ok = D.series.filter(function (s) { return isFinite(s.I) && s.I >= 0 && s.S.length >= 3; }), skipped = D.series.length - ok.length;
     var P = { S: [], I: [], v: [] };
