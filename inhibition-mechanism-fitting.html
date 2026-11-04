@@ -122,6 +122,11 @@ tbody tr.best td:first-child { font-weight: 600; }
 ul.try { margin: 0; padding-left: 18px; }
 ul.try li { margin-bottom: 4px; }
 [hidden] { display: none !important; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
 /* plate reader file: plate overview, one-well detail and per-well layout (as in Plate Reader Kinetics) */
 :root { --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16); --win: rgba(51, 71, 201, 0.08); }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24); --win: rgba(141, 155, 255, 0.10); } }
@@ -214,6 +219,43 @@ ul.try li { margin-bottom: 4px; }
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_spark.xlsx" download>⤓ Spark .xlsx</a></div>
       </section>
 
+      <section class="panel" id="slopePanel" hidden>
+        <h2>Slopes</h2>
+        <div class="field"><label>Shared window (min)</label><span style="display:flex;gap:6px"><input type="number" id="pwA" step="any" min="0" aria-label="Window start, min"><input type="number" id="pwB" step="any" min="0" aria-label="Window end, min"></span></div>
+        <div class="field" style="grid-template-columns:1fr 170px"><label for="pDir">A<sub>340</sub> during the assay</label>
+          <select id="pDir"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
+        <label class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0"><input type="checkbox" id="pSub" checked style="margin-top:3px;accent-color:var(--accent)"><span>Subtract the mean slope of wells marked <b>blank</b> (no enzyme added; same run)</span></label>
+        <div class="btns"><button type="button" class="btn" id="pResetWin">Clear per-well windows</button></div>
+        <p class="hint">Use the early part of each trace, where it is still straight. This is the shared window for every well. To change one well only, use its sliders or drag across its plot on the right.</p>
+      </section>
+
+      <section class="panel" id="convPanel" hidden>
+        <h2>ΔA<sub>340</sub> → µM NADPH</h2>
+        <div class="seg" id="convSeg">
+          <button type="button" data-c="vol" aria-pressed="true">Volume</button>
+          <button type="button" data-c="pf" aria-pressed="false">Plate factor</button>
+          <button type="button" data-c="path" aria-pressed="false">Path</button>
+          <button type="button" data-c="none" aria-pressed="false">None</button>
+        </div>
+        <div style="margin-top:10px">
+          <div class="field" id="epsRow"><label for="cEps">ε<sub>340</sub> NADPH (M⁻¹cm⁻¹)</label><input type="number" id="cEps" step="any" min="0"></div>
+          <div id="cVol">
+            <div class="field"><label for="cVolume">Assay volume per well (µL)</label><input type="number" id="cVolume" step="any" min="0"></div>
+            <div class="field"><label for="cDiam">Well diameter (mm)</label><input type="number" id="cDiam" step="any" min="0"></div>
+          </div>
+          <div id="cPf" hidden>
+            <div class="field"><label for="cPfv">Plate factor</label><input type="number" id="cPfv" step="any" min="0"></div>
+            <div class="field"><label for="cPfUnit">Plate factor units</label>
+              <select id="cPfUnit"><option value="Apm">A₃₄₀ per µM</option><option value="AmM">A₃₄₀ per mM</option><option value="umA">µM per A₃₄₀</option></select></div>
+          </div>
+          <div id="cPath" hidden>
+            <div class="field"><label for="cPathv">Path length (cm)</label><input type="number" id="cPathv" step="any" min="0"></div>
+          </div>
+        </div>
+        <p class="hint" id="convOut" style="font-family:var(--mono);font-size:12px"></p>
+        <p class="hint">Concentration = A / (ε·l). In a plate the light passes vertically, so the path length l is the liquid depth: volume ÷ well area. Meniscus shape makes this approximate. A plate factor from an NADPH standard curve in the same plate and volume is better.</p>
+      </section>
+
       <section class="panel">
         <h2>Fit</h2>
         <div id="fitRow" style="margin-bottom:12px"><button type="button" class="btn primary" id="fitBtn" style="width:100%">Fit data</button><p class="hint" id="fitHint"></p></div>
@@ -235,14 +277,6 @@ ul.try li { margin-bottom: 4px; }
           </div>
         </div>
         <p class="hint" id="plateInfo" style="margin:0 0 8px"></p>
-        <div class="pctl">
-          <label>Shared slope window <input type="number" id="pwA" step="any" min="0" aria-label="Window start, min"> to <input type="number" id="pwB" step="any" min="0" aria-label="Window end, min"> min</label>
-          <label>A₃₄₀ <select id="pDir"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></label>
-          <label><input type="checkbox" id="pSub" checked> subtract the mean slope of blank wells</label>
-          <label>Rates as <select id="pUnits"><option value="mA">mA340/min</option><option value="uM">µM NADPH/min</option></select></label>
-          <span id="pConv" hidden><label>volume <input type="number" id="pVol" step="any" min="0"> µL</label> <label>well diameter <input type="number" id="pDiam" step="any" min="0"> mm</label></span>
-          <button type="button" class="btn" id="pResetWin">Clear per-well windows</button>
-        </div>
         <div class="tablewrap" id="plateGrid"></div>
         <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. Colour shows how well a straight line fits the window:<span class="qkey" style="background:var(--q1)"></span>good<span class="qkey" style="background:var(--q2)"></span>worth a look (slope changes 20–45% across the window, or R² 0.95–0.98)<span class="qkey" style="background:var(--q3)"></span>problem (strong bend, R² below 0.95, A above 2, or too few points). Hover over a well, or click it, to see why. A <b>no-enzyme blank</b> has substrate, NADP⁺ and buffer but no enzyme; the mean slope of the blank wells is subtracted from every sample.</p>
       </section>
@@ -274,11 +308,19 @@ ul.try li { margin-bottom: 4px; }
       <section class="panel">
         <div class="plothead">
           <h3>Plate layout: what is in each well?</h3>
-          <div class="ptog"><label for="pCU">units</label><input id="pCU" type="text" value="mM" style="width:60px;font:inherit;font-size:12.5px;padding:4px 6px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)"></div>
+          <div class="ptog"><label for="pCU">[S] units</label><select id="pCU"><option value="µM">µM</option><option value="mM">mM</option></select><label for="pEU" style="margin-left:8px">[E] units</label><select id="pEU"><option value="nM">nM</option><option value="uM">µM</option></select></div>
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
         <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's [S] to every row</button><button type="button" class="btn" id="classMap">Fill the class plate map</button><button type="button" class="btn" id="clearLayout">Clear the layout</button></div>
-        <p class="hint">Type the substrate concentration in each well, as it is on the plate, and the inhibitor concentration [I] for each row (0 for no inhibitor). Use the same units for [S] and [I]. If every row has the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. Rows with the same [I] are replicates and are fit together. Set a row to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit. <b>Fill the class plate map</b> enters 2, 5, 10, 20, 40, 80 mM in columns 1–6 and 7–12, and [I] = 0, 1.5, 3, 9 mM in rows A–D.</p>
+        <p class="hint">Type the substrate concentration in each well, as it is on the plate, the inhibitor concentration [I] for each row (0 for no inhibitor), and the final enzyme concentration [E] in the well (used for v/[E] and k<sub>cat</sub>). [I] uses the same units as [S]. If every row has the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. Rows with the same [I] are replicates and are fit together. Set a row to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit. <b>Fill the class plate map</b> enters 2, 5, 10, 20, 40, 80 mM in columns 1–6 and 7–12, and [I] = 0, 1.5, 3, 9 mM in rows A–D.</p>
+      </section>
+      <section class="panel">
+        <div class="plothead">
+          <h3>Rates</h3>
+          <div class="seg small" id="rateSeg"><button type="button" data-r="well" aria-pressed="true">every well</button><button type="button" data-r="mean" aria-pressed="false">replicate means</button></div>
+        </div>
+        <div class="tablewrap" id="rateTbl"></div>
+        <p class="hint" id="rateHint"></p>
       </section>
       </div>
       <div class="cards" id="cards"></div>
@@ -418,7 +460,7 @@ ul.try li { margin-bottom: 4px; }
         '<div class="crvin"><label>[I] for this series<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.I) ? c.I : "") + '"></label></div></div>';
     }).join("");
   }
-  function setSeries(list, keepPlate) { if (!keepPlate) plate = null; document.getElementById("plateWrap").hidden = !plate; series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
+  function setSeries(list, keepPlate) { if (!keepPlate) plate = null; document.getElementById("plateWrap").hidden = !plate; document.getElementById("convPanel").hidden = !plate; document.getElementById("slopePanel").hidden = !plate; series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
 
   // ---------- Levenberg-Marquardt (generic, log-parameter space) ----------
   function solve(A, b) {
@@ -687,21 +729,39 @@ ul.try li { margin-bottom: 4px; }
     return { readXlsx: readXlsx, findRuns: findRuns };
   })();
   var MAP_S = [2, 5, 10, 20, 40, 80, 2, 5, 10, 20, 40, 80], MAP_I = { A: 0, B: 1.5, C: 3, D: 9 };
+  var CV = { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm", eUnit: "nM", sUnit: "mM" }, CVKEY = "bbmb_inhib_plate_conv_v1";
+  try { var cvs = JSON.parse(localStorage.getItem(CVKEY) || "null"); if (cvs) Object.keys(CV).forEach(function (k) { if (cvs[k] !== undefined) CV[k] = cvs[k]; }); } catch (e) {}
+  function saveCV() { try { localStorage.setItem(CVKEY, JSON.stringify(CV)); } catch (e) {} }
+  function pathFromVol() { var r = CV.diam / 20; return CV.vol * 1e-3 / (Math.PI * r * r); }
+  // absorbance per µM NADPH in the well (null = no conversion)
+  function aPerUM() {
+    if (CV.mode === "none") return null;
+    if (CV.mode === "pf") { if (!(CV.pf > 0)) return NaN; return CV.pfUnit === "Apm" ? CV.pf : CV.pfUnit === "AmM" ? CV.pf / 1000 : 1 / CV.pf; }
+    return CV.eps * (CV.mode === "path" ? CV.path : pathFromVol()) * 1e-6;
+  }
+  function rUnit() { return aPerUM() === null ? "ΔA340/min" : "µM/min"; }
+  function eUM(E) { return CV.eUnit === "nM" ? E / 1000 : E; }
+  // the one [E] used by every sample row (NaN if missing or if rows differ)
+  function plateE() {
+    if (!plate) return NaN; var run = pRun(), vals = {};
+    pRows(run).forEach(function (R) { if (run.order.some(function (w) { return w.charAt(0) === R && plate.cfg.wells[w].role === "sample" && isFinite(plate.cfg.wells[w].S); })) vals[String(plate.cfg.rows[R].E)] = plate.cfg.rows[R].E; });
+    var k = Object.keys(vals); return k.length === 1 && vals[k[0]] > 0 ? vals[k[0]] : NaN;
+  }
   var plate = null;   // { runs, ri, file, cfg: { wells: {w: {role, S, win, excl}}, rows: {R: {I}} }, win, dir, sub, units, vol, diam, sel, click }
   function pRun() { return plate.runs[plate.ri]; }
   function pTmax() { var r = pRun(); return r.t[r.t.length - 1] / 60; }
   function pRows(run) { var u = {}; run.order.forEach(function (w) { u[w.charAt(0)] = 1; }); return Object.keys(u).sort(); }
   function pCols(run) { var u = {}; run.order.forEach(function (w) { u[+w.slice(1)] = 1; }); return Object.keys(u).map(Number).sort(function (a, b) { return a - b; }); }
   function pNum(v) { v = String(v).trim().replace(",", "."); return v === "" ? NaN : Number(v); }
-  function pCU() { return document.getElementById("pCU").value || "mM"; }
+  function pCU() { return CV.sUnit === "µM" ? "µM" : "mM"; }
   function loadPlate(runs, fname) {
     var keep = plate;
-    plate = { runs: runs, ri: 0, file: fname, win: keep ? keep.win : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, units: keep ? keep.units : "mA", vol: keep ? keep.vol : 200, diam: keep ? keep.diam : 6.6, sel: null, click: "inspect" };
+    plate = { runs: runs, ri: 0, file: fname, win: keep ? keep.win : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, sel: null, click: "inspect" };
     setupRun(); updatePlate(true);
   }
   function setupRun() {
     var run = pRun(), wells = {}, rows = {};
-    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN }; });
+    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN, E: NaN }; });
     plate.cfg = { wells: wells, rows: rows }; plate.sel = run.order[0];
     if (plate.win[0] >= pTmax()) plate.win = [0, Math.min(5, pTmax())];
     buildPlateCtl(); buildLayout();
@@ -710,7 +770,7 @@ ul.try li { margin-bottom: 4px; }
     var run = pRun(), cfg = plate.cfg;
     run.order.forEach(function (w) { var c = +w.slice(1), R = w.charAt(0); if (MAP_I[R] !== undefined) { cfg.wells[w].S = c <= MAP_S.length ? MAP_S[c - 1] : NaN; if (cfg.wells[w].role === "blank") cfg.wells[w].role = "sample"; } });
     Object.keys(cfg.rows).forEach(function (R) { if (MAP_I[R] !== undefined) cfg.rows[R].I = MAP_I[R]; });
-    document.getElementById("pCU").value = "mM";
+    CV.sUnit = "mM"; saveCV(); document.getElementById("pCU").value = "mM";
   }
   // ---------- slopes (same rules as Plate Reader Kinetics) ----------
   function pWin(w) { var v = plate.cfg.wells[w].win || plate.win; return v[0] <= v[1] ? v : [v[1], v[0]]; }
@@ -738,9 +798,12 @@ ul.try li { margin-bottom: 4px; }
   function pCompute() {
     var run = pRun(), out = {}, bl = [], sgn = plate.dir === "down" ? -1 : 1;
     run.order.forEach(function (w) { var f = pSlope(w), c = plate.cfg.wells[w]; out[w] = { fit: f, role: c.role, S: c.S, I: plate.cfg.rows[w.charAt(0)].I, signed: f.ok ? sgn * f.slope : NaN }; if (c.role === "blank" && f.ok) bl.push(out[w].signed); });
-    var blank = bl.length ? bl.reduce(function (a, b) { return a + b; }, 0) / bl.length : 0, r = plate.diam / 20, path = plate.vol * 1e-3 / (Math.PI * r * r);
-    run.order.forEach(function (w) { var o = out[w], c = o.signed - (plate.sub && o.role === "sample" ? blank : 0); o.v = plate.units === "uM" ? c / (6220 * path * 1e-6) : c * 1000; });
-    return { w: out, blank: blank, nb: bl.length, path: path };
+    var blank = bl.length ? bl.reduce(function (a, b) { return a + b; }, 0) / bl.length : 0, A = aPerUM();
+    run.order.forEach(function (w) {
+      var o = out[w]; o.E = plate.cfg.rows[w.charAt(0)].E; o.corr = o.signed - (plate.sub && o.role === "sample" ? blank : 0);
+      o.v = A === null ? o.corr : !(A > 0) ? NaN : o.corr / A; o.ve = A > 0 && o.E > 0 ? o.v / 60 / eUM(o.E) : NaN;
+    });
+    return { w: out, blank: blank, nb: bl.length };
   }
   function plateSeries(C) {
     var map = {}, list = [];
@@ -757,8 +820,48 @@ ul.try li { margin-bottom: 4px; }
     var rs = document.getElementById("runSel"); rs.hidden = plate.runs.length < 2;
     rs.innerHTML = plate.runs.map(function (r, i) { return '<option value="' + i + '">' + esc("Run " + (i + 1) + " · " + r.sheet + (r.start ? " · " + r.start : "")) + '</option>'; }).join(""); rs.value = String(plate.ri);
     document.getElementById("pwA").value = plate.win[0]; document.getElementById("pwB").value = plate.win[1]; document.getElementById("pDir").value = plate.dir; document.getElementById("pSub").checked = plate.sub;
-    document.getElementById("pUnits").value = plate.units; document.getElementById("pVol").value = plate.vol; document.getElementById("pDiam").value = plate.diam; document.getElementById("pConv").hidden = plate.units !== "uM";
+    syncConv();
     Array.prototype.forEach.call(document.querySelectorAll("#pClickSeg button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.a === plate.click)); });
+  }
+  function syncConv() {
+    function v(id, x) { var el = document.getElementById(id); if (document.activeElement !== el) el.value = x; }
+    v("cEps", CV.eps); v("cVolume", CV.vol); v("cDiam", CV.diam); v("cPathv", CV.path); v("cPfv", CV.pf);
+    document.getElementById("cPfUnit").value = CV.pfUnit; document.getElementById("pEU").value = CV.eUnit; document.getElementById("pCU").value = pCU();
+    Array.prototype.forEach.call(document.querySelectorAll("#convSeg button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.c === CV.mode)); });
+    document.getElementById("cVol").hidden = CV.mode !== "vol"; document.getElementById("cPf").hidden = CV.mode !== "pf"; document.getElementById("cPath").hidden = CV.mode !== "path";
+    document.getElementById("epsRow").hidden = CV.mode === "pf" || CV.mode === "none";
+  }
+  function convOut() {
+    var A = aPerUM(), t;
+    if (A === null) t = "Rates stay in ΔA₃₄₀/min; kcat needs µM, so it is not computed.";
+    else if (!(A > 0)) t = "Enter a positive value.";
+    else {
+      var l = A / (CV.eps * 1e-6);
+      t = (CV.mode === "vol" ? "path ≈ " + sig(l) + " cm, " : "") + "1 µM NADPH = " + sig(A * 1000) + " mA₃₄₀" + (CV.mode === "pf" ? " (implies path " + sig(l) + " cm at ε = " + CV.eps + ")" : "") + "; 1 mA₃₄₀/min = " + sig(0.001 / A) + " µM/min";
+      if (l > 1.2 || l < 0.05) t += ". That path length looks unusual for a 96-well plate; check the value and its units.";
+    }
+    document.getElementById("convOut").textContent = t;
+  }
+  var rateView = "well";
+  function drawRates(C) {
+    var run = pRun(), su = pCU(), eu = CV.eUnit === "nM" ? "nM" : "µM", vu = rUnit(), showE = aPerUM() !== null, h;
+    Array.prototype.forEach.call(document.querySelectorAll("#rateSeg button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.r === rateView)); });
+    if (rateView === "well") {
+      h = '<table class="data"><thead><tr><th>Well</th><th>[I] (' + su + ')</th><th>[E] (' + eu + ')</th><th>[S] (' + su + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '<th style="text-align:left">note</th></tr></thead><tbody>';
+      h += run.order.map(function (w) {
+        var o = C.w[w], smp = o.role === "sample";
+        return '<tr data-pw="' + w + '" style="cursor:pointer' + (o.role === "off" ? ';color:var(--muted);text-decoration:line-through' : '') + (w === plate.sel ? ';background:var(--accent-soft)' : '') + '"><td>' + w + (o.role === "blank" ? " (blank)" : "") + '</td><td>' + (smp ? sig(o.I) : "") + '</td><td>' + (smp ? sig(o.E) : "") + '</td><td>' + (smp ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (smp ? sig(o.v) : "") + '</td>' + (showE ? '<td>' + (smp ? sig(o.ve) : "") + '</td>' : '') + '<td style="text-align:left;font-family:var(--font);color:var(--warn)">' + esc(o.fit.flags.join("; ")) + '</td></tr>';
+      }).join("") + '</tbody></table>';
+      document.getElementById("rateHint").innerHTML = (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
+    } else {
+      var g = {}, list = [];
+      run.order.forEach(function (w) { var o = C.w[w]; if (o.role !== "sample" || !o.fit.ok || !isFinite(o.S) || !isFinite(o.I)) return; var k = o.I + "|" + o.S; if (!g[k]) { g[k] = { I: o.I, S: o.S, v: [], wells: [] }; list.push(g[k]); } g[k].v.push(o.v); g[k].wells.push(w); });
+      list.sort(function (a, b) { return a.I - b.I || a.S - b.S; });
+      list.forEach(function (x) { x.n = x.v.length; x.m = x.v.reduce(function (a, b) { return a + b; }, 0) / x.n; x.sd = x.n > 1 ? Math.sqrt(x.v.reduce(function (a, b) { return a + (b - x.m) * (b - x.m); }, 0) / (x.n - 1)) : NaN; });
+      h = list.length ? '<table class="data"><thead><tr><th>[I] (' + su + ')</th><th>[S] (' + su + ')</th><th>n</th><th>mean rate (' + vu + ')</th><th>SD</th><th>CV</th><th style="text-align:left">wells</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + sig(x.I) + '</td><td>' + sig(x.S) + '</td><td>' + x.n + '</td><td>' + sig(x.m) + '</td><td>' + (x.n > 1 ? sig(x.sd) : "") + '</td><td>' + (x.n > 1 && x.m ? Math.round(100 * Math.abs(x.sd / x.m)) + "%" : "") + '</td><td style="text-align:left;font-family:var(--font)">' + x.wells.join(" ") + '</td></tr>'; }).join("") + '</tbody></table>' : '<p class="hint" style="margin:0">Enter [S] and [I] in the plate layout to group the replicates.</p>';
+      document.getElementById("rateHint").textContent = list.length ? "Wells with the same [I] and [S] are averaged here. The fit uses every well, not the means." : "";
+    }
+    document.getElementById("rateTbl").innerHTML = h;
   }
   function pPoly(pts, color, w) { return '<polyline fill="none" stroke="' + color + '" stroke-width="' + w + '" stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
   function drawPlateGrid(C) {
@@ -816,7 +919,7 @@ ul.try li { margin-bottom: 4px; }
     var st;
     if (o.fit.ok) {
       st = "slope <b>" + sig(o.fit.slope * 1000) + " ± " + sig(o.fit.se * 1000) + "</b> mA₃₄₀/min · R² " + o.fit.r2.toFixed(4) + " · " + o.fit.n + " points";
-      if (o.role === "sample") st += " · rate <b>" + sig(o.v) + "</b> " + (plate.units === "uM" ? "µM/min" : "mA₃₄₀/min") + (plate.sub && C.nb ? " (blank " + sig(C.blank * 1000) + " mA/min subtracted)" : "");
+      if (o.role === "sample") st += " · rate <b>" + sig(o.v) + "</b> " + rUnit() + (isFinite(o.ve) ? " · v/[E] <b>" + sig(o.ve) + "</b> s⁻¹" : "") + (plate.sub && C.nb ? " (blank " + sig(C.blank * 1000) + " mA/min subtracted)" : "");
       if (o.fit.flags.length) st += '<br><span style="color:var(--warn)">Check: ' + esc(o.fit.flags.join("; ")) + (o.fit.curv < -0.2 ? ". Try a shorter or earlier window." : o.fit.curv > 0.2 ? ". Try starting the window later." : "") + '</span>';
     } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
     st += '<br><span style="color:var(--muted)">' + (cfg.win ? "This well has its own window (the shared window is " + sig(plate.win[0]) + "–" + sig(plate.win[1]) + " min)." : "Shared window, used by every well without its own.") + '</span>';
@@ -837,23 +940,26 @@ ul.try li { margin-bottom: 4px; }
       var roles = run.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
       return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no enzyme)" : "sample") + '</option>'; }).join("") + '</select>';
     }
-    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">[I] (' + esc(pCU()) + ')</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">[I] (' + esc(pCU()) + ')</th><th style="text-align:left">[E] (' + (CV.eUnit === "nM" ? "nM" : "µM") + ')</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
     rows.forEach(function (R, ri) {
       h += '<tr><th>' + R + '</th>';
       cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text" inputmode="decimal" data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cfg.wells[w].S) + '" aria-label="[S] in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
-      h += '<td><input type="text" inputmode="decimal" class="ri" data-ri="' + R + '" value="' + val(cfg.rows[R].I) + '" aria-label="[I] in row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
+      h += '<td><input type="text" inputmode="decimal" class="ri" data-ri="' + R + '" value="' + val(cfg.rows[R].I) + '" aria-label="[I] in row ' + R + '"></td><td><input type="text" inputmode="decimal" class="ri" data-re="' + R + '" value="' + val(cfg.rows[R].E) + '" aria-label="Enzyme concentration in row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
     });
     document.getElementById("layoutGrid").innerHTML = h + '</tbody></table>';
   }
   function updatePlate(fresh) {
     if (!plate) return;
     var run = pRun(), C = pCompute(), tmax = pTmax(), dt = run.t.length > 1 ? (run.t[run.t.length - 1] - run.t[0]) / (run.t.length - 1) : NaN;
-    drawPlateGrid(C); drawWell(C);
+    drawPlateGrid(C); drawWell(C); drawRates(C);
     document.getElementById("plateTitle").textContent = "Plate: " + plate.file;
     document.getElementById("plateInfo").textContent = (run.device ? "Tecan " + run.device.replace(/^tecan\s*/i, "") + ": " : "") + run.order.length + " wells, " + run.t.length + " reads about every " + sig(dt) + " s over " + sig(tmax) + " min" + (run.wl ? ", " + run.wl + " nm" : "") + ". " +
-      (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample." : " (not subtracted).") : "No wells are marked blank, so no background is subtracted.") + (plate.units === "uM" ? " Path " + sig(C.path) + " cm (ε₃₄₀ = 6220 M⁻¹cm⁻¹)." : "");
+      (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample." : " (not subtracted).") : "No wells are marked blank, so no background is subtracted.");
+    var Es = {}; pRows(run).forEach(function (R) { var c = plate.cfg.rows[R]; if (run.order.some(function (w) { return w.charAt(0) === R && plate.cfg.wells[w].role === "sample"; }) && isFinite(c.E)) Es[c.E] = 1; });
+    if (Object.keys(Es).length > 1) document.getElementById("plateInfo").innerHTML += ' <b style="color:var(--warn)">The sample rows have different [E]. Use the same [E] in every row for one inhibition fit; k<sub>cat</sub> is not computed.</b>';
+    convOut();
     document.getElementById("cunit").value = pCU();
-    document.getElementById("vunit").value = plate.units === "uM" ? "µM/min" : "mA340/min";
+    document.getElementById("vunit").value = rUnit();
     var list = plateSeries(C);
     if (fresh) setSeries(list, true); else { series = list.slice(0, 12); rebuildList(); render(); }
   }
@@ -872,10 +978,15 @@ ul.try li { margin-bottom: 4px; }
     });
     function num2(id, fn) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v) && plate) { fn(v); pRender(); } }); }
     num2("pwA", function (v) { plate.win = [v, plate.win[1]]; }); num2("pwB", function (v) { plate.win = [plate.win[0], v]; });
-    num2("pVol", function (v) { plate.vol = v; }); num2("pDiam", function (v) { plate.diam = v; });
     $p("pDir").addEventListener("change", function (e) { plate.dir = e.target.value; pRender(); });
     $p("pSub").addEventListener("change", function (e) { plate.sub = e.target.checked; pRender(); });
-    $p("pUnits").addEventListener("change", function (e) { plate.units = e.target.value; $p("pConv").hidden = plate.units !== "uM"; pRender(); });
+    function cvNum(id, key) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v)) { CV[key] = v; saveCV(); pRender(); } }); }
+    cvNum("cEps", "eps"); cvNum("cVolume", "vol"); cvNum("cDiam", "diam"); cvNum("cPathv", "path"); cvNum("cPfv", "pf");
+    $p("cPfUnit").addEventListener("change", function (e) { CV.pfUnit = e.target.value; saveCV(); pRender(); });
+    $p("convSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-c]"); if (!b) return; CV.mode = b.dataset.c; saveCV(); syncConv(); pRender(); });
+    $p("pEU").addEventListener("change", function (e) { CV.eUnit = e.target.value; saveCV(); buildLayout(); pRender(); });
+    $p("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; rateView = b.dataset.r; pRender(); });
+    $p("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-pw]"); if (!tr) return; plate.sel = tr.dataset.pw; pRender(); var wp = $p("wellPanel"); if (wp.scrollIntoView) wp.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
     $p("pResetWin").addEventListener("click", function () { pRun().order.forEach(function (w) { plate.cfg.wells[w].win = null; }); pRender(); });
     $p("runSel").addEventListener("change", function (e) { plate.ri = +e.target.value; setupRun(); updatePlate(true); });
     // one-well panel
@@ -915,6 +1026,7 @@ ul.try li { margin-bottom: 4px; }
     lg.addEventListener("input", function (e) {
       var el = e.target, cfg = plate.cfg;
       if (el.dataset.ri !== undefined) { cfg.rows[el.dataset.ri].I = pNum(el.value); pRender(); return; }
+      if (el.dataset.re !== undefined) { cfg.rows[el.dataset.re].E = pNum(el.value); pRender(); return; }
       if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws].S = pNum(el.value); pRender(); }
     });
     lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) plate.cfg.wells[w].role = el.value; }); buildLayout(); pRender(); });
@@ -930,7 +1042,7 @@ ul.try li { margin-bottom: 4px; }
     $p("copyTop").addEventListener("click", function () { if (!plate) return; var run = pRun(), top = pRows(run)[0]; run.order.forEach(function (w) { var src = plate.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src && plate.cfg.wells[w].role === "sample") plate.cfg.wells[w].S = src.S; }); buildLayout(); pRender(); });
     $p("classMap").addEventListener("click", function () { if (!plate) return; classMap(); buildLayout(); pRender(); });
     $p("clearLayout").addEventListener("click", function () { if (!plate) return; pRun().order.forEach(function (w) { plate.cfg.wells[w].S = NaN; }); Object.keys(plate.cfg.rows).forEach(function (R) { plate.cfg.rows[R].I = NaN; }); buildLayout(); pRender(); });
-    $p("pCU").addEventListener("input", function () { if (plate) { buildLayout(); pRender(); } });
+    $p("pCU").addEventListener("change", function (e) { CV.sUnit = e.target.value === "mM" ? "mM" : "µM"; saveCV(); if (plate) { buildLayout(); pRender(); } });
   })();
   var dropEl = document.getElementById("drop");
   function plateMsg(t) { var m = document.getElementById("msgs"); if (m) m.innerHTML = '<p class="msg warn">' + t + '</p>'; }
@@ -969,7 +1081,7 @@ ul.try li { margin-bottom: 4px; }
     document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
     setSeries(EXAMPLE.map(function (s) { return { name: s.name, I: s.I, S: s.S.slice(), v: s.v.slice() }; }));
   });
-  document.getElementById("clearBtn").addEventListener("click", function () { plate = null; document.getElementById("plateWrap").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("clearBtn").addEventListener("click", function () { plate = null; document.getElementById("plateWrap").hidden = true; document.getElementById("convPanel").hidden = true; document.getElementById("slopePanel").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
   // Template: the example data written out in the layout the parser expects, so the format can be seen rather than read.
   document.getElementById("templateBtn").addEventListener("click", function () {
     var note = document.getElementById("tmplMsg");
@@ -1119,6 +1231,13 @@ ul.try li { margin-bottom: 4px; }
   setupExport({ prefix: "inhibition_mechanism",
     plots: [{ svg: "plotA", legend: "legendA", label: "Velocity vs [S] (PNG)", file: "velocity_vs_S" }, { svg: "plotB", legend: null, label: "Residuals (PNG)", file: "residuals" }, { svg: "plotC1", legend: null, label: "Apparent Vmax (PNG)", file: "apparent_Vmax" }, { svg: "plotC2", legend: null, label: "Apparent Km (PNG)", file: "apparent_Km" }, { svg: "plotD", legend: null, label: "Lineweaver-Burk (PNG)", file: "lineweaver_burk" }],
     tables: [{ key: "parameters", label: "Parameters (CSV)", file: "parameters" }, { key: "data_fit", label: "Data + fitted values (CSV)", file: "data_and_fit" }, { key: "curves", label: "Smooth fit curves (CSV)", file: "fit_curves" }] });
+  function kcatCards(F) {
+    if (state.mode === "sim" || !plate) return "";
+    var A = aPerUM(), E = plateE(), Eum = eUM(E), kc = A > 0 && Eum > 0 ? F.V / 60 / Eum : NaN, se = A > 0 && Eum > 0 ? F.seV / 60 / Eum : NaN, KmM = F.Km * (pCU() === "mM" ? 1e-3 : 1e-6), eu = CV.eUnit === "nM" ? "nM" : "µM";
+    var why = A === null ? "needs a conversion to µM (ΔA₃₄₀ → µM NADPH)" : !(Eum > 0) ? "enter [E] for the rows in the plate layout (one value for all rows)" : "";
+    return '<div class="card"><div class="k">k<sub>cat</sub> (s⁻¹)</div><div class="v">' + (isFinite(kc) ? sig(kc) : "—") + '</div><div class="s">' + (isFinite(kc) ? "± " + sig(se) + " SE | [E] " + sig(E) + " " + eu : why) + '</div></div>' +
+      '<div class="card"><div class="k">k<sub>cat</sub>/K<sub>m</sub> (M⁻¹s⁻¹)</div><div class="v">' + (isFinite(kc) ? Math.round(kc / KmM).toLocaleString("en-US") : "—") + '</div><div class="s">V<sub>max</sub>/K<sub>m</sub> = ' + sig(F.V / F.Km) + '</div></div>';
+  }
   function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
   function paramTxt(v, se, hit) { return !isFinite(v) ? "—" : hit ? "→ ∞" : sig(v) + (isFinite(se) ? " ± " + sig(se) : ""); }
 
@@ -1164,7 +1283,7 @@ ul.try li { margin-bottom: 4px; }
       '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + tru(truth && truth.V) + '</div></div>' +
       '<div class="card"><div class="k">K<sub>m</sub> (' + esc(cu()) + ')</div><div class="v">' + sig(F.Km) + '</div><div class="s">± ' + sig(F.seKm) + ' SE' + tru(truth && truth.Km) + '</div></div>' +
       '<div class="card"><div class="k">K<sub>i</sub> (binds E)</div><div class="v">' + (isFinite(F.Ki) && !F.hitKi ? sig(F.Ki) : F.hitKi ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKi) && !F.hitKi ? "± " + sig(F.seKi) + " SE" : "") + tru(truth && truth.Ki) + '</div></div>' +
-      '<div class="card"><div class="k">K<sub>ii</sub> (binds ES)</div><div class="v">' + (isFinite(F.Kii) && !F.hitKii ? sig(F.Kii) : F.hitKii ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKii) && !F.hitKii ? "± " + sig(F.seKii) + " SE" : "") + tru(truth && truth.Kii) + '</div></div>';
+      '<div class="card"><div class="k">K<sub>ii</sub> (binds ES)</div><div class="v">' + (isFinite(F.Kii) && !F.hitKii ? sig(F.Kii) : F.hitKii ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKii) && !F.hitKii ? "± " + sig(F.seKii) + " SE" : "") + tru(truth && truth.Kii) + '</div></div>' + kcatCards(F);
 
     // ---- table
     document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K<sub>m</sub></th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' +
