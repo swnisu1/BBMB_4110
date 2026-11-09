@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>pH Profile Fitting · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control column left (data, model, downloads); right: cards, plot, results, comparisons, residuals. Each series gets its own colour (c1..c6); marker shape marks the buffer. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --win: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --win: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --win: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 80ch; }
+header a { color: var(--accent); }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 71px 71px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-k], table.data tbody tr[data-d], table.data tbody tr[data-w] { cursor: pointer; }
+table.data tbody tr[data-k]:hover, table.data tbody tr[data-d]:hover, table.data tbody tr[data-w]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+table.data tbody tr.best td:first-child { font-weight: 600; }
+table.data tr.off td { color: var(--muted); text-decoration: line-through; }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+
+.topline{display:flex;justify-content:space-between;align-items:center;gap:16px}.topline select{width:86px}
+textarea{height:210px;tab-size:10}p{margin:8px 0}.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.equation{font-family:var(--mono);font-size:14px;padding:12px;background:var(--bg);border-radius:6px;margin:10px 0;overflow-x:auto}
+.equations{display:grid;grid-template-columns:1fr 1fr;gap:18px}.equations h3{margin:0 0 8px}.equations p{font-size:13px}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:6px}
+.badge{font-size:11px;background:var(--accent-soft);color:var(--accent);padding:3px 7px;border-radius:4px;white-space:nowrap}
+.data input{accent-color:var(--accent)}.data tr.off{opacity:.55}.notes p{font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center}.legend i{flex:none}.main>.panel{overflow:hidden}
+svg text{font-size:13px}
+footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
+[hidden]{display:none!important}#status{min-height:20px}.status-error{color:var(--warn)}
+@media(max-width:600px){.equations{grid-template-columns:1fr}.topline{align-items:flex-start}.cards{grid-template-columns:1fr}body{padding-left:12px;padding-right:12px}}
+@media print{body{background:white;padding:0}.controls,.topline select,.btns,.plothead button,footer{display:none}.grid{display:block}.panel{break-inside:avoid;margin-bottom:12px}.cards{margin-bottom:12px}details:not([open]){display:none}}
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <div class="topline"><h1>pH Profile Fitting</h1><select id="theme" aria-label="Appearance"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  <p>Fit rate against pH to apparent kinetic pKa values, check whether overlapping buffers agree, and show recovery controls beside the profile. <a href="data-fitting-apps.html">All tools</a></p>
+</header>
+<div class="grid">
+<aside class="controls">
+  <section class="panel">
+    <h2><span class="step">1</span> Rate measurements</h2>
+    <label for="pasteText" class="hint">Paste a table from Excel, or open a CSV/TSV file.</label>
+    <textarea id="pasteText" spellcheck="false" placeholder="series,buffer,pH,rate&#10;WT,MES,6.2,0.21&#10;WT,MOPS,7.0,0.62&#10;WT,Tris,8.2,0.85&#10;WT,CHES,9.4,0.37" aria-describedby="dataHelp"></textarea>
+    <div class="btns"><button class="btn primary" id="fitBtn">Fit data</button><button class="btn" id="fileBtn">Open file</button><input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></div>
+    <div class="btns"><button class="btn" id="exampleBtn">Load example</button><button class="btn" id="clearBtn">Clear</button></div>
+    <p class="hint" id="dataHelp">Use columns <b>series, buffer, pH, rate</b>, one row per reaction. An optional <b>type</b> column marks recovery samples.</p>
+    <details><summary>Which values go in the table?</summary>
+      <p class="hint">Enter blank-corrected rates already converted with your optical calibration, at one enzyme concentration (or divided by enzyme concentration). Keep near-zero and slightly negative rates; dropping them biases the fit.</p>
+      <p class="hint">Use the pH measured in the final reaction mixture. Name the buffer on every row so overlaps can be compared.</p>
+      <p class="hint">For an exposure-and-recovery sample, enter the exposure pH, the rate measured after returning to the standard assay, and <b>recovery</b> in the type column. These are shown in their own plot and are not fitted.</p>
+    </details>
+    <p class="hint" id="status" role="status" aria-live="polite">Ready for your data.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">2</span> Model</h2>
+    <div class="field"><label for="model">Profile</label><select id="model"><option value="bell">Two ionizations</option><option value="rise">Rising limb only</option><option value="fall">Falling limb only</option></select></div>
+    <div class="field"><label for="rateUnit">Rate units</label><input id="rateUnit" type="text" value="µM/min" maxlength="40"></div>
+    <p class="hint">Use a single-limb model when your data cover only one side of the profile. The model comparison table shows how the three fit the same data.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">3</span> Save results</h2>
+    <div class="btns"><button class="btn" id="csvBtn" disabled>Results CSV</button><button class="btn" id="dataBtn" disabled>Data CSV</button><button class="btn" id="svgBtn" disabled>Save graph</button></div>
+    <p class="hint">The results file includes the fitted parameters, standard errors, the pKa correlation, and the model comparison. Your measurements stay in this browser tab.</p>
+  </section>
+</aside>
+<main class="main">
+  <div id="cards" class="cards" aria-live="polite"></div>
+  <section class="panel plot">
+    <div class="plothead"><h3>Rate against pH</h3><span id="exampleBadge" class="badge" hidden>Illustrative example</span></div>
+    <div id="plot"><div class="empty">Load your measurements or try the example.</div></div>
+    <div id="legend" class="legend"></div>
+    <p id="plotCaption" class="hint" hidden>Colour shows the series; marker shape shows the buffer. Lines: fitted profiles.</p>
+  </section>
+  <section class="panel" id="resultsPanel" hidden>
+    <h2>Fit results</h2><div class="tablewrap" id="results"></div>
+    <div id="notes" class="notes"></div>
+    <p class="hint">Standard errors are approximate (from the curvature of the fit at its best values), assuming independent reactions with equal scatter. They do not include uncertainty in blanks, calibration, or pH measurement.</p>
+  </section>
+  <section class="panel" id="comparePanel" hidden>
+    <h2>Model comparison</h2><div class="tablewrap" id="compare"></div>
+    <p class="hint">AICc balances fit quality against the number of parameters; lower is better. A difference under about 2 means the data do not clearly favor one model.</p>
+  </section>
+  <section class="panel" id="overlapPanel" hidden>
+    <h2>Buffer overlaps</h2><div class="tablewrap" id="overlap"></div>
+    <p class="hint">Mean rate at each pH measured in two buffers. If the buffers disagree beyond their scatter, part of the apparent pH dependence may be a buffer effect, and a single curve through both is not justified.</p>
+  </section>
+  <section class="panel plot" id="recoveryPanel" hidden>
+    <div class="plothead"><h3>Recovery after exposure</h3><span class="hint">Rate in the standard assay after exposure at each pH</span></div>
+    <div id="recoveryPlot"></div>
+    <p class="hint">A low rate in the profile with normal recovery points to an effect of the assay pH on catalysis. Activity that stays low after return points to damage during exposure.</p>
+  </section>
+  <section class="panel plot" id="residualPanel" hidden>
+    <div class="plothead"><h3>Residuals</h3><span class="hint">Measured − fitted rate</span></div>
+    <div id="residualPlot"></div>
+    <p class="hint">Scatter around zero is consistent with the model. A run of points on one side, or a step between buffers, suggests the model or the buffers are the problem.</p>
+  </section>
+  <section class="panel">
+    <h2>What is being fit?</h2>
+    <div class="equations">
+      <div><h3>Two ionizations</h3>
+        <div class="equation">y = y<sub>max</sub> / (1 + 10<sup>pK<sub>a1</sub> − pH</sup> + 10<sup>pH − pK<sub>a2</sub></sup>)</div>
+        <p>One ionizable group must be deprotonated (pK<sub>a1</sub>) and another protonated (pK<sub>a2</sub>) for activity. <b>y<sub>max</sub></b> is a fitted scale. The curve peaks at pH = (pK<sub>a1</sub> + pK<sub>a2</sub>)/2, and the peak is below y<sub>max</sub>, by a lot when the two pKa values are close.</p>
+      </div>
+      <div><h3>Single limb</h3>
+        <div class="equation">rising: y = y<sub>max</sub> / (1 + 10<sup>pK<sub>a1</sub> − pH</sup>)</div>
+        <div class="equation">falling: y = y<sub>max</sub> / (1 + 10<sup>pH − pK<sub>a2</sub></sup>)</div>
+        <p>Use these when the measured range covers only one side of the profile.</p>
+      </div>
+    </div>
+    <p class="hint">All models are fitted by least squares on the original rate scale, using every included reaction with equal weight. These are apparent pKa values for the whole system at your substrate and cofactor concentrations; the fit does not identify a residue.</p>
+  </section>
+  <section class="panel" id="dataPanel" hidden><details><summary id="dataSummary">Measurements</summary><div class="tablewrap" id="dataTable"></div><p class="hint">Uncheck a reaction to leave it out. Exclusions are recorded in the data download.</p></details></section>
+</main></div>
+<footer>BBMB 4110 · E6: Dependence of activity on pH · <a href="https://github.com/swnisu1/BBMB_4110">Source on GitHub</a></footer>
+</div>
+<script>
+/* pH-activity profile fitting.
+   bell: y = ymax / (1 + 10^(pKa1 - pH) + 10^(pH - pKa2))
+   rise: y = ymax / (1 + 10^(pKa1 - pH))        (activity increases with pH)
+   fall: y = ymax / (1 + 10^(pH - pKa2))        (activity decreases with pH)
+   ymax enters linearly and is solved at each trial pKa; pKa values are found by grid search
+   plus Nelder-Mead. Standard errors come from sigma^2 (J'J)^-1 with a numerical Jacobian. */
+const PHFit = (() => {
+  const shape = {
+    bell: (pH, p) => 1 / (1 + 10 ** (p.pKa1 - pH) + 10 ** (pH - p.pKa2)),
+    rise: (pH, p) => 1 / (1 + 10 ** (p.pKa1 - pH)),
+    fall: (pH, p) => 1 / (1 + 10 ** (pH - p.pKa2)),
+  };
+  const names = { bell: ['ymax', 'pKa1', 'pKa2'], rise: ['ymax', 'pKa1'], fall: ['ymax', 'pKa2'] };
+
+  function ymaxFor(pts, model, p) {
+    let sfy = 0, sff = 0;
+    pts.forEach(q => { const f = shape[model](q.pH, p); sfy += f * q.y; sff += f * f; });
+    return sff > 0 ? Math.max(0, sfy / sff) : 0;
+  }
+  function sseOf(pts, model, p) {
+    return pts.reduce((s, q) => s + (q.y - p.ymax * shape[model](q.pH, p)) ** 2, 0);
+  }
+  function nelder(f, x0, step, iters = 400) {
+    const d = x0.length;
+    let s = [x0, ...x0.map((_, i) => x0.map((v, j) => v + (i === j ? step[i] : 0)))].map(x => ({ x, f: f(x) }));
+    for (let k = 0; k < iters; k++) {
+      s.sort((a, b) => a.f - b.f);
+      const c = x0.map((_, j) => s.slice(0, d).reduce((t, q) => t + q.x[j], 0) / d), w = s[d];
+      const pt = t => c.map((v, j) => v + t * (w.x[j] - v));
+      const r = pt(-1), fr = f(r);
+      if (fr < s[0].f) { const e = pt(-2), fe = f(e); s[d] = fe < fr ? { x: e, f: fe } : { x: r, f: fr }; }
+      else if (fr < s[d - 1].f) s[d] = { x: r, f: fr };
+      else {
+        const ct = pt(fr < w.f ? -0.5 : 0.5), fc = f(ct);
+        if (fc < Math.min(fr, w.f)) s[d] = { x: ct, f: fc };
+        else s = [s[0], ...s.slice(1).map(q => { const x = q.x.map((v, j) => (v + s[0].x[j]) / 2); return { x, f: f(x) }; })];
+      }
+      if (k > 40 && Math.abs(s[d].f - s[0].f) <= 1e-13 * (Math.abs(s[0].f) + 1e-30)) break;
+    }
+    s.sort((a, b) => a.f - b.f); return s[0].x;
+  }
+  function inv(A) { // small symmetric matrix inverse, Gauss-Jordan
+    const n = A.length, M = A.map((r, i) => [...r, ...r.map((_, j) => +(i === j))]);
+    for (let i = 0; i < n; i++) {
+      let piv = i; for (let r = i + 1; r < n; r++) if (Math.abs(M[r][i]) > Math.abs(M[piv][i])) piv = r;
+      if (Math.abs(M[piv][i]) < 1e-300) return null;
+      [M[i], M[piv]] = [M[piv], M[i]];
+      const v = M[i][i]; for (let j = 0; j < 2 * n; j++) M[i][j] /= v;
+      for (let r = 0; r < n; r++) if (r !== i) { const f = M[r][i]; for (let j = 0; j < 2 * n; j++) M[r][j] -= f * M[i][j]; }
+    }
+    return M.map(r => r.slice(n));
+  }
+
+  function fit(pts, model) {
+    const k = names[model].length, n = pts.length;
+    const pHs = [...new Set(pts.map(q => q.pH))];
+    if (n <= k || pHs.length < k + 1) return { error: `This model needs at least ${k + 1} different pH values.` };
+    if (!(Math.max(...pts.map(q => q.y)) > 0)) return { error: 'No positive rates to fit.' };
+    const lo = Math.min(...pHs), hi = Math.max(...pHs);
+    let toP, x0, step;
+    const f = x => { const p = toP(x); if (Object.values(p).some(v => v < lo - 4 || v > hi + 4)) return 1e300; p.ymax = ymaxFor(pts, model, p); return sseOf(pts, model, p); };
+    if (model === 'bell') {
+      toP = x => ({ pKa1: x[0], pKa2: x[0] + Math.exp(x[1]) });
+      let best = Infinity;
+      for (let i = 0; i <= 50; i++) for (let j = 0; j <= 30; j++) {
+        const x = [lo - 2 + (hi - lo + 3) * i / 50, Math.log(0.05) + (Math.log(8) - Math.log(0.05)) * j / 30];
+        const v = f(x);
+        if (v < best) { best = v; x0 = x; }
+      }
+      step = [0.3, 0.3];
+    } else {
+      const key = model === 'rise' ? 'pKa1' : 'pKa2';
+      toP = x => ({ [key]: x[0] });
+      let best = Infinity;
+      for (let i = 0; i <= 120; i++) {
+        const x = [lo - 3 + (hi - lo + 6) * i / 120], v = f(x);
+        if (v < best) { best = v; x0 = x; }
+      }
+      step = [0.3];
+    }
+    const xb = nelder(f, x0, step);
+    const p = toP(xb); p.ymax = ymaxFor(pts, model, p);
+    const sse = sseOf(pts, model, p), df = n - k, s2 = sse / df;
+    // Jacobian in (ymax, pKa...) for standard errors
+    const pv = names[model].map(nm => p[nm]);
+    const pred = (v, pH) => { const q = {}; names[model].forEach((nm, i) => q[nm] = v[i]); return q.ymax * shape[model](pH, q); };
+    const J = pts.map(q => pv.map((v, i) => { const h = i === 0 ? Math.max(1e-6, Math.abs(v) * 1e-6) : 1e-6; const a = pv.slice(), b = pv.slice(); a[i] += h; b[i] -= h; return (pred(a, q.pH) - pred(b, q.pH)) / (2 * h); }));
+    const JTJ = pv.map((_, i) => pv.map((_, j) => J.reduce((s, r) => s + r[i] * r[j], 0)));
+    const C = inv(JTJ), se = {}, corr = {};
+    names[model].forEach((nm, i) => se[nm] = C && C[i][i] > 0 ? Math.sqrt(s2 * C[i][i]) : NaN);
+    if (model === 'bell' && C) corr.pKa = C[1][2] / Math.sqrt(C[1][1] * C[2][2]);
+    const aicc = n > k + 2 && sse > 0 ? n * Math.log(sse / n) + 2 * (k + 1) + 2 * (k + 1) * (k + 2) / (n - k - 2) : NaN;
+    let peak = null;
+    if (model === 'bell') { const pHo = (p.pKa1 + p.pKa2) / 2; peak = { pH: pHo, y: p.ymax * shape.bell(pHo, p) }; }
+    const flags = [];
+    names[model].slice(1).forEach(nm => {
+      if (p[nm] < lo - 0.3 || p[nm] > hi + 0.3) flags.push(`${nm} lies outside the measured pH range, so the data do not define it.`);
+      else if (se[nm] > 1 || !Number.isFinite(se[nm])) flags.push(`${nm} is poorly defined (standard error above 1 pH unit).`);
+    });
+    if (model === 'bell') {
+      if (Math.abs(corr.pKa) > 0.9) flags.push(`pKa1 and pKa2 are strongly correlated (r = ${corr.pKa.toFixed(2)}); the two values are not independently determined.`);
+      if (p.pKa2 - p.pKa1 < 2) flags.push('The two pKa values are within 2 units, so y_max is well above the observed peak.');
+    }
+    const predict = pH => p.ymax * shape[model](pH, p);
+    const outside = nm => p[nm] < lo - 0.3 ? 'below' : p[nm] > hi + 0.3 ? 'above' : '';
+    return { model, n, k, p, se, outside, corr, sse, sd: Math.sqrt(s2), aicc, peak, flags, predict, residuals: pts.map(q => q.y - predict(q.pH)), lo, hi };
+  }
+
+  function overlaps(rows, tol = 0.15) { // pH values measured in two or more buffers
+    const by = new Map(); rows.forEach(r => { if (!by.has(r.buffer)) by.set(r.buffer, []); by.get(r.buffer).push(r); });
+    const bufs = [...by.keys()].filter(b => b), out = [];
+    for (let i = 0; i < bufs.length; i++) for (let j = i + 1; j < bufs.length; j++) {
+      const A = by.get(bufs[i]), B = by.get(bufs[j]);
+      const pa = [...new Set(A.map(r => +r.pH.toFixed(2)))];
+      pa.forEach(x => {
+        const a = A.filter(r => Math.abs(r.pH - x) <= tol), b = B.filter(r => Math.abs(r.pH - x) <= tol);
+        if (a.length && b.length && !out.some(o => o.bufA === bufs[i] && o.bufB === bufs[j] && Math.abs(o.pH - x) <= tol)) {
+          const st = s => { const m = s.reduce((t, r) => t + r.y, 0) / s.length; const sd = s.length > 1 ? Math.sqrt(s.reduce((t, r) => t + (r.y - m) ** 2, 0) / (s.length - 1)) : NaN; return { m, sd, n: s.length }; };
+          out.push({ pH: x, bufA: bufs[i], bufB: bufs[j], A: st(a), B: st(b) });
+        }
+      });
+    }
+    return out.sort((a, b) => a.pH - b.pH);
+  }
+
+  function fields(line, sep) {
+    let a = [], s = '', quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { if (quoted && line[i + 1] === '"') { s += '"'; i++; } else quoted = !quoted; }
+      else if (c === sep && !quoted) { a.push(s.trim()); s = ''; } else s += c;
+    }
+    if (quoted) throw Error('A quoted field is missing its closing quote.');
+    a.push(s.trim()); return a;
+  }
+  function parse(text) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/).map((s, i) => ({ s, i: i + 1 })).filter(x => x.s.trim());
+    if (!lines.length) return [];
+    if (lines.length > 5001) throw Error('Please use no more than 5,000 data rows.');
+    const sep = lines[0].s.includes('\t') ? '\t' : lines[0].s.includes(';') ? ';' : ',';
+    const head = fields(lines[0].s, sep).map(s => s.toLowerCase());
+    const pi = head.findIndex(h => /^ph\b/.test(h));
+    if (pi < 0) throw Error('The first row must be a header that includes a pH column.');
+    const yi = head.findIndex(h => /^(rate|activity|v|turnover)\b/.test(h));
+    if (yi < 0) throw Error('Add a rate (or activity) column.');
+    const si = head.indexOf('series'), bi = head.indexOf('buffer'), ti = head.indexOf('type');
+    const rows = [];
+    for (const line of lines.slice(1)) {
+      const a = fields(line.s, sep);
+      if (a.length !== head.length) throw Error(`Line ${line.i}: the number of columns does not match the header.`);
+      const pH = Number(a[pi]), y = Number(a[yi]);
+      if (!a[pi] || !Number.isFinite(pH) || pH < 0 || pH > 14) throw Error(`Line ${line.i}: pH must be a number between 0 and 14.`);
+      if (a[yi] === '' || !Number.isFinite(y)) throw Error(`Line ${line.i}: rate must be a number.`);
+      const type = ti >= 0 && /^rec/i.test(a[ti]) ? 'recovery' : 'assay';
+      rows.push({ id: rows.length, series: si >= 0 && a[si] ? a[si] : 'Sample', buffer: bi >= 0 ? a[bi] : '', pH, y, type, on: true });
+    }
+    if (new Set(rows.map(r => r.series)).size > 8) throw Error('Use up to eight series in one comparison.');
+    if (!rows.length) throw Error('No measurements were found.');
+    return rows;
+  }
+  return { parse, fit, overlaps, names };
+})();
+if (typeof module !== 'undefined') module.exports = PHFit;
+
+</script>
+<script>
+(() => {
+'use strict';
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const neg=s=>s.replace(/^-/,'−');
+const fmt=x=>x===null||x===undefined||Number.isNaN(x)?'—':!Number.isFinite(x)?'∞':x===0?'0':Math.abs(x)<.001||Math.abs(x)>=10000?neg(x.toExponential(2)):neg(Number(x.toPrecision(3)).toString());
+const f2=x=>x===null||x===undefined||!Number.isFinite(x)?'—':neg(x.toFixed(2));
+const palette=['--c1','--c2','--c3','--c4','--c5','--c6','--fg','--ref'], shapes=['circle','square','triangle','diamond','down','circle'];
+const MODEL_NAME={bell:'Two ionizations',rise:'Rising limb',fall:'Falling limb'};
+let rows=[],series=[],buffers=[],example=false,dirty=false;
+function status(s,error=false){$('status').textContent=s;$('status').classList.toggle('status-error',error);}
+function colour(i){return `var(${palette[i%palette.length]})`;}
+function marker(shape,x,y,c,filled=true,r=4){const f=filled?c:'var(--panel)',st=`fill="${f}" stroke="${c}" stroke-width="${filled?.8:1.6}"`;
+  if(shape==='square')return `<rect x="${x-r}" y="${y-r}" width="${2*r}" height="${2*r}" ${st}`;
+  if(shape==='triangle')return `<path d="M${x},${y-r*1.2}L${x+r*1.1},${y+r*.8}L${x-r*1.1},${y+r*.8}Z" ${st}`;
+  if(shape==='down')return `<path d="M${x},${y+r*1.2}L${x+r*1.1},${y-r*.8}L${x-r*1.1},${y-r*.8}Z" ${st}`;
+  if(shape==='diamond')return `<path d="M${x},${y-r*1.2}L${x+r*1.2},${y}L${x},${y+r*1.2}L${x-r*1.2},${y}Z" ${st}`;
+  return `<circle cx="${x}" cy="${y}" r="${r}" ${st}`;}
+function shapeOf(b){const i=buffers.indexOf(b);return shapes[(i<0?0:i)%shapes.length];}
+function clearOutputs(){series=[];$('cards').innerHTML='';$('plot').innerHTML='<div class="empty">Load your measurements or try the example.</div>';$('legend').innerHTML='';['resultsPanel','comparePanel','overlapPanel','recoveryPanel','residualPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=true);['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=true);}
+function apply(){try{rows=PHFit.parse($('pasteText').value);dirty=false;render();status(rows.length?`${rows.length} reactions · ${series.length} series${example?' · example data':''}`:'Ready for your data.');}catch(e){rows=[];clearOutputs();status(e.message,true);}}
+function pk(f,nm){const o=f.outside(nm);return o==='above'?'> '+f2(f.hi):o==='below'?'< '+f2(f.lo):f2(f.p[nm]);}
+function pkse(f,nm){return f.outside(nm)||!Number.isFinite(f.se[nm])?'—':f2(f.se[nm]);}
+function pm(f,nm){const s=pkse(f,nm);return s==='—'?pk(f,nm):`${pk(f,nm)} ± ${s}`;}
+function render(){
+  if(!rows.length){clearOutputs();$('exampleBadge').hidden=true;return;}
+  const model=$('model').value,u=esc($('rateUnit').value||'rate units');
+  buffers=[...new Set(rows.map(r=>r.buffer))];
+  series=[...new Set(rows.map(r=>r.series))].map((name,i)=>{
+    const on=rows.filter(r=>r.on&&r.series===name),pts=on.filter(r=>r.type==='assay'),rec=on.filter(r=>r.type==='recovery');
+    const all={};['bell','rise','fall'].forEach(m=>all[m]=PHFit.fit(pts,m));
+    return {name,i,pts,rec,all,f:all[model],ov:PHFit.overlaps(pts)};
+  });
+  $('exampleBadge').hidden=!example;
+  $('cards').innerHTML=series.map(s=>{const f=s.f;if(f.error)return `<div class="card" style="border-color:${colour(s.i)}"><div class="k">${esc(s.name)}</div><div class="v">—</div><div class="s">${esc(f.error)}</div></div>`;
+    const v=model==='bell'?`${pk(f,'pKa1')} / ${pk(f,'pKa2')}`:pk(f,model==='rise'?'pKa1':'pKa2');
+    const k=model==='bell'?'apparent pK<sub>a1</sub> / pK<sub>a2</sub>':model==='rise'?'apparent pK<sub>a1</sub>':'apparent pK<sub>a2</sub>';
+    const se=model==='bell'?`± ${pkse(f,'pKa1')} / ± ${pkse(f,'pKa2')}`:`± ${pkse(f,model==='rise'?'pKa1':'pKa2')}`;
+    const extra=f.peak?`<br>fitted peak ${fmt(f.peak.y)} at pH ${f2(f.peak.pH)}`:'';
+    return `<div class="card hot" style="border-color:${colour(s.i)}"><div class="k">${esc(s.name)} · ${k}</div><div class="v">${v}</div><div class="s">${se} (SE)${extra}</div></div>`;}).join('');
+  $('plot').innerHTML=plot('main');
+  $('legend').innerHTML=series.map(s=>`<span><i style="background:${colour(s.i)}"></i>${esc(s.name)}</span>`).join('')+(buffers.filter(b=>b).length?buffers.filter(b=>b).map(b=>`<span><svg width="14" height="14" viewBox="0 0 14 14" style="width:14px;display:inline-block;margin-right:5px">${marker(shapeOf(b),7,7,'var(--muted)',true,4)}/></svg>${esc(b)}</span>`).join(''):'');
+  const k2=model==='bell';
+  $('results').innerHTML=`<table class="data"><thead><tr><th>Series</th><th>n</th><th>y<sub>max</sub> (${u})</th>${model!=='fall'?'<th>pK<sub>a1</sub></th>':''}${model!=='rise'?'<th>pK<sub>a2</sub></th>':''}${k2?'<th>r(pK<sub>a1</sub>, pK<sub>a2</sub>)</th><th>Peak pH</th><th>Peak rate</th>':''}<th>Residual SD</th></tr></thead><tbody>`+series.map(s=>{const f=s.f;if(f.error)return `<tr><td>${esc(s.name)}</td><td colspan="8">${esc(f.error)}</td></tr>`;
+    return `<tr><td>${esc(s.name)}</td><td>${f.n}</td><td>${fmt(f.p.ymax)} ± ${fmt(f.se.ymax)}</td>${model!=='fall'?`<td>${pm(f,'pKa1')}</td>`:''}${model!=='rise'?`<td>${pm(f,'pKa2')}</td>`:''}${k2?`<td>${f2(f.corr.pKa)}</td><td>${f2(f.peak.pH)}</td><td>${fmt(f.peak.y)}</td>`:''}<td>${fmt(f.sd)}</td></tr>`;}).join('')+'</tbody></table>';
+  $('notes').innerHTML=series.map(s=>{const f=s.f;if(f.error||!f.flags.length)return '';return `<p><b>${esc(s.name)}:</b> ${f.flags.map(esc).join(' ')}</p>`;}).join('');
+  $('compare').innerHTML='<table class="data"><thead><tr><th>Series</th><th>Model</th><th>Parameters</th><th>Residual SD</th><th>AICc</th><th>ΔAICc</th></tr></thead><tbody>'+series.flatMap(s=>{
+    const ok=Object.entries(s.all).filter(([,f])=>!f.error&&Number.isFinite(f.aicc)),best=Math.min(...ok.map(([,f])=>f.aicc));
+    return Object.entries(s.all).map(([m,f])=>f.error?`<tr><td>${esc(s.name)}</td><td class="l">${MODEL_NAME[m]}</td><td colspan="4">${esc(f.error)}</td></tr>`:`<tr class="${f.aicc===best?'best':''}"><td>${esc(s.name)}</td><td class="l">${MODEL_NAME[m]}</td><td>${f.k}</td><td>${fmt(f.sd)}</td><td>${Number.isFinite(f.aicc)?f.aicc.toFixed(1):'—'}</td><td>${Number.isFinite(f.aicc)?(f.aicc-best).toFixed(1):'—'}</td></tr>`);}).join('')+'</tbody></table>';
+  const ovs=series.flatMap(s=>s.ov.map(o=>({s,o})));
+  $('overlapPanel').hidden=!ovs.length;
+  $('overlap').innerHTML='<table class="data"><thead><tr><th>Series</th><th>pH</th><th>Buffer A</th><th>Mean ± SD (n)</th><th>Buffer B</th><th>Mean ± SD (n)</th><th>B / A</th></tr></thead><tbody>'+ovs.map(({s,o})=>`<tr><td>${esc(s.name)}</td><td>${f2(o.pH)}</td><td class="l">${esc(o.bufA)}</td><td>${fmt(o.A.m)} ± ${fmt(o.A.sd)} (${o.A.n})</td><td class="l">${esc(o.bufB)}</td><td>${fmt(o.B.m)} ± ${fmt(o.B.sd)} (${o.B.n})</td><td>${o.A.m?f2(o.B.m/o.A.m):'—'}</td></tr>`).join('')+'</tbody></table>';
+  const hasRec=series.some(s=>s.rec.length);$('recoveryPanel').hidden=!hasRec;if(hasRec)$('recoveryPlot').innerHTML=plot('recovery');
+  $('residualPlot').innerHTML=plot('residual');
+  $('dataSummary').textContent=`Measurements (${rows.length}; ${rows.filter(r=>r.on).length} included)`;
+  $('dataTable').innerHTML='<table class="data"><thead><tr><th>Include</th><th>Series</th><th>Buffer</th><th>pH</th><th>Type</th><th>Rate</th><th>Fitted</th><th>Residual</th></tr></thead><tbody>'+rows.map(r=>{
+    const f=series.find(s=>s.name===r.series).f,v=r.type==='assay'&&!f.error?f.predict(r.pH):null;
+    return `<tr class="${r.on?'':'off'}"><td><input type="checkbox" data-id="${r.id}" ${r.on?'checked':''} aria-label="Include reaction ${r.id+1}"></td><td>${esc(r.series)}</td><td class="l">${esc(r.buffer)}</td><td>${f2(r.pH)}</td><td class="l">${r.type}</td><td>${fmt(r.y)}</td><td>${fmt(v)}</td><td>${v===null?'—':fmt(r.y-v)}</td></tr>`;}).join('')+'</tbody></table>';
+  ['resultsPanel','comparePanel','residualPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=false);
+  ['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=dirty);
+}
+function plot(kind){
+  const residual=kind==='residual',rec=kind==='recovery',W=760,H=residual||rec?230:380,L=78,R=25,T=22,B=52;
+  const pts=series.flatMap(s=>(rec?s.rec:s.pts).map(p=>({s,p})));
+  if(!pts.length)return '<div class="empty">No measurements to plot.</div>';
+  let xmin=Math.min(...pts.map(q=>q.p.pH)),xmax=Math.max(...pts.map(q=>q.p.pH));const pad=Math.max(.2,(xmax-xmin)*.05);xmin-=pad;xmax+=pad;
+  let ymin,ymax;
+  if(residual){const v=series.flatMap(s=>s.f.error?[]:s.f.residuals);const m=Math.max(1e-9,...v.map(Math.abs))*1.2;ymin=-m;ymax=m;}
+  else{const v=pts.map(q=>q.p.y);if(!rec)series.forEach(s=>{if(!s.f.error&&s.f.peak)v.push(s.f.peak.y);});ymin=Math.min(0,...v);ymax=Math.max(...v)*1.08||1;}
+  const rough=(ymax-ymin)/5,mag=10**Math.floor(Math.log10(rough)),tick=[1,2,2.5,5,10].find(x=>x*mag>=rough)*mag;
+  ymin=Math.floor(ymin/tick)*tick;ymax=Math.ceil(ymax/tick)*tick;
+  const X=t=>L+(t-xmin)/(xmax-xmin)*(W-L-R),Y=y=>H-B-(y-ymin)/(ymax-ymin)*(H-T-B);
+  const u=esc($('rateUnit').value||'rate');
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${residual?'Fit residuals':rec?'Recovery after exposure':'Rate against pH'}"><title>${residual?'Residuals':rec?'Recovery after exposure':'pH profile'}</title><rect width="${W}" height="${H}" fill="var(--panel)"/>`;
+  const xt=(xmax-xmin)>3?1:.5;
+  for(let t=Math.ceil(xmin/xt)*xt;t<=xmax+1e-9;t+=xt)svg+=`<path d="M${X(t)},${T}V${H-B}" stroke="var(--grid)" fill="none"/><text x="${X(t)}" y="${H-B+20}" text-anchor="middle">${+t.toFixed(1)}</text>`;
+  for(let y=ymin;y<=ymax+1e-12;y+=tick)svg+=`<path d="M${L},${Y(y)}H${W-R}" stroke="var(--grid)"/><text x="${L-10}" y="${Y(y)+4}" text-anchor="end">${fmt(+y.toPrecision(6))}</text>`;
+  svg+=`<path d="M${L},${T}V${H-B}H${W-R}" stroke="var(--ref)" fill="none"/><text x="${(L+W-R)/2}" y="${H-8}" text-anchor="middle">${rec?'Exposure pH':'pH'}</text><text transform="translate(16 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">${residual?'Residual':'Rate'} (${u})</text>`;
+  if(residual)svg+=`<path d="M${L},${Y(0)}H${W-R}" stroke="var(--ref)" stroke-dasharray="5 4"/>`;
+  series.forEach(s=>{const c=colour(s.i),f=s.f;
+    if(kind==='main'&&!f.error){let d='';for(let j=0;j<=240;j++){const t=xmin+(xmax-xmin)*j/240;d+=(j?'L':'M')+X(t).toFixed(2)+','+Y(Math.max(ymin,Math.min(ymax,f.predict(t)))).toFixed(2);}svg+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2.4"/>`;}
+    (rec?s.rec:s.pts).forEach((p,j)=>{if(residual&&f.error)return;const y=residual?f.residuals[j]:p.y;svg+=marker(shapeOf(p.buffer),X(p.pH),Y(y),c,!rec)+`><title>${esc(s.name)} · ${esc(p.buffer||'no buffer')} · pH ${f2(p.pH)}: ${residual?'residual':'rate'} ${fmt(y)}</title></${shapeOf(p.buffer)==='circle'?'circle':shapeOf(p.buffer)==='square'?'rect':'path'}>`;});
+  });
+  return svg+'</svg>';
+}
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+function csv(table){return '﻿'+table.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');}
+function loadExample(){
+  const bufs=[['MES',[5.8,6.2,6.6]],['MOPS',[6.6,7.0,7.4,7.8]],['Tris',[7.8,8.2,8.6]],['CHES',[8.6,9.0,9.4,9.8]]],L=['series,buffer,pH,rate,type'];
+  [['WT',6.8,9.2,.95],['Mutant',7.4,8.9,.70]].forEach(([name,k1,k2,ym],q)=>{
+    bufs.forEach(([b,ps],bi)=>ps.forEach((pH,i)=>[0,1].forEach(j=>{const y=ym/(1+10**(k1-pH)+10**(pH-k2))+.025*Math.sin(i*2.1+j*3.7+bi+q);L.push(`${name},${b},${pH},${y.toFixed(3)},assay`);})));
+    L.push(`${name},MES,5.8,${(ym*.82).toFixed(3)},recovery`,`${name},CHES,9.8,${(ym*(q?.35:.71)).toFixed(3)},recovery`);
+  });
+  $('pasteText').value=L.join('\n');$('model').value='bell';$('rateUnit').value='µM/min';example=true;apply();
+}
+$('fitBtn').onclick=apply;$('exampleBtn').onclick=loadExample;
+$('clearBtn').onclick=()=>{rows=[];example=false;dirty=false;$('pasteText').value='';render();status('Ready for your data.');};
+$('pasteText').oninput=()=>{dirty=true;example=false;$('exampleBadge').hidden=true;clearOutputs();status('Table changed. Select Fit data to update the results.');};
+$('fileBtn').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=async()=>{const f=$('fileIn').files[0];if(!f)return;if(f.size>2e6){status('Please use a file smaller than 2 MB.',true);return;}try{$('pasteText').value=await f.text();example=false;apply();}catch(e){status('Could not read the file: '+e.message,true);}$('fileIn').value='';};
+['model','rateUnit'].forEach(id=>$(id).addEventListener('change',()=>{if(!dirty&&rows.length)render();}));
+$('theme').onchange=()=>{if($('theme').value==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=$('theme').value;};
+$('dataTable').onchange=e=>{const id=e.target.dataset.id;if(id!==undefined){rows[+id].on=e.target.checked;render();}};
+$('csvBtn').onclick=()=>{
+  const h=['series','model','rate_unit','n','ymax','ymax_SE','pKa1','pKa1_SE','pKa2','pKa2_SE','r_pKa1_pKa2','peak_pH','peak_rate','residual_SD','AICc_bell','AICc_rise','AICc_fall','notes'];
+  download('ph-profile-results.csv',csv([h,...series.map(s=>{const f=s.f,a=m=>s.all[m].error?'':s.all[m].aicc;if(f.error)return [s.name,$('model').value,'','','','','','','','','','','','','','','',f.error];
+    return [s.name,$('model').value,$('rateUnit').value,f.n,f.p.ymax,f.se.ymax,f.p.pKa1??'',f.se.pKa1??'',f.p.pKa2??'',f.se.pKa2??'',f.corr.pKa??'',f.peak?f.peak.pH:'',f.peak?f.peak.y:'',f.sd,a('bell'),a('rise'),a('fall'),f.flags.join(' ')];})]),'text/csv;charset=utf-8');
+};
+$('dataBtn').onclick=()=>download('ph-profile-data.csv',csv([['series','buffer','pH','rate','type','included','fitted','residual'],...rows.map(r=>{const f=series.find(s=>s.name===r.series).f,v=r.type==='assay'&&!f.error?f.predict(r.pH):'';return [r.series,r.buffer,r.pH,r.y,r.type,r.on,v,v===''?'':r.y-v];})]),'text/csv;charset=utf-8');
+$('svgBtn').onclick=()=>{
+  const source=$('plot').querySelector('svg');if(!source)return;
+  let svg=source.outerHTML;const style=getComputedStyle(document.documentElement);
+  svg=svg.replace(/var\((--[\w-]+)\)/g,(_,v)=>style.getPropertyValue(v).trim());
+  const extra=30+series.length*22;
+  const legend=series.map((s,i)=>{const f=s.f,c=style.getPropertyValue(palette[s.i%palette.length]).trim();const t=f.error?'not fitted':$('model').value==='bell'?`pKa1 ${f2(f.p.pKa1)} ± ${f2(f.se.pKa1)}, pKa2 ${f2(f.p.pKa2)} ± ${f2(f.se.pKa2)}`:`pKa ${f2($('model').value==='rise'?f.p.pKa1:f.p.pKa2)}`;return `<circle cx="80" cy="${400+i*22}" r="4" fill="${c}"/><text x="92" y="${404+i*22}">${esc(s.name)}: ${t}</text>`;}).join('');
+  svg=svg.replace('</svg>',legend+'</svg>').replace('viewBox="0 0 760 380"',`viewBox="0 0 760 ${380+extra}"`).replace('<rect width="760" height="380"',`<rect width="760" height="${380+extra}"`);
+  svg=svg.replace('<title>','<style>text{font-family:Arial,sans-serif;font-size:13px;fill:'+style.getPropertyValue('--muted').trim()+'}</style><title>');
+  download('ph-profile.svg',svg,'image/svg+xml');
+};
+})();
+</script>
+</body></html>
