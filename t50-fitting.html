@@ -1,0 +1,531 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>T50 Fitting · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control column left (data, fit options, downloads); right: cards, plot, results, residuals. Each series gets its own colour (c1..c6). */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --win: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --win: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --win: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 80ch; }
+header a { color: var(--accent); }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 71px 71px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-k], table.data tbody tr[data-d], table.data tbody tr[data-w] { cursor: pointer; }
+table.data tbody tr[data-k]:hover, table.data tbody tr[data-d]:hover, table.data tbody tr[data-w]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+table.data tbody tr.best td:first-child { font-weight: 600; }
+table.data tr.off td { color: var(--muted); text-decoration: line-through; }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+
+.topline{display:flex;justify-content:space-between;align-items:center;gap:16px}.topline select{width:86px}
+textarea{height:210px;tab-size:10}p{margin:8px 0}.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.equation{font-family:var(--mono);font-size:14px;padding:12px;background:var(--bg);border-radius:6px;margin:10px 0;overflow-x:auto}
+.equations{display:grid;grid-template-columns:1fr 1fr;gap:18px}.equations h3{margin:0 0 8px}.equations p{font-size:13px}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:6px}
+.badge{font-size:11px;background:var(--accent-soft);color:var(--accent);padding:3px 7px;border-radius:4px;white-space:nowrap}
+.data input{accent-color:var(--accent)}.data tr.off{opacity:.55}.notes p{font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center}.legend i{flex:none}.main>.panel{overflow:hidden}
+svg text{font-size:13px}
+footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
+[hidden]{display:none!important}#status{min-height:20px}.status-error{color:var(--warn)}
+@media(max-width:600px){.equations{grid-template-columns:1fr}.topline{align-items:flex-start}.cards{grid-template-columns:1fr}body{padding-left:12px;padding-right:12px}}
+@media print{body{background:white;padding:0}.controls,.topline select,.btns,.plothead button,footer{display:none}.grid{display:block}.panel{break-inside:avoid;margin-bottom:12px}.cards{margin-bottom:12px}details:not([open]){display:none}}
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <div class="topline"><h1>T50 Fitting</h1><select id="theme" aria-label="Appearance"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  <p>Fit the activity left after a fixed-time heat treatment against temperature, for example from a gradient thermocycler. Estimate T50 and compare WT with mutants. <a href="index.html">All tools</a></p>
+</header>
+<div class="grid">
+<aside class="controls">
+  <section class="panel">
+    <h2><span class="step">1</span> Activity measurements</h2>
+    <label for="pasteText" class="hint">Paste a table from Excel, or open a CSV/TSV file.</label>
+    <textarea id="pasteText" spellcheck="false" placeholder="series,temperature,activity&#10;WT,unheated,0.120&#10;WT,unheated,0.118&#10;WT,46.2,0.112&#10;WT,51.6,0.071&#10;WT,56.6,0.008" aria-describedby="dataHelp"></textarea>
+    <div class="btns"><button class="btn primary" id="fitBtn">Fit data</button><button class="btn" id="fileBtn">Open file</button><input type="file" id="fileIn" accept=".csv,.tsv,.txt" hidden></div>
+    <div class="btns"><button class="btn" id="exampleBtn">Load example</button><button class="btn" id="clearBtn">Clear</button></div>
+    <p class="hint" id="dataHelp">Use columns <b>series, temperature, activity</b>, one row per tube. A table with <b>temperature, WT, mutant</b> columns also works.</p>
+    <details><summary>Which values go in the table?</summary>
+      <p class="hint">Enter blank-corrected initial rates. Slopes can be used directly when every assay uses the same enzyme concentration and optical setup; otherwise express each rate per amount of enzyme first.</p>
+      <p class="hint">For temperature, use the value the thermocycler assigns to the tube's row or column at your gradient settings.</p>
+      <p class="hint">For each series, enter the unheated tubes with <b>unheated</b> in the temperature column. Their mean is 100% for that series. Give each protein a distinct series name.</p>
+    </details>
+    <p class="hint" id="status" role="status" aria-live="polite">Ready for your data.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">2</span> Fit options</h2>
+    <div class="field"><label for="model">Sigmoid fit</label><select id="model"><option value="free">Free plateaus</option><option value="fixed">Fixed 100% / 0%</option><option value="none">None</option></select></div>
+    <div class="field"><label for="refSeries">ΔT50 relative to</label><select id="refSeries"></select></div>
+    <div class="field"><label for="activityUnit">Activity units</label><input id="activityUnit" type="text" value="ΔA340/min" maxlength="40"></div>
+    <div class="field"><label for="exposure">Exposure (min)</label><input type="number" id="exposure" placeholder="Optional" step="any"></div>
+    <p class="hint">T50 depends on the exposure time, protein concentration, and buffer. Compare values measured under the same conditions.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">3</span> Save results</h2>
+    <div class="btns"><button class="btn" id="csvBtn" disabled>Results CSV</button><button class="btn" id="dataBtn" disabled>Data CSV</button><button class="btn" id="svgBtn" disabled>Save graph</button></div>
+    <p class="hint">The results file includes both T50 estimates, their 95% intervals, the fitted parameters, and ΔT50. Your measurements stay in this browser tab.</p>
+  </section>
+</aside>
+<main class="main">
+  <div id="cards" class="cards" aria-live="polite"></div>
+  <section class="panel plot">
+    <div class="plothead"><h3>Activity retained</h3><span id="exampleBadge" class="badge" hidden>Illustrative example</span></div>
+    <div id="plot"><div class="empty">Load your measurements or try the example.</div></div>
+    <div id="legend" class="legend"></div>
+    <p id="plotCaption" class="hint" hidden>Circles: individual heated tubes. Lines: fitted sigmoids. Short vertical marks: interpolated T50. Diamonds: unheated tubes, shown at the right.</p>
+  </section>
+  <section class="panel" id="resultsPanel" hidden>
+    <h2>Results</h2><div class="tablewrap" id="results"></div>
+    <div id="notes" class="notes"></div>
+    <p class="hint">95% intervals come from 1000 bootstrap resamples: tubes are drawn with replacement within each temperature, and the unheated tubes are resampled too. With only two or three tubes per temperature the intervals are approximate and tend to be too narrow.</p>
+  </section>
+  <section class="panel plot" id="residualPanel" hidden>
+    <div class="plothead"><h3>Residuals</h3><span class="hint">Measured − fitted activity retained</span></div>
+    <div id="residualPlot"></div>
+    <p class="hint">Scatter around zero is consistent with the sigmoid. A run of points on one side suggests the curve shape or the plateaus do not match the data.</p>
+  </section>
+  <section class="panel">
+    <h2>What is being calculated?</h2>
+    <div class="equations">
+      <div><h3>Activity retained</h3>
+        <div class="equation">retained (%) = 100 × v<sub>heated</sub> / v̄<sub>unheated</sub></div>
+        <p>Each heated tube is compared with the mean of the unheated tubes for the same series.</p>
+        <h3>Interpolated T50</h3>
+        <p>The mean retained activity is taken at each temperature. T50 is found by a straight line between the two neighboring temperatures where the mean drops from above 50% to below 50%. If the data never cross 50%, the T50 is reported as above or below the measured range.</p>
+      </div>
+      <div><h3>Sigmoid</h3>
+        <div class="equation">A(T) = bottom + (top − bottom) / (1 + e<sup>(T − T<sub>mid</sub>)/w</sup>)</div>
+        <p><b>T<sub>mid</sub></b> lies halfway between the fitted plateaus, and <b>w</b> sets how sharp the transition is. The temperature where the curve crosses 50% of the untreated activity is</p>
+        <div class="equation">T50 = T<sub>mid</sub> + w · ln[(top − 50) / (50 − bottom)]</div>
+        <p>T50 and T<sub>mid</sub> are equal only when the plateaus are 100% and 0%. State which value you report.</p>
+      </div>
+    </div>
+    <p class="hint">The sigmoid is fitted to every included tube by least squares on the retained-activity scale. With free plateaus, top and bottom are fitted; with the 100% to 0% option they are fixed. ΔT50 = T50(series) − T50(reference).</p>
+  </section>
+  <section class="panel" id="dataPanel" hidden><details><summary id="dataSummary">Measurements</summary><div class="tablewrap" id="dataTable"></div><p class="hint">Uncheck a tube to leave it out. Exclusions are recorded in the data download.</p></details></section>
+</main></div>
+<footer>BBMB 4110 · E3: Temperature dependence of residual activity · <a href="https://github.com/swnisu1/BBMB_4110">Source on GitHub</a></footer>
+</div>
+<script>
+/* T50 analysis for a fixed-time heat challenge.
+   retained (%) = 100 * activity / mean(unheated activity) for the same series.
+   Interpolated T50: linear interpolation between the temperatures whose mean
+   retained activity brackets 50%. Sigmoid: A(T) = bottom + (top-bottom)/(1+exp((T-Tmid)/w)),
+   fitted by separable least squares (top and bottom solved linearly at each Tmid, w).
+   Uncertainty: bootstrap that resamples tubes within each temperature and the unheated tubes. */
+const T50Fit = (() => {
+  const mean = a => a.reduce((s, x) => s + x, 0) / a.length;
+
+  function rng(seed) { // mulberry32
+    let a = seed >>> 0;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  function groups(points) { // points: {T, r}; returns sorted [{T, vals}]
+    const m = new Map();
+    points.forEach(p => { const k = +p.T.toFixed(6); if (!m.has(k)) m.set(k, []); m.get(k).push(p.r); });
+    return [...m.entries()].map(([T, vals]) => ({ T, vals })).sort((a, b) => a.T - b.T);
+  }
+
+  function interp(points) {
+    const g = groups(points);
+    if (g.length < 2) return { t50: null, status: 'few' };
+    const m = g.map(x => ({ T: x.T, y: mean(x.vals) }));
+    let down = 0, up = 0, t50 = null;
+    for (let i = 0; i < m.length; i++) {
+      if (m[i].y === 50 && t50 === null) t50 = m[i].T;
+      if (i < m.length - 1) {
+        const a = m[i], b = m[i + 1];
+        if (a.y > 50 && b.y < 50) { down++; if (t50 === null) t50 = a.T + (50 - a.y) * (b.T - a.T) / (b.y - a.y); }
+        if (a.y < 50 && b.y > 50) up++;
+      }
+    }
+    if (t50 !== null) return { t50, status: 'ok', down, up, means: m };
+    if (m.every(x => x.y > 50)) return { t50: null, status: 'above', means: m };
+    if (m.every(x => x.y < 50)) return { t50: null, status: 'below', means: m };
+    return { t50: null, status: 'none', means: m };
+  }
+
+  function lin(points, tmid, w, fixed) {
+    const g = points.map(p => 1 / (1 + Math.exp((p.T - tmid) / w)));
+    let top, bottom;
+    if (fixed) { top = 100; bottom = 0; }
+    else {
+      let suu = 0, suv = 0, svv = 0, suy = 0, svy = 0;
+      points.forEach((p, i) => { const v = g[i], u = 1 - v; suu += u * u; suv += u * v; svv += v * v; suy += u * p.r; svy += v * p.r; });
+      const det = suu * svv - suv * suv;
+      if (!(Math.abs(det) > 1e-12 * (suu * svv + 1e-30))) return { sse: Infinity };
+      bottom = (svv * suy - suv * svy) / det; top = (suu * svy - suv * suy) / det;
+    }
+    let sse = 0;
+    points.forEach((p, i) => { const e = p.r - (bottom + (top - bottom) * g[i]); sse += e * e; });
+    return { top, bottom, sse };
+  }
+
+  function nelder(f, x0, step, iters = 300) {
+    let s = [x0, [x0[0] + step[0], x0[1]], [x0[0], x0[1] + step[1]]].map(x => ({ x, f: f(x) }));
+    for (let k = 0; k < iters; k++) {
+      s.sort((a, b) => a.f - b.f);
+      const [b, g, w] = s, c = [(b.x[0] + g.x[0]) / 2, (b.x[1] + g.x[1]) / 2];
+      const pt = t => [c[0] + t * (w.x[0] - c[0]), c[1] + t * (w.x[1] - c[1])];
+      const r = pt(-1), fr = f(r);
+      if (fr < b.f) { const e = pt(-2), fe = f(e); s[2] = fe < fr ? { x: e, f: fe } : { x: r, f: fr }; }
+      else if (fr < g.f) s[2] = { x: r, f: fr };
+      else {
+        const ct = pt(fr < w.f ? -0.5 : 0.5), fc = f(ct);
+        if (fc < Math.min(fr, w.f)) s[2] = { x: ct, f: fc };
+        else { s = [b, ...[g, w].map(q => { const x = [(b.x[0] + q.x[0]) / 2, (b.x[1] + q.x[1]) / 2]; return { x, f: f(x) }; })]; }
+      }
+      if (Math.abs(s[2].f - s[0].f) <= 1e-12 * (Math.abs(s[0].f) + 1e-12) && k > 30) break;
+    }
+    s.sort((a, b) => a.f - b.f);
+    return s[0].x;
+  }
+
+  function fit(points, fixed, start) {
+    const n = points.length, p = fixed ? 2 : 4;
+    const Ts = [...new Set(points.map(x => x.T))];
+    if (n <= p || Ts.length < (fixed ? 3 : 4)) return { error: `The sigmoid needs at least ${fixed ? 3 : 4} different temperatures.` };
+    const tmin = Math.min(...Ts), tmax = Math.max(...Ts), R = Math.max(tmax - tmin, 1e-6);
+    const f = x => lin(points, x[0], Math.exp(x[1]), fixed).sse;
+    let x0;
+    if (start) x0 = [start.tmid, Math.log(start.w)];
+    else {
+      let best = Infinity;
+      for (let i = 0; i <= 60; i++) for (let j = 0; j <= 40; j++) {
+        const x = [tmin - 0.3 * R + 1.6 * R * i / 60, Math.log(R / 300) + (Math.log(2 * R) - Math.log(R / 300)) * j / 40];
+        const v = f(x); if (v < best) { best = v; x0 = x; }
+      }
+    }
+    const x = nelder(f, x0, [R / 20, 0.3]);
+    const tmid = x[0], w = Math.exp(x[1]), L = lin(points, tmid, w, fixed);
+    if (!Number.isFinite(L.sse)) return { error: 'The sigmoid could not be fitted to these data.' };
+    const { top, bottom } = L;
+    const predict = T => bottom + (top - bottom) / (1 + Math.exp((T - tmid) / w));
+    const t50 = bottom < 50 && 50 < top ? tmid + w * Math.log((top - 50) / (50 - bottom)) : null;
+    const flags = [];
+    if (top <= bottom) flags.push('Activity does not fall with temperature in this fit.');
+    if (tmid < tmin || tmid > tmax) flags.push('The fitted midpoint lies outside the measured temperatures.');
+    if (w > R / 2) flags.push('The fitted transition is broad compared with the measured range.');
+    if (!fixed && t50 === null && top > bottom) flags.push('The fitted curve does not cross 50%.');
+    return { n, p, top, bottom, tmid, w, t50, sse: L.sse, sd: Math.sqrt(L.sse / (n - p)), predict,
+      residuals: points.map(q => q.r - predict(q.T)), flags, tmin, tmax };
+  }
+
+  // series: {heated:[{T,y}], unheated:[y]}; opts: {fit:'free'|'fixed'|'none', B}
+  function analyse(series, opts) {
+    const B = opts.B ?? 1000, fitMode = opts.fit ?? 'free';
+    if (!series.unheated.length) return { error: 'Add unheated reference rows for this series (enter “unheated” in the temperature column).' };
+    const u = mean(series.unheated);
+    if (!(u > 0)) return { error: 'The unheated reference activity must be positive.' };
+    if (!series.heated.length) return { error: 'No heated tubes were found for this series.' };
+    const pts = series.heated.map(p => ({ T: p.T, r: 100 * p.y / u }));
+    const ip = interp(pts);
+    const sg = fitMode === 'none' ? null : fit(pts, fitMode === 'fixed');
+    // bootstrap
+    const rand = rng(opts.seed ?? 4110);
+    const gT = new Map(); series.heated.forEach(p => { const k = +p.T.toFixed(6); if (!gT.has(k)) gT.set(k, []); gT.get(k).push(p); });
+    const glist = [...gT.values()];
+    const pick = a => a[Math.floor(rand() * a.length)];
+    const bi = [], bf = [];
+    for (let b = 0; b < B; b++) {
+      const ub = mean(series.unheated.map(() => pick(series.unheated)));
+      if (!(ub > 0)) { bi.push(NaN); bf.push(NaN); continue; }
+      const bp = [];
+      glist.forEach(g => g.forEach(() => { const q = pick(g); bp.push({ T: q.T, r: 100 * q.y / ub }); }));
+      const r1 = interp(bp); bi.push(r1.t50 ?? NaN);
+      if (sg && !sg.error) { const r2 = fit(bp, fitMode === 'fixed', { tmid: sg.tmid, w: sg.w }); bf.push(r2.error || r2.t50 === null ? NaN : r2.t50); }
+    }
+    return { u, points: pts, interp: ip, fit: sg, boot: { interp: bi, fit: bf }, B };
+  }
+
+  function ci(arr) {
+    const ok = arr.filter(Number.isFinite).sort((a, b) => a - b);
+    if (!arr.length || ok.length < 0.9 * arr.length) return { lo: null, hi: null, ok: ok.length, n: arr.length };
+    const q = p => { const h = (ok.length - 1) * p, i = Math.floor(h); return ok[i] + (ok[Math.min(i + 1, ok.length - 1)] - ok[i]) * (h - i); };
+    return { lo: q(0.025), hi: q(0.975), ok: ok.length, n: arr.length };
+  }
+  const diff = (a, b) => a.map((x, i) => x - b[i]);
+
+  function fields(line, sep) {
+    let a = [], s = '', quoted = false;
+    for (let i = 0; i < line.length; i++) {
+      const c = line[i];
+      if (c === '"') { if (quoted && line[i + 1] === '"') { s += '"'; i++; } else quoted = !quoted; }
+      else if (c === sep && !quoted) { a.push(s.trim()); s = ''; } else s += c;
+    }
+    if (quoted) throw Error('A quoted field is missing its closing quote.');
+    a.push(s.trim()); return a;
+  }
+  function parse(text) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/).map((s, i) => ({ s, i: i + 1 })).filter(x => x.s.trim());
+    if (!lines.length) return [];
+    if (lines.length > 5001) throw Error('Please use no more than 5,000 data rows.');
+    const sep = lines[0].s.includes('\t') ? '\t' : lines[0].s.includes(';') ? ';' : ',';
+    const raw = fields(lines[0].s, sep), head = raw.map(s => s.toLowerCase());
+    const ti0 = head.findIndex(h => /^(temp|temperature|t)\b/.test(h));
+    const hasHeader = ti0 >= 0;
+    const ti = hasHeader ? ti0 : 0, ai = hasHeader ? head.indexOf('activity') : 1, si = head.indexOf('series');
+    const wide = hasHeader && ai < 0;
+    if (wide && head.length < 2) throw Error('Add at least one activity column after temperature.');
+    const rows = [];
+    for (const line of lines.slice(hasHeader ? 1 : 0)) {
+      const a = fields(line.s, sep);
+      if (a.length !== (hasHeader ? head.length : 2)) throw Error(`Line ${line.i}: the number of columns does not match. Use series, temperature, activity.`);
+      const control = /^(unheated|control|untreated|reference|ref)$/i.test(a[ti]);
+      const T = control ? null : Number(a[ti]);
+      if (!control && (!a[ti] || !Number.isFinite(T))) throw Error(`Line ${line.i}: temperature must be a number or “unheated”.`);
+      const add = (value, name) => {
+        if (value === '') return;
+        const y = Number(value);
+        if (!Number.isFinite(y)) throw Error(`Line ${line.i}: activity must be a number.`);
+        rows.push({ id: rows.length, T, y, series: name || 'Sample', control, on: true });
+      };
+      if (wide) raw.forEach((name, j) => { if (j !== ti) add(a[j], name); });
+      else { if (a[ai] === '') throw Error(`Line ${line.i}: activity is missing.`); add(a[ai], si >= 0 ? a[si] : 'Sample'); }
+    }
+    if (new Set(rows.map(x => x.series)).size > 8) throw Error('Use up to eight series in one comparison.');
+    if (!rows.length) throw Error('No measurements were found.');
+    return rows;
+  }
+  return { parse, analyse, fit, interp, ci, diff };
+})();
+if (typeof module !== 'undefined') module.exports = T50Fit;
+
+</script>
+<script>
+(() => {
+'use strict';
+const $=id=>document.getElementById(id), esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=(x,d=4)=>x===null||x===undefined||Number.isNaN(x)?'—':!Number.isFinite(x)?'∞':x===0?'0':Math.abs(x)<.001||Math.abs(x)>=10000?x.toExponential(2):Number(x.toPrecision(d)).toString();
+const neg=s=>s.replace(/^-/,'−');
+const f1=x=>x===null||x===undefined||!Number.isFinite(x)?'—':neg(x.toFixed(1));
+const f2=x=>x===null||x===undefined||!Number.isFinite(x)?'—':neg(x.toFixed(2));
+const palette=['--c1','--c2','--c3','--c4','--c5','--c6','--fg','--ref'];
+let rows=[],series=[],example=false,dirty=false;
+function status(s,error=false){$('status').textContent=s;$('status').classList.toggle('status-error',error);}
+function colour(i){return `var(${palette[i%palette.length]})`;}
+function clearOutputs(){series=[];$('cards').innerHTML='';$('plot').innerHTML='<div class="empty">Load your measurements or try the example.</div>';$('legend').innerHTML='';['resultsPanel','residualPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=true);['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=true);}
+function interpText(a){const ip=a.interp;if(ip.status==='ok')return f1(ip.t50)+' °C';if(ip.status==='above')return '> '+f1(Math.max(...a.points.map(p=>p.T)))+' °C';if(ip.status==='below')return '< '+f1(Math.min(...a.points.map(p=>p.T)))+' °C';return 'Not defined';}
+function ciText(c){return c.lo===null?'not defined':`${f1(c.lo)} to ${f1(c.hi)}`;}
+function useFit(){return $('model').value!=='none';}
+function fitT50(a){return a.fit&&!a.fit.error?a.fit.t50:null;}
+function apply(){try{rows=T50Fit.parse($('pasteText').value);dirty=false;refreshRef();render();status(rows.length?`${rows.length} tubes · ${series.length} series${example?' · example data':''}`:'Ready for your data.');}catch(e){rows=[];clearOutputs();status(e.message,true);}}
+function refreshRef(){const names=[...new Set(rows.map(r=>r.series))],cur=$('refSeries').value;$('refSeries').innerHTML=names.map(n=>`<option>${esc(n)}</option>`).join('');const wt=names.find(n=>/^wt$|wild/i.test(n));$('refSeries').value=names.includes(cur)?cur:(wt||names[0]||'');}
+function render(){
+  if(!rows.length){clearOutputs();$('exampleBadge').hidden=true;return;}
+  const mode=$('model').value;
+  series=[...new Set(rows.map(x=>x.series))].map((name,i)=>{
+    const on=rows.filter(x=>x.on&&x.series===name);
+    const heated=on.filter(x=>!x.control).map(x=>({T:x.T,y:x.y,id:x.id})),unheated=on.filter(x=>x.control).map(x=>x.y);
+    const a=T50Fit.analyse({heated,unheated},{fit:mode,B:1000,seed:4110+i});
+    return {name,i,heated,unheated,a};
+  });
+  const ref=series.find(s=>s.name===$('refSeries').value)||series[0];
+  $('exampleBadge').hidden=!example;
+  let cards=series.map(s=>{const a=s.a;if(a.error)return `<div class="card" style="border-color:${colour(s.i)}"><div class="k">${esc(s.name)}</div><div class="v">—</div><div class="s">${esc(a.error)}</div></div>`;
+    const fitLine=useFit()?(a.fit.error?'Sigmoid: '+a.fit.error:`Sigmoid T50: ${f1(fitT50(a))} °C (${ciText(T50Fit.ci(a.boot.fit))})`):'';
+    return `<div class="card hot" style="border-color:${colour(s.i)}"><div class="k">${esc(s.name)} · T50, interpolated</div><div class="v">${interpText(a)}</div><div class="s">95% interval: ${ciText(T50Fit.ci(a.boot.interp))}${fitLine?'<br>'+esc(fitLine):''}</div></div>`;}).join('');
+  if(ref&&!ref.a.error)cards+=series.filter(s=>s!==ref&&!s.a.error).map(s=>{
+    const di=s.a.interp.t50!==null&&ref.a.interp.t50!==null?s.a.interp.t50-ref.a.interp.t50:null;
+    const ci=T50Fit.ci(T50Fit.diff(s.a.boot.interp,ref.a.boot.interp));
+    let fl='';if(useFit()&&fitT50(s.a)!==null&&fitT50(ref.a)!==null){fl=`Sigmoid: ${f2(fitT50(s.a)-fitT50(ref.a))} °C (${ciText(T50Fit.ci(T50Fit.diff(s.a.boot.fit,ref.a.boot.fit)))})`;}
+    return `<div class="card"><div class="k">ΔT50: ${esc(s.name)} − ${esc(ref.name)}</div><div class="v">${di===null?'—':(di>0?'+':'')+f2(di)+' °C'}</div><div class="s">95% interval: ${ciText(ci)}${fl?'<br>'+esc(fl):''}</div></div>`;}).join('');
+  $('cards').innerHTML=cards;
+  $('plot').innerHTML=plot(false);$('residualPlot').innerHTML=useFit()?plot(true):'';$('residualPanel').hidden=!useFit();
+  $('legend').innerHTML=series.map(s=>`<span><i style="background:${colour(s.i)}"></i>${esc(s.name)}</span>`).join('');
+  const fitCols=useFit()?'<th>Sigmoid T50 (°C)</th><th>95% interval</th><th>T<sub>mid</sub> (°C)</th><th>w (°C)</th><th>Top (%)</th><th>Bottom (%)</th><th>Residual SD (%)</th>':'';
+  $('results').innerHTML=`<table class="data"><thead><tr><th>Series</th><th>Tubes</th><th>Unheated mean</th><th>Interpolated T50 (°C)</th><th>95% interval</th>${fitCols}</tr></thead><tbody>`+series.map(s=>{const a=s.a;
+    if(a.error)return `<tr><td>${esc(s.name)}</td><td colspan="${useFit()?11:4}">${esc(a.error)}</td></tr>`;
+    const fc=useFit()?(a.fit.error?`<td colspan="7">${esc(a.fit.error)}</td>`:`<td>${f2(a.fit.t50)}</td><td>${ciText(T50Fit.ci(a.boot.fit))}</td><td>${f2(a.fit.tmid)}</td><td>${f2(a.fit.w)}</td><td>${f1(a.fit.top)}</td><td>${f1(a.fit.bottom)}</td><td>${f1(a.fit.sd)}</td>`):'';
+    return `<tr><td>${esc(s.name)}</td><td>${s.heated.length}</td><td>${fmt(a.u)}</td><td>${a.interp.status==='ok'?f2(a.interp.t50):interpText(a)}</td><td>${ciText(T50Fit.ci(a.boot.interp))}</td>${fc}</tr>`;}).join('')+`</tbody></table><p class="hint">Unheated mean is in ${esc($('activityUnit').value||'activity units')}. Top, bottom, and residual SD are in % of the unheated mean.</p>`;
+  $('notes').innerHTML=series.map(s=>{const a=s.a,n=[];if(a.error)return '';
+    if(a.interp.status==='above')n.push('Every temperature kept more than 50% of the activity, so T50 lies above the measured range. Extend the gradient upward.');
+    if(a.interp.status==='below')n.push('Every temperature lost more than half the activity, so T50 lies below the measured range. Extend the gradient downward.');
+    if(a.interp.status==='ok'&&a.interp.down>1)n.push('The mean activity crosses 50% more than once; the lowest crossing is reported. Check for scattered tubes near the transition.');
+    if(a.interp.status==='ok'&&a.interp.up>0)n.push('The mean activity rises back above 50% at a higher temperature. Check those tubes.');
+    const near=a.points.filter(p=>p.r>15&&p.r<85).length;if(a.interp.status==='ok'&&near<2)n.push('Few tubes fall between 15% and 85% retained; a narrower gradient around T50 would define it better.');
+    if(useFit()&&a.fit&&!a.fit.error)n.push(...a.fit.flags);
+    const ci=T50Fit.ci(a.boot.interp);if(a.interp.status==='ok'&&ci.lo===null)n.push('In many bootstrap resamples the mean did not cross 50%, so no interval is given.');
+    return n.length?`<p><b>${esc(s.name)}:</b> ${n.map(esc).join(' ')}</p>`:'';}).join('');
+  $('dataSummary').textContent=`Measurements (${rows.length}; ${rows.filter(x=>x.on).length} included)`;
+  $('dataTable').innerHTML='<table class="data"><thead><tr><th>Include</th><th>Series</th><th>Temperature (°C)</th><th>Activity</th><th>Retained (%)</th><th>Fitted (%)</th><th>Residual</th></tr></thead><tbody>'+rows.map(r=>{
+    const s=series.find(q=>q.name===r.series),a=s.a,ok=!a.error;
+    const ret=ok?100*r.y/a.u:null,fv=ok&&!r.control&&useFit()&&a.fit&&!a.fit.error?a.fit.predict(r.T):null;
+    return `<tr class="${r.on?'':'off'}"><td><input type="checkbox" data-id="${r.id}" ${r.on?'checked':''} aria-label="Include tube ${r.id+1}"></td><td>${esc(r.series)}</td><td>${r.control?'unheated':fmt(r.T)}</td><td>${fmt(r.y)}</td><td>${f1(ret)}</td><td>${f1(fv)}</td><td>${fv===null?'—':f1(ret-fv)}</td></tr>`;}).join('')+'</tbody></table>';
+  ['resultsPanel','dataPanel','plotCaption'].forEach(id=>$(id).hidden=false);
+  ['csvBtn','dataBtn','svgBtn'].forEach(id=>$(id).disabled=dirty);
+}
+function plot(residual){
+  const ok=series.filter(s=>!s.a.error),controls=!residual&&ok.some(s=>s.unheated.length);
+  const W=760,H=residual?210:380,L=70,R=controls?110:25,T=22,B=52;
+  const Ts=ok.flatMap(s=>s.a.points.map(p=>p.T));if(!Ts.length)return '<div class="empty">No heated tubes to plot.</div>';
+  let xmin=Math.min(...Ts),xmax=Math.max(...Ts);const pad=Math.max(.5,(xmax-xmin)*.04);xmin-=pad;xmax+=pad;
+  let ymin,ymax;
+  if(residual){const v=ok.flatMap(s=>s.a.fit&&!s.a.fit.error?s.a.fit.residuals:[]);const m=Math.max(1,...v.map(Math.abs))*1.2;ymin=-m;ymax=m;}
+  else{const v=ok.flatMap(s=>[...s.a.points.map(p=>p.r),...s.unheated.map(y=>100*y/s.a.u)]);ymin=Math.min(0,...v);ymax=Math.max(110,...v);}
+  const rough=(ymax-ymin)/6,mag=10**Math.floor(Math.log10(rough)),tick=[1,2,2.5,5,10].find(x=>x*mag>=rough)*mag;
+  ymin=Math.floor(ymin/tick)*tick;ymax=Math.ceil(ymax/tick)*tick;
+  const xr=(xmax-xmin)/6,xm=10**Math.floor(Math.log10(xr)),xt=[1,2,2.5,5,10].find(x=>x*xm>=xr)*xm;
+  const X=t=>L+(t-xmin)/(xmax-xmin)*(W-L-R),Y=y=>H-B-(y-ymin)/(ymax-ymin)*(H-T-B);
+  let svg=`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="${residual?'Fit residuals':'Activity retained against temperature'}"><title>${residual?'Residuals':'Activity retained'}${$('exposure').value?' after '+esc($('exposure').value)+' min':''}</title><rect width="${W}" height="${H}" fill="var(--panel)"/>`;
+  for(let t=Math.ceil(xmin/xt)*xt;t<=xmax+1e-9;t+=xt)svg+=`<path d="M${X(t)},${T}V${H-B}" stroke="var(--grid)" fill="none"/><text x="${X(t)}" y="${H-B+20}" text-anchor="middle">${fmt(+t.toFixed(6))}</text>`;
+  for(let y=ymin;y<=ymax+1e-9;y+=tick)svg+=`<path d="M${L},${Y(y)}H${W-R}" stroke="var(--grid)"/><text x="${L-10}" y="${Y(y)+4}" text-anchor="end">${fmt(+y.toFixed(6))}</text>`;
+  svg+=`<path d="M${L},${T}V${H-B}H${W-R}" stroke="var(--ref)" fill="none"/><text x="${(L+W-R)/2}" y="${H-8}" text-anchor="middle">Temperature (°C)</text><text transform="translate(16 ${(T+H-B)/2}) rotate(-90)" text-anchor="middle">${residual?'Residual (%)':'Activity retained (%)'}</text>`;
+  if(residual)svg+=`<path d="M${L},${Y(0)}H${W-R}" stroke="var(--ref)" stroke-dasharray="5 4"/>`;
+  else svg+=`<path d="M${L},${Y(50)}H${W-R}" stroke="var(--ref)" stroke-dasharray="5 4"/><text x="${W-R-4}" y="${Y(50)-5}" text-anchor="end">50%</text>`;
+  if(controls)svg+=`<path d="M${W-88},${T}V${H-B}" stroke="var(--line)" stroke-dasharray="3 4"/><text x="${W-45}" y="14" text-anchor="middle">Unheated</text>`;
+  ok.forEach(s=>{const c=colour(s.i),a=s.a,fit=useFit()&&a.fit&&!a.fit.error?a.fit:null;
+    if(!residual&&fit){let d='';for(let j=0;j<=200;j++){const t=xmin+(xmax-xmin)*j/200;d+=(j?'L':'M')+X(t).toFixed(2)+','+Y(Math.max(ymin,Math.min(ymax,fit.predict(t)))).toFixed(2);}svg+=`<path d="${d}" fill="none" stroke="${c}" stroke-width="2.4"/>`;}
+    if(!residual&&a.interp.status==='ok')svg+=`<path d="M${X(a.interp.t50)},${Y(50)-14}V${Y(50)+14}" stroke="${c}" stroke-width="2.5"><title>${esc(s.name)} interpolated T50 = ${f2(a.interp.t50)} °C</title></path>`;
+    a.points.forEach((p,j)=>{if(residual&&!fit)return;const y=residual?fit.residuals[j]:p.r;svg+=`<circle cx="${X(p.T)}" cy="${Y(y)}" r="3.5" fill="${c}" stroke="var(--panel)" stroke-width=".8"><title>${esc(s.name)}: ${p.T} °C, ${residual?'residual':'retained'} = ${f1(y)}%</title></circle>`;});
+    if(controls)s.unheated.forEach(y=>{const x=W-45+(s.i-(ok.length-1)/2)*12,yy=Y(100*y/a.u);svg+=`<path d="M${x},${yy-4.5}l4.5,4.5 -4.5,4.5 -4.5,-4.5Z" fill="${c}"><title>${esc(s.name)} unheated: ${f1(100*y/a.u)}%</title></path>`;});
+  });
+  return svg+'</svg>';
+}
+function download(name,text,type){const url=URL.createObjectURL(new Blob([text],{type}));const a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),2000);}
+function csv(table){return '﻿'+table.map(r=>r.map(x=>'"'+String(x??'').replace(/"/g,'""')+'"').join(',')).join('\r\n');}
+function loadExample(){
+  const temps=[40.0,40.6,41.9,43.8,46.2,48.9,51.6,54.2,56.6,58.5,59.5,60.0],lines=['series,temperature,activity'];
+  [['WT',53,1.6,.120],['Mutant',48.5,1.8,.104]].forEach(([name,t50,w,u],k)=>{
+    [0,1,2].forEach(j=>lines.push(`${name},unheated,${(u*(1+.02*Math.sin(3*j+k))).toFixed(4)}`));
+    temps.forEach((T,i)=>[0,1].forEach(j=>{const r=96/(1+Math.exp((T-t50)/w))+2,noise=1+.05*Math.sin(i*2.3+j*4.1+k);lines.push(`${name},${T},${(u*r/100*noise).toFixed(4)}`);}));
+  });
+  $('pasteText').value=lines.join('\n');$('model').value='free';$('activityUnit').value='ΔA340/min';$('exposure').value='10';example=true;apply();
+}
+$('fitBtn').onclick=apply;$('exampleBtn').onclick=loadExample;
+$('clearBtn').onclick=()=>{rows=[];example=false;dirty=false;$('pasteText').value='';$('refSeries').innerHTML='';render();status('Ready for your data.');};
+$('pasteText').oninput=()=>{dirty=true;example=false;$('exampleBadge').hidden=true;clearOutputs();status('Table changed. Select Fit data to update the results.');};
+$('fileBtn').onclick=()=>$('fileIn').click();
+$('fileIn').onchange=async()=>{const f=$('fileIn').files[0];if(!f)return;if(f.size>2e6){status('Please use a file smaller than 2 MB.',true);return;}try{$('pasteText').value=await f.text();example=false;apply();}catch(e){status('Could not read the file: '+e.message,true);}$('fileIn').value='';};
+['model','refSeries','activityUnit','exposure'].forEach(id=>$(id).addEventListener('change',()=>{if(!dirty&&rows.length)render();}));
+$('theme').onchange=()=>{if($('theme').value==='auto')delete document.documentElement.dataset.theme;else document.documentElement.dataset.theme=$('theme').value;};
+$('dataTable').onchange=e=>{const id=e.target.dataset.id;if(id!==undefined){rows[+id].on=e.target.checked;render();}};
+$('csvBtn').onclick=()=>{
+  const ref=series.find(s=>s.name===$('refSeries').value)||series[0];
+  const header=['series','curve','exposure_min','activity_unit','tubes','unheated_mean','T50_interp_C','T50_interp_low95','T50_interp_high95','T50_interp_status','T50_sigmoid_C','T50_sigmoid_low95','T50_sigmoid_high95','Tmid_C','width_C','top_pct','bottom_pct','residual_SD_pct','reference','dT50_interp_C','dT50_interp_low95','dT50_interp_high95','dT50_sigmoid_C','dT50_sigmoid_low95','dT50_sigmoid_high95'];
+  download('t50-results.csv',csv([header,...series.map(s=>{const a=s.a;if(a.error)return [s.name,$('model').value,'','','','','','','',a.error];
+    const ci=T50Fit.ci(a.boot.interp),fo=useFit()&&a.fit&&!a.fit.error,cf=fo?T50Fit.ci(a.boot.fit):{};
+    const isRef=s===ref||!ref||ref.a.error,di=!isRef&&a.interp.t50!==null&&ref.a.interp.t50!==null?a.interp.t50-ref.a.interp.t50:'',dci=isRef?{}:T50Fit.ci(T50Fit.diff(a.boot.interp,ref.a.boot.interp));
+    const df=!isRef&&fo&&fitT50(a)!==null&&fitT50(ref.a)!==null?fitT50(a)-fitT50(ref.a):'',dcf=df===''?{}:T50Fit.ci(T50Fit.diff(a.boot.fit,ref.a.boot.fit));
+    return [s.name,$('model').value,$('exposure').value,$('activityUnit').value,s.heated.length,a.u,a.interp.t50??'',ci.lo??'',ci.hi??'',a.interp.status,fo?a.fit.t50??'':'',cf.lo??'',cf.hi??'',fo?a.fit.tmid:'',fo?a.fit.w:'',fo?a.fit.top:'',fo?a.fit.bottom:'',fo?a.fit.sd:'',ref?ref.name:'',di,dci.lo??'',dci.hi??'',df,dcf.lo??'',dcf.hi??''];})]),'text/csv;charset=utf-8');
+};
+$('dataBtn').onclick=()=>download('t50-data.csv',csv([['series','temperature_C','activity','included','retained_pct','fitted_pct','residual_pct'],...rows.map(r=>{const a=series.find(s=>s.name===r.series).a,ok=!a.error,ret=ok?100*r.y/a.u:'',fv=ok&&!r.control&&useFit()&&a.fit&&!a.fit.error?a.fit.predict(r.T):'';return [r.series,r.control?'unheated':r.T,r.y,r.on,ret,fv,fv===''?'':ret-fv];})]),'text/csv;charset=utf-8');
+$('svgBtn').onclick=()=>{
+  const source=$('plot').querySelector('svg');if(!source)return;
+  let svg=source.outerHTML;const style=getComputedStyle(document.documentElement);
+  svg=svg.replace(/var\((--[\w-]+)\)/g,(_,v)=>style.getPropertyValue(v).trim());
+  const extra=30+series.length*22;
+  const legend=series.map((s,i)=>`<circle cx="72" cy="${400+i*22}" r="4" fill="${style.getPropertyValue(palette[s.i%palette.length]).trim()}"/><text x="85" y="${404+i*22}">${esc(s.name)}: T50 ${s.a.error?'not defined':esc(interpText(s.a))+' (interpolated)'+(useFit()&&fitT50(s.a)!==null?', '+f1(fitT50(s.a))+' °C (sigmoid)':'')}</text>`).join('');
+  svg=svg.replace('</svg>',legend+'</svg>').replace('viewBox="0 0 760 380"',`viewBox="0 0 760 ${380+extra}"`).replace('<rect width="760" height="380"',`<rect width="760" height="${380+extra}"`);
+  svg=svg.replace('<title>','<style>text{font-family:Arial,sans-serif;font-size:13px;fill:'+style.getPropertyValue('--muted').trim()+'}</style><title>');
+  download('t50.svg',svg,'image/svg+xml');
+};
+})();
+</script>
+</body></html>
