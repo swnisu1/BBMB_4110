@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>BBMB 4110 Kinetics Tools</title>
+<title>BBMB 4110</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
@@ -39,6 +39,10 @@ a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: tra
 .card .t { font-weight: 600; margin: 0 0 4px; color: var(--fg); }
 .card .d { font-size: 14px; color: var(--muted); margin: 0; }
 .card.intro { background: var(--accent-soft); border-color: transparent; }
+.grid.two { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+a.card.big { padding: 28px 28px; border-color: var(--accent); min-height: 150px; }
+.card.big .t { font-size: 26px; letter-spacing: -.01em; }
+.card.big .d { font-size: 15px; }
 footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
 footer a { color: var(--accent); }
 </style>
@@ -46,93 +50,17 @@ footer a { color: var(--accent); }
 <body>
 <main>
   <p class="eyebrow">BBMB 4110</p>
-  <h1>Enzyme Kinetics Fitting Tools</h1>
-  <p class="lede">Interactive tools for fitting and exploring enzyme kinetics data. Everything runs in your browser; your data never leaves your computer.</p>
+  <h1>Lab Resources</h1>
+  <p class="lede">Protocols for the elective experiments and apps for analyzing your data.</p>
 
-  <div class="grid">
-    <a class="card intro" href="how-the-fitting-widgets-work.html">
-      <p class="t">Start here: How the Fitting Widgets Work</p>
-      <p class="d">What the fitting tools do behind the scenes, and how to read their output.</p>
+  <div class="grid two">
+    <a class="card big" href="lab-protocols.html">
+      <p class="t">Lab Protocols</p>
+      <p class="d">Handouts for the elective experiments.</p>
     </a>
-  </div>
-
-  <h2>Lab protocols</h2>
-  <div class="grid">
-    <a class="card" href="Lab_protocols/E02_Urea_Unfolding.docx">
-      <p class="t">E2 Urea Unfolding</p>
-      <p class="d">Compare WT and mutant unfolding by tryptophan fluorescence and fit C<sub>m</sub>, m and ΔG<sub>water</sub>.</p>
-    </a>
-    <a class="card" href="Lab_protocols/E03_Heat_Challenge_T50.docx">
-      <p class="t">E3 Temperature Dependence of Residual Activity</p>
-      <p class="d">Heat samples across a thermocycler gradient for a fixed time and find T50.</p>
-    </a>
-    <a class="card" href="Lab_protocols/E04_Inactivation_Half_Life.docx">
-      <p class="t">E4 Time Dependence of Heat Inactivation</p>
-      <p class="d">Hold samples at one temperature for different times and fit an inactivation rate and half-life.</p>
-    </a>
-  </div>
-
-  <h2>Rates and time courses</h2>
-  <div class="grid">
-    <a class="card" href="progress-curve-fitting.html">
-      <p class="t">Progress Curve Fitting</p>
-      <p class="d">Fit whole time courses to the integrated Michaelis–Menten equation for k<sub>cat</sub> and K<sub>M</sub>.</p>
-    </a>
-    <a class="card" href="heat-inactivation.html">
-      <p class="t">Heat Inactivation</p>
-      <p class="d">Fit remaining activity after heating to estimate an inactivation rate and half-life; compare WT and mutants, with an optional plateau.</p>
-    </a>
-    <a class="card" href="model-discrimination.html">
-      <p class="t">Model Discrimination</p>
-      <p class="d">Fit a decay with one or two exponentials and see when AIC and BIC justify the bigger model.</p>
-    </a>
-  </div>
-
-  <h2>Substrate dependence</h2>
-  <div class="grid">
-    <a class="card" href="plate-reader-kinetics.html">
-      <p class="t">Plate Reader Kinetics</p>
-      <p class="d">Load the plate reader .xlsx, get a slope for each well, convert ΔA<sub>340</sub> to µM NADPH/min and fit MM, Hill or substrate inhibition.</p>
-    </a>
-    <a class="card" href="substrate-dependence-fitting.html">
-      <p class="t">Substrate Dependence Fitting</p>
-      <p class="d">Fit initial rates to Michaelis–Menten, Hill or substrate-inhibition models; compare WT and mutants.</p>
-    </a>
-    <a class="card" href="two-substrate-kinetics-explorer.html">
-      <p class="t">Two-Substrate Kinetics Explorer</p>
-      <p class="d">See how the apparent K<sub>M</sub> for one substrate depends on the other; compare WT and a mutant.</p>
-    </a>
-  </div>
-
-  <h2>Inhibition</h2>
-  <div class="grid">
-    <a class="card" href="inhibition-mechanism-fitting.html">
-      <p class="t">Inhibition Mechanism Fitting</p>
-      <p class="d">Fit competitive, uncompetitive, noncompetitive and mixed models; BIC picks the best.</p>
-    </a>
-    <a class="card" href="ic50-fitting.html">
-      <p class="t">IC50 Fitting</p>
-      <p class="d">Fit dose–response curves to estimate IC<sub>50</sub>.</p>
-    </a>
-  </div>
-
-  <h2>Protein stability</h2>
-  <div class="grid">
-    <a class="card" href="urea-unfolding-fitting.html">
-      <p class="t">Urea Unfolding Fitting</p>
-      <p class="d">Load emission spectra, subtract the matching urea blanks, and fit a two-state model for C<sub>m</sub>, m and ΔG<sub>water</sub>; compare WT and mutant.</p>
-    </a>
-    <a class="card" href="t50-fitting.html">
-      <p class="t">T50 Fitting</p>
-      <p class="d">Fit activity retained after a fixed-time heat treatment against temperature to find T50; compare WT and mutants.</p>
-    </a>
-  </div>
-
-  <h2>Lab calculators</h2>
-  <div class="grid">
-    <a class="card" href="dna-molarity-calculator.html">
-      <p class="t">DNA Molarity Calculator</p>
-      <p class="d">Turn ng/µL and length into nM; get moles in a volume and the dilution to a target molarity.</p>
+    <a class="card big" href="data-fitting-apps.html">
+      <p class="t">Data Fitting Apps</p>
+      <p class="d">Browser tools for fitting kinetics, inhibition, and stability data.</p>
     </a>
   </div>
 

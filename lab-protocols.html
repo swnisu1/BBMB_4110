@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lab Protocols · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); line-height: 1.5; }
+main { max-width: 880px; margin: 0 auto; padding: 48px 16px 64px; }
+.eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: .04em; margin: 0 0 8px; }
+h1 { font-size: 30px; font-weight: 600; margin: 0 0 8px; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 0 0 32px; max-width: 60ch; }
+h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 32px 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+a.card { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+.card .t { font-weight: 600; margin: 0 0 4px; color: var(--fg); }
+.card .d { font-size: 14px; color: var(--muted); margin: 0; }
+.card.intro { background: var(--accent-soft); border-color: transparent; }
+.grid.one { grid-template-columns: 1fr; margin-top: 12px; }
+a.card.big { padding: 22px 24px; border-color: var(--accent); }
+.card.big .t { font-size: 24px; letter-spacing: -.01em; }
+.card.big .d { font-size: 15px; }
+footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
+footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow"><a href="index.html" style="color:inherit">BBMB 4110</a></p>
+  <h1>Lab Protocols</h1>
+  <p class="lede">Handouts for the elective experiments. Each opens as a Word document.</p>
+
+  <div class="grid">
+    <a class="card" href="Lab_protocols/E02_Urea_Unfolding.docx">
+      <p class="t">E2 Urea Unfolding</p>
+      <p class="d">Compare WT and mutant unfolding by tryptophan fluorescence and fit C<sub>m</sub>, m and ΔG<sub>water</sub>.</p>
+    </a>
+    <a class="card" href="Lab_protocols/E03_Heat_Challenge_T50.docx">
+      <p class="t">E3 Temperature Dependence of Residual Activity</p>
+      <p class="d">Heat samples across a thermocycler gradient for a fixed time and find T50.</p>
+    </a>
+    <a class="card" href="Lab_protocols/E04_Inactivation_Half_Life.docx">
+      <p class="t">E4 Time Dependence of Heat Inactivation</p>
+      <p class="d">Hold samples at one temperature for different times and fit an inactivation rate and half-life.</p>
+    </a>
+  </div>
+
+  <footer><a href="index.html">Home</a> · <a href="data-fitting-apps.html">Data Fitting Apps</a> · Source on <a href="https://github.com/swnisu1/BBMB_4110">GitHub</a>.</footer>
+</main>
+</body>
+</html>
