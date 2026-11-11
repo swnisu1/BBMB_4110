@@ -97,7 +97,7 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
 <div class="wrap">
   <header>
     <h1>Model Discrimination: One or Two Exponentials</h1>
-    <p>Simulate a decay with two rate constants, add noise, and fit it with a single and a double exponential. Move the rate constants together and watch what happens to RSS, AIC and BIC. RSS always improves with the bigger model; the information criteria say whether the improvement is worth the two extra parameters.</p>
+    <p>Simulate a decay with two rate constants, add noise, and fit it with a single and a double exponential. Move the rate constants together and watch what happens to SSE, AICc and BIC. SSE always improves with the bigger model; the information criteria say whether the improvement is worth the two extra parameters.</p>
   </header>
 
   <div class="grid">
@@ -150,16 +150,16 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
           <div><svg id="swD" viewBox="0 0 320 250" role="img" aria-label="Mean delta AICc and delta BIC against rate ratio"></svg></div>
           <div><svg id="swF" viewBox="0 0 320 250" role="img" aria-label="Fraction of data sets favoring the double exponential against rate ratio"></svg></div>
         </div>
-        <svg id="swR" viewBox="0 0 640 210" role="img" aria-label="Relative RSS of the double versus the single exponential against rate ratio" style="margin-top:8px"></svg>
+        <svg id="swR" viewBox="0 0 640 210" role="img" aria-label="Relative SSE of the double versus the single exponential against rate ratio" style="margin-top:8px"></svg>
         <div class="legend" id="legendS"></div>
       </section>
 
       <section class="panel notes">
         <h3>What to notice</h3>
         <ul>
-          <li><b>RSS never gets worse.</b> The double exponential contains the single one as a special case, so its RSS is always lower or equal, even when the data really are a single exponential. A lower RSS alone proves nothing.</li>
+          <li><b>SSE never gets worse.</b> The double exponential contains the single one as a special case, so its SSE is always lower or equal, even when the data really are a single exponential. A lower SSE alone proves nothing.</li>
           <li><b>ΔAIC and ΔBIC shrink toward zero as the rates converge.</b> When the two rate constants differ by less than about 2 to 3 times, the second exponential is almost impossible to detect at realistic noise.</li>
-          <li><b>BIC is stricter than AIC.</b> Its penalty per parameter is ln(n) instead of 2, so with more than about 8 points BIC asks for stronger evidence. When the truth is a single exponential, AIC picks the double more often by chance.</li>
+          <li><b>BIC is usually stricter than AICc.</b> BIC charges ln(n) per extra parameter; AICc charges about 2 plus a surcharge that is large for small data sets. Here AICc is the stricter one only below about 24 points; with more points BIC asks for stronger evidence. When the truth is a single exponential, AICc picks the double more often by chance.</li>
           <li><b>The fitted rate constants fall apart first.</b> Before the criteria fail, the standard errors of k<sub>fast</sub> and k<sub>slow</sub> blow up and the amplitudes become large and opposite in sign. A double-exponential fit with huge uncertainties is not evidence of two phases.</li>
           <li><b>The experiment matters as much as the analysis.</b> Less noise, more points, and a time window that reaches several slow lifetimes all push the criteria toward the right answer. Try each slider.</li>
         </ul>
@@ -372,22 +372,23 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
     function wD(delta) { return 1 / (1 + Math.exp(-delta / 2)); }
 
     // ---- cards
+    function aiccPrice(n) { var pen = function (q) { return 2 * q * n / (n - q - 1); }; return (pen(5) - pen(3)) / 2; }
     function verdict(delta) { return delta > 10 ? "double: very strong" : delta > 6 ? "double: strong" : delta > 2 ? "double: positive" : delta > -2 ? "cannot separate" : "single favored"; }
     document.getElementById("cards").innerHTML =
-      '<div class="card"><div class="k">RSS single → double</div><div class="v">' + sig(C.s.rss) + ' → ' + sig(C.d.rss) + '</div><div class="s">' + sig(100 * dBetter) + '% lower with the double</div></div>' +
+      '<div class="card"><div class="k">SSE single → double</div><div class="v">' + sig(C.s.rss) + ' → ' + sig(C.d.rss) + '</div><div class="s">' + sig(100 * dBetter) + '% lower with the double</div></div>' +
       '<div class="card hot"><div class="k">ΔBIC (single − double)</div><div class="v">' + sig(C.dBIC) + '</div><div class="s">' + verdict(C.dBIC) + ' | P(double) ' + Math.round(100 * wD(C.dBIC)) + '%</div></div>' +
       '<div class="card hot"><div class="k">ΔAICc (single − double)</div><div class="v">' + sig(C.dAICc) + '</div><div class="s">' + verdict(C.dAICc) + ' | P(double) ' + Math.round(100 * wD(C.dAICc)) + '%</div></div>' +
       '<div class="card"><div class="k">F-test p-value</div><div class="v">' + (C.p < 0.0001 ? "<0.0001" : sig(C.p)) + '</div><div class="s">' + (C.p < 0.05 ? "double favored at 5%" : "not significant at 5%") + '</div></div>';
 
     // ---- messages
     var m = [];
-    if (truthSingle) m.push(["", "<b>The true curve here is a single exponential</b> (equal rates or one phase only). The double exponential still lowers RSS by " + sig(100 * dBetter) + "% by fitting noise. A good criterion should not prefer it."]);
-    else m.push(["", "The true curve has two phases (rate ratio " + sig(ratio) + ", " + sig(100 * P.frac) + "% fast). The double exponential lowers RSS by " + sig(100 * dBetter) + "% compared with the single."]);
+    if (truthSingle) m.push(["", "<b>The true curve here is a single exponential</b> (equal rates or one phase only). The double exponential still lowers SSE by " + sig(100 * dBetter) + "% by fitting noise. A good criterion should not prefer it."]);
+    else m.push(["", "The true curve has two phases (rate ratio " + sig(ratio) + ", " + sig(100 * P.frac) + "% fast). The double exponential lowers SSE by " + sig(100 * dBetter) + "% compared with the single."]);
     var dtS = d.tmax / (n - 1), tauF = 1 / r.kfast;
     if (!truthSingle && tauF < 3 * dtS) m.push(["warn", "<b>The fast phase is barely sampled.</b> Its lifetime (" + sig(tauF) + ") is only " + sig(tauF / dtS) + " sampling intervals (spacing " + sig(dtS) + "), so one or two noisy points carry all the information about k<sub>fast</sub>. In this regime the fit and the Δ values can change abruptly from one slider step to the next. Add points or shorten the time window to resolve the fast phase."]);
     if (C.dBIC < 2 && !truthSingle) m.push(["warn", "<b>BIC cannot detect the second exponential</b> at this rate ratio, noise and number of points, even though it is really there."]);
-    if (C.dAICc > 2 && C.dBIC < 2) m.push(["", "AICc and BIC disagree: AICc (penalty 2 per parameter) sees the second phase, while BIC (penalty ln n = " + sig(Math.log(n)) + " per parameter) does not. BIC is the more conservative."]);
-    if (C.dAICc > 2 && truthSingle) m.push(["warn", "AICc favors the double exponential even though the truth is single. This is a false positive that happens by chance more often with AIC than with BIC."]);
+    if (C.dAICc > 2 && C.dBIC < 2) m.push(["", "AICc and BIC disagree: AICc (about " + sig(aiccPrice(n)) + " per extra parameter at n = " + n + ") sees the second phase, while BIC (ln n = " + sig(Math.log(n)) + " per extra parameter) does not. BIC is the more conservative here."]);
+    if (C.dAICc > 2 && truthSingle) m.push(["warn", "AICc favors the double exponential even though the truth is single. This is a false positive that happens by chance more often with AICc than with BIC."]);
     var kfSe = seD[1] / C.d.kf, ksSe = seD[3] / C.d.ks;
     if (C.d.collapsed) m.push(["warn", "The double-exponential fit collapsed to the single-exponential solution: the data contain no evidence of a second rate."]);
     else if (!(kfSe < 0.5) || !(ksSe < 0.5)) m.push(["warn", "<b>The double-exponential rate constants are poorly determined</b> (standard errors of " + (isFinite(kfSe) ? Math.round(100 * kfSe) + "%" : "undefined") + " and " + (isFinite(ksSe) ? Math.round(100 * ksSe) + "%" : "undefined") + " of the values). Treat the fitted rates and amplitudes as meaningless even if the criteria favor the double."]);
@@ -396,7 +397,7 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
 
     // ---- table
     function pf(v, se) { return sig(v) + (isFinite(se) ? " ± " + sig(se) : ""); }
-    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>Parameters</th><th>RSS</th><th>AIC</th><th>AICc</th><th>BIC</th><th>ΔAICc</th><th>ΔBIC</th></tr></thead><tbody>' +
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>Parameters</th><th>SSE</th><th>AIC</th><th>AICc</th><th>BIC</th><th>ΔAICc</th><th>ΔBIC</th></tr></thead><tbody>' +
       '<tr><td>Single exponential</td><td>A = ' + pf(C.s.A, seS[0]) + '; k = ' + pf(C.s.k, seS[1]) + '</td><td>' + sig(C.s.rss) + '</td><td>' + sig(C.is.aic) + '</td><td>' + sig(C.is.aicc) + '</td><td>' + sig(C.is.bic) + '</td><td>0</td><td>0</td></tr>' +
       '<tr><td>Double exponential</td><td>A<sub>f</sub> = ' + pf(C.d.A1, seD[0]) + '; k<sub>f</sub> = ' + pf(C.d.kf, seD[1]) + '; A<sub>s</sub> = ' + pf(C.d.A2, seD[2]) + '; k<sub>s</sub> = ' + pf(C.d.ks, seD[3]) + '</td><td>' + sig(C.d.rss) + '</td><td>' + sig(C.id.aic) + '</td><td>' + sig(C.id.aicc) + '</td><td>' + sig(C.id.bic) + '</td><td>' + sig(C.dAICc) + '</td><td>' + sig(C.dBIC) + '</td></tr>' +
       '<tr><td>True values</td><td>A<sub>f</sub> = ' + sig(P.frac) + '; k<sub>f</sub> = ' + sig(r.kfast) + '; A<sub>s</sub> = ' + sig(1 - P.frac) + '; k<sub>s</sub> = ' + sig(r.kslow) + '</td><td colspan="6"></td></tr></tbody></table>';
@@ -430,14 +431,14 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
     document.getElementById("eq").textContent =
       "single:  y = A exp(−k t)                                   2 fitted constants (A, k)\n" +
       "double:  y = A1 exp(−k1 t) + A2 exp(−k2 t),  k1 > k2        4 fitted constants\n\n" +
-      "RSS = sum of (observed − fitted)²                 always lower or equal for the double model\n" +
-      "AIC  = n ln(RSS/n) + 2 q\n" +
+      "SSE = sum of (observed − fitted)²                 always lower or equal for the double model\n" +
+      "AIC  = n ln(SSE/n) + 2 q\n" +
       "AICc = AIC + 2 q (q + 1) / (n − q − 1)             small-sample correction\n" +
-      "BIC  = n ln(RSS/n) + q ln(n)\n" +
-      "q = fitted constants + 1 (the error variance); the +1 is the same in both models and does not change any Δ.\n" +
+      "BIC  = n ln(SSE/n) + q ln(n)\n" +
+      "q = fitted constants + 1 (the error variance).\n" +
       "Δ = criterion(single) − criterion(double); positive favors the double exponential.\n" +
       "Weight of the double model = 1 / (1 + exp(−Δ/2)).\n" +
-      "F-test: F = ((RSS1 − RSS2)/2) / (RSS2/(n − 4)), compared with an F(2, n − 4) distribution (approximate for nonlinear models).\n" +
+      "F-test: F = ((SSE1 − SSE2)/2) / (SSE2/(n − 4)), compared with an F(2, n − 4) distribution (approximate for nonlinear models).\n" +
       "Amplitudes are found by linear least squares for each pair of rate constants; the rate constants by Levenberg-Marquardt from several starting points.";
   }
 
@@ -466,7 +467,7 @@ th:first-child, td:first-child { text-align: left; font-family: var(--font); }
     }, sl);
     mk("swF", 320, 250, [0, 100], lin(0, 100, 5), "% of data sets favoring the double", [{ v: sweepData.fF, c: "var(--good)", dash: "5 3" }, { v: sweepData.fAICc, c: "var(--dbl)" }, { v: sweepData.fBIC, c: "var(--accent)" }], null);
     var rlo = Math.min.apply(null, sweepData.rssR.concat([1])), rr = [Math.max(0, rlo - 0.05), 1.02];
-    mk("swR", 640, 210, rr, lin(rr[0], rr[1], 4), "mean RSS(double) / RSS(single)", [{ v: sweepData.rssR, c: "var(--fg)" }], function (f) { return '<line x1="46" x2="630" y1="' + f.sy(1) + '" y2="' + f.sy(1) + '" stroke="var(--ref)" stroke-dasharray="4 4"/>'; });
+    mk("swR", 640, 210, rr, lin(rr[0], rr[1], 4), "mean SSE(double) / SSE(single)", [{ v: sweepData.rssR, c: "var(--fg)" }], function (f) { return '<line x1="46" x2="630" y1="' + f.sy(1) + '" y2="' + f.sy(1) + '" stroke="var(--ref)" stroke-dasharray="4 4"/>'; });
     document.getElementById("legendS").innerHTML = '<span><i style="border-color:var(--accent)"></i>BIC</span><span><i style="border-color:var(--dbl)"></i>AICc</span><span><i style="border-color:var(--good);border-top-style:dashed"></i>F-test, p &lt; 0.05</span><span>dashed vertical line: the current ratio</span><span>top-left chart: Δ = 2 and 10 are the usual “positive” and “very strong” thresholds</span>';
   }
   function runSweep() {

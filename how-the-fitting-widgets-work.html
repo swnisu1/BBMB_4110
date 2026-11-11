@@ -116,8 +116,8 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
 
   <section class="card" id="optimizer">
     <h2>How the fit is found</h2>
-    <p><b>The goal.</b> The widgets use least squares: find the constants that minimize the sum of the squared differences between each measured value and the model curve (the residual sum of squares, RSS).</p>
-    <div class="eq">RSS = sum over all points of ( observed − model )²</div>
+    <p><b>The goal.</b> The widgets use least squares: find the constants that minimize the sum of the squared differences between each measured value and the model curve (the sum of squared errors, SSE; some books call it the residual sum of squares, RSS).</p>
+    <div class="eq">SSE = sum over all points of ( observed − model )²</div>
     <p><b>A tiny worked example.</b> Suppose four measured velocities and the Michaelis-Menten equation v = V<sub>max</sub>[S]/(K<sub>m</sub> + [S]). Try two pairs of constants and add up the squared differences:</p>
     <div class="tablewrap"><table>
       <thead><tr><th>[S]</th><th>measured v</th><th>model at V<sub>max</sub> 1.5, K<sub>m</sub> 20</th><th>(difference)²</th><th>model at V<sub>max</sub> 1.2, K<sub>m</sub> 10</th><th>(difference)²</th></tr></thead>
@@ -126,10 +126,10 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
         <tr><td>20</td><td>0.76</td><td>0.750</td><td>0.0001</td><td>0.800</td><td>0.0016</td></tr>
         <tr><td>40</td><td>1.02</td><td>1.000</td><td>0.0004</td><td>0.960</td><td>0.0036</td></tr>
         <tr><td>80</td><td>1.15</td><td>1.200</td><td>0.0025</td><td>1.067</td><td>0.0069</td></tr>
-        <tr><td><b>RSS</b></td><td></td><td></td><td><b>0.0034</b></td><td></td><td><b>0.0185</b></td></tr>
+        <tr><td><b>SSE</b></td><td></td><td></td><td><b>0.0034</b></td><td></td><td><b>0.0185</b></td></tr>
       </tbody>
     </table></div>
-    <p>The first pair gives a much smaller RSS, so it describes these points better. Fitting is this calculation repeated for many pairs of constants, steered so that RSS keeps getting smaller, until it cannot get any smaller. You could do the same in a spreadsheet, and Excel Solver or Prism does exactly this with its own search.</p>
+    <p>The first pair gives a much smaller SSE, so it describes these points better. Fitting is this calculation repeated for many pairs of constants, steered so that SSE keeps getting smaller, until it cannot get any smaller. You could do the same in a spreadsheet, and Excel Solver or Prism does exactly this with its own search.</p>
     <p><b>Weighting.</b> With the default "constant" error model every point counts equally, which is right when the scatter is about the same size at all velocities. With "proportional" error, each point is divided by its velocity so that large and small velocities carry similar weight; this is right when the scatter grows with the signal. A small floor (3% of the largest velocity) stops points near zero from dominating. Check the residual plot to decide which is closer to your data.</p>
     <p><b>The search.</b> The method is Levenberg-Marquardt, the standard algorithm for this job. At each step it estimates how the error changes if each constant is nudged, then takes a step that blends two strategies: a bold step toward where the error looks smallest, and a cautious step straight downhill. If a step makes the fit worse, it is rejected and the step is made more cautious; if it helps, the next step is bolder. The search stops when no step improves the fit or the improvement is negligible, with a limit of 200 to 250 steps.</p>
     <p>The slopes are found numerically (by nudging each constant slightly), so no hand-derived formulas are needed, and the same code handles every model.</p>
@@ -139,7 +139,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
   <section class="card" id="errors">
     <h2>Uncertainties</h2>
     <p><b>Standard errors.</b> The same slope information used for the search says how sharply the error rises when a constant moves away from its best value. A sharp rise means the data pin the constant down tightly (small standard error); a shallow valley means many values fit about equally well (large standard error). In formula form, the covariance matrix is</p>
-    <div class="eq">covariance = s² × ( JᵀJ )⁻¹,   s² = RSS / (n − p)</div>
+    <div class="eq">covariance = s² × ( JᵀJ )⁻¹,   s² = SSE / (n − p)</div>
     <p>where J holds the slopes, n is the number of points and p the number of fitted constants. Because the constants are searched on a log scale, a standard error for a positive constant is the value times the standard error of its logarithm.</p>
     <p><b>Confidence intervals.</b> The IC<sub>50</sub> widget gives a 95% interval from exp(ln IC<sub>50</sub> ± t × SE), using the t distribution with n − p degrees of freedom. The intervals are therefore asymmetric on the concentration scale, as they should be.</p>
     <p><b>Correlated constants.</b> When two constants trade off against each other, such as V<sub>max</sub> and K<sub>m</sub> in a progress curve at low [S], the widgets report their correlation and warn when it is above 0.95. Each can be uncertain even though the curve passes through the data perfectly.</p>
@@ -148,8 +148,8 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
 
   <section class="card" id="bic">
     <h2>Choosing between models</h2>
-    <p>A model with more constants can always follow the data more closely, so a lower RSS alone does not make it better. The widgets use the Bayesian information criterion, which charges a penalty for every extra constant:</p>
-    <div class="eq">BIC = n ln( RSS / n ) + ( k + 1 ) ln( n )</div>
+    <p>A model with more constants can always follow the data more closely, so a lower SSE alone does not make it better. The widgets use the Bayesian information criterion, which charges a penalty for every extra constant:</p>
+    <div class="eq">BIC = n ln( SSE / n ) + ( k + 1 ) ln( n )</div>
     <p>Here n is the number of points and k is the number of fitted constants (the extra 1 counts the scatter). The lower the BIC, the better the balance between fit and simplicity. The widgets show ΔBIC, the difference from the best model, and a weight that turns the differences into approximate probabilities.</p>
     <div class="tablewrap"><table>
       <thead><tr><th>ΔBIC (versus the best model)</th><th>How to read it</th></tr></thead>
@@ -160,7 +160,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
         <tr><td>Above 10</td><td>Very strong evidence.</td></tr>
       </tbody>
     </table></div>
-    <p><b>Limits.</b> BIC only ranks the equations that were tried; the best of a poor set can still be wrong, so always look at the residuals. All models in a comparison must be fitted to the same points with the same weighting, which is why the widgets warn you when the answer changes with the error model. BIC penalizes complexity more than the AIC alternative, so it tends to favor the simpler model when the evidence is borderline.</p>
+    <p><b>Limits.</b> BIC only ranks the equations that were tried; the best of a poor set can still be wrong, so always look at the residuals. All models in a comparison must be fitted to the same points with the same weighting, which is why the widgets warn you when the answer changes with the error model. Except in very small data sets (below about 20 points), BIC penalizes complexity more than the AICc alternative, so it tends to favor the simpler model when the evidence is borderline.</p>
   </section>
 
   <section class="card" id="widgets">

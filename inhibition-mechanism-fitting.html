@@ -336,7 +336,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       <section class="panel">
         <h2>Model comparison</h2>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Click a row to show that model in the plots. BIC = n ln(RSS/n) + k ln(n); lower is better. The weight is the approximate probability of each model among those compared (Δ BIC above 10 is very strong evidence).</p>
+        <p class="hint">Click a row to show that model in the plots. BIC = n ln(SSE/n) + k ln(n); lower is better. The weight is the approximate probability of each model among those compared (Δ BIC above 10 is very strong evidence).</p>
       </section>
       <section class="panel plot">
         <h3>Velocity vs. [S]</h3>
@@ -1395,7 +1395,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       uniq.forEach(function (I) { for (var q = 0; q <= 160; q++) { var S = smax * q / 160; tc.push([I, S].concat(keys.map(function (k) { var f = fits[k]; return vel(f.V, f.Km, f.Ki, f.Kii, S, I); }))); } });
       return { parameters: tp, data_fit: td, curves: tc };
     })();
-    document.getElementById("eq").textContent = eqs[selKey] + "\n\nApparent constants at a given [I]:\n  Vmax,app = Vmax / (1 + [I]/Kii)\n  Km,app   = Km (1 + [I]/Ki) / (1 + [I]/Kii)\n\nAll four models are fit to all points together (global fit, nonlinear least squares" + (wmode === "prop" ? ", weights 1/v" : "") + ").\nCompetitive: Kii = ∞.  Uncompetitive: Ki = ∞.  Noncompetitive: Ki = Kii.  Mixed: both free.\nBIC = n ln(RSS/n) + (k + 1) ln(n), with k fitted constants.";
+    document.getElementById("eq").textContent = eqs[selKey] + "\n\nApparent constants at a given [I]:\n  Vmax,app = Vmax / (1 + [I]/Kii)\n  Km,app   = Km (1 + [I]/Ki) / (1 + [I]/Kii)\n\nAll four models are fit to all points together (global fit, nonlinear least squares" + (wmode === "prop" ? ", weights 1/v" : "") + ").\nCompetitive: Kii = ∞.  Uncompetitive: Ki = ∞.  Noncompetitive: Ki = Kii.  Mixed: both free.\nBIC = n ln(SSE/n) + (k + 1) ln(n), with k fitted constants.";
   }
   document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
   rebuildList(); render();

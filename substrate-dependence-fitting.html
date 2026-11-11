@@ -198,7 +198,7 @@ ul.try li { margin-bottom: 4px; }
       <section class="panel">
         <h2>Model comparison for <span id="dsName"></span></h2>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Click a row to show that model in the plots. BIC = n ln(RSS/n) + (k + 1) ln(n); lower is better. The weight is the approximate probability of each model (ΔBIC above 10 is very strong evidence).</p>
+        <p class="hint">Click a row to show that model in the plots. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is the approximate probability of each model (ΔBIC above 10 is very strong evidence).</p>
       </section>
       <section class="panel plot">
         <div class="plothead">
@@ -721,7 +721,7 @@ ul.try li { margin-bottom: 4px; }
       });
       return { parameters: tp, data_fit: td, curves: tc };
     })();
-    document.getElementById("eq").textContent = "Michaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n\nEach dataset is fit separately by nonlinear least squares" + (wmode === "prop" ? " (weights 1/v)" : "") + ".\nBIC = n ln(RSS/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
+    document.getElementById("eq").textContent = "Michaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n\nEach dataset is fit separately by nonlinear least squares" + (wmode === "prop" ? " (weights 1/v)" : "") + ".\nBIC = n ln(SSE/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
   }
   document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s";
   rebuildList(); render();

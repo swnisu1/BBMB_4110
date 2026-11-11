@@ -311,7 +311,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <div class="seg small" id="modelSeg"><button type="button" data-m="auto" aria-pressed="true">best (BIC)</button><button type="button" data-m="mm" aria-pressed="false">MM</button><button type="button" data-m="hill" aria-pressed="false">Hill</button><button type="button" data-m="si" aria-pressed="false">Subst. inhib.</button></div>
         </div>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Choose the model to show above or by clicking a row. BIC = n ln(RSS/n) + (k + 1) ln(n); lower is better. The weight is roughly the probability of each model; a ΔBIC above 10 is very strong evidence.</p>
+        <p class="hint">Choose the model to show above or by clicking a row. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is roughly the probability of each model; a ΔBIC above 10 is very strong evidence.</p>
       </section>
       <section class="panel plot fitp" hidden>
         <div class="plothead">
@@ -987,7 +987,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
     $("eq").textContent = "Slope:                   A340 = a + b·t over the window (min); rate = (b − blank) / (ε·l)" + (A !== null ? "   [1 µM NADPH = " + sig(A * 1000) + " mA340]" : "") +
       "\nMichaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n" +
-      "kcat = Vmax / [E]  (Vmax converted to µM/s)\n\nEach series is fit to every well (not the means) by nonlinear least squares" + (wmode === "prop" ? " with weights 1/v" : "") + ".\nBIC = n ln(RSS/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
+      "kcat = Vmax / [E]  (Vmax converted to µM/s)\n\nEach series is fit to every well (not the means) by nonlinear least squares" + (wmode === "prop" ? " with weights 1/v" : "") + ".\nBIC = n ln(SSE/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
 
     // export tables
     var tp = [["series", "model", "Vmax (" + vu + ")", "SE_Vmax", "K (" + su + ")", "SE_K", "n", "SE_n", "Ksi (" + su + ")", "SE_Ksi", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "kcat (1/s)", "kcat/K (1/M/s)", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best"]];
