@@ -203,8 +203,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <h2>Your data</h2>
         <label class="drop" id="drop" for="fileIn">
           <b>Drop a file here</b> or click to choose
-          <span><b>Plate reader .xlsx:</b> the A<sub>340</sub> time courses as exported by the infinite 200Pro (i-control) or the Spark (SparkControl); the format is detected automatically. A slope is taken from each well, and [S] and [I] come from the plate layout. <b>Or a table:</b> first column [S], one column of velocities per inhibitor concentration, [I] values in the header row (CSV, TSV or text).</span>
-          <input type="file" id="fileIn" accept=".xlsx,.xlsm,.csv,.tsv,.txt,.dat,text/*" hidden>
+          <span><b>Plate reader .xlsx:</b> the A<sub>340</sub> time courses as exported by the infinite 200Pro (i-control) or the Spark (SparkControl); the format is detected automatically. A slope is taken from each well, and [S] and [I] come from the plate layout. <b>Replicate plates:</b> add each plate's file (several at once, or one after another); every well from every plate goes into one fit. <b>Or a table:</b> first column [S], one column of velocities per inhibitor concentration, [I] values in the header row (CSV, TSV or text).</span>
+          <input type="file" id="fileIn" accept=".xlsx,.xlsm,.csv,.tsv,.txt,.dat,text/*" multiple hidden>
         </label>
         <details id="pasteBox">
           <summary>Or paste from Excel</summary>
@@ -217,6 +217,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
         <p class="hint" style="margin-top:12px">Practice plate (simulated, competitive inhibitor, class plate map), in either reader's format:</p>
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_spark.xlsx" download>⤓ Spark .xlsx</a></div>
+        <p class="hint" style="margin-top:12px">Practice replicate plates (one replicate per plate, wells A1–D6 of the class plate map): add both files and the fit pools them.</p>
+        <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate1_infinite.xlsx" download>⤓ Plate 1 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_infinite.xlsx" download>⤓ Plate 2 .xlsx</a></div>
       </section>
 
       <section class="panel" id="slopePanel" hidden>
@@ -272,7 +274,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       <section class="panel">
         <div class="plothead">
           <h3 id="plateTitle">Plate</h3>
-          <div class="ptog"><select id="runSel" aria-label="Kinetic run" hidden></select><span>Click a well to</span>
+          <div class="ptog"><select id="plateSel" aria-label="Replicate plate shown" hidden></select><button type="button" class="btn" id="plateDel" hidden>Remove this plate</button><select id="runSel" aria-label="Kinetic run" hidden></select><span>Click a well to</span>
             <div class="seg small" id="pClickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false" title="A well with everything except enzyme; its slope is the background">mark no-enzyme blank</button></div>
           </div>
         </div>
@@ -460,7 +462,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         '<div class="crvin"><label>[I] for this series<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.I) ? c.I : "") + '"></label></div></div>';
     }).join("");
   }
-  function setSeries(list, keepPlate) { if (!keepPlate) plate = null; document.getElementById("plateWrap").hidden = !plate; document.getElementById("convPanel").hidden = !plate; document.getElementById("slopePanel").hidden = !plate; series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
+  function setSeries(list, keepPlate) { if (!keepPlate) { plate = null; plates = []; } document.getElementById("plateWrap").hidden = !plate; document.getElementById("convPanel").hidden = !plate; document.getElementById("slopePanel").hidden = !plate; series = list.slice(0, 12); state.sel = "auto"; state.fitted = false; rebuildList(); render(); }
 
   // ---------- Levenberg-Marquardt (generic, log-parameter space) ----------
   function solve(A, b) {
@@ -754,11 +756,22 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   function pCols(run) { var u = {}; run.order.forEach(function (w) { u[+w.slice(1)] = 1; }); return Object.keys(u).map(Number).sort(function (a, b) { return a - b; }); }
   function pNum(v) { v = String(v).trim().replace(",", "."); return v === "" ? NaN : Number(v); }
   function pCU() { return CV.sUnit === "µM" ? "µM" : "mM"; }
+  // replicate plates: every loaded plate file is kept here; `plate` is the one shown and edited
+  var plates = [];
+  function withPlate(p, fn) { var keep = plate; plate = p; try { return fn(); } finally { plate = keep; } }
+  function copyLayout(src, dst) {
+    Object.keys(dst.cfg.wells).forEach(function (w) { var a = src.cfg.wells[w]; if (a) { dst.cfg.wells[w].S = a.S; dst.cfg.wells[w].role = a.role; } });
+    Object.keys(dst.cfg.rows).forEach(function (R) { var a = src.cfg.rows[R]; if (a) { dst.cfg.rows[R].I = a.I; dst.cfg.rows[R].E = a.E; } });
+  }
   function loadPlate(runs, fname) {
     var keep = plate;
-    plate = { runs: runs, ri: 0, file: fname, win: keep ? keep.win : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, sel: null, click: "inspect" };
-    setupRun(); updatePlate(true);
+    plate = { runs: runs, ri: 0, file: fname, win: keep ? keep.win.slice() : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, sel: null, click: "inspect" };
+    setupRun();
+    if (keep) { copyLayout(keep, plate); buildLayout(); }
+    plates.push(plate);
+    updatePlate(plates.length === 1);
   }
+  function plateLabel(i) { return "Plate " + (i + 1) + " · " + plates[i].file; }
   function setupRun() {
     var run = pRun(), wells = {}, rows = {};
     run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN, E: NaN }; });
@@ -833,7 +846,13 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     return list.sort(function (a, b) { return a.I - b.I; });
   }
   // ---------- plate panel ----------
+  function syncPlateSel() {
+    var ps = document.getElementById("plateSel"), pi = plates.indexOf(plate);
+    ps.hidden = plates.length < 2; document.getElementById("plateDel").hidden = plates.length < 2;
+    ps.innerHTML = plates.map(function (p, i) { return '<option value="' + i + '">' + esc(plateLabel(i)) + '</option>'; }).join(""); ps.value = String(pi);
+  }
   function buildPlateCtl() {
+    syncPlateSel();
     var rs = document.getElementById("runSel"); rs.hidden = plate.runs.length < 2;
     rs.innerHTML = plate.runs.map(function (r, i) { return '<option value="' + i + '">' + esc("Run " + (i + 1) + " · " + r.sheet + (r.start ? " · " + r.start : "")) + '</option>'; }).join(""); rs.value = String(plate.ri);
     document.getElementById("pwA").value = plate.win[0]; document.getElementById("pwB").value = plate.win[1]; document.getElementById("pDir").value = plate.dir; document.getElementById("pSub").checked = plate.sub;
@@ -871,12 +890,17 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       }).join("") + '</tbody></table>';
       document.getElementById("rateHint").innerHTML = (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
     } else {
-      var g = {}, list = [];
-      run.order.forEach(function (w) { var o = C.w[w]; if (o.role !== "sample" || !o.fit.ok || !isFinite(o.S) || !isFinite(o.I)) return; var k = o.I + "|" + o.S; if (!g[k]) { g[k] = { I: o.I, S: o.S, v: [], wells: [] }; list.push(g[k]); } g[k].v.push(o.v); g[k].wells.push(w); });
+      var g = {}, list = [], multi = plates.length > 1, cur = plate;
+      plates.forEach(function (pl, pi) {
+        withPlate(pl, function () {
+          var Cp = pl === cur ? C : pCompute();
+          pRun().order.forEach(function (w) { var o = Cp.w[w]; if (o.role !== "sample" || !o.fit.ok || !isFinite(o.S) || !isFinite(o.I)) return; var k = o.I + "|" + o.S; if (!g[k]) { g[k] = { I: o.I, S: o.S, v: [], wells: [] }; list.push(g[k]); } g[k].v.push(o.v); g[k].wells.push((multi ? "P" + (pi + 1) + " " : "") + w); });
+        });
+      });
       list.sort(function (a, b) { return a.I - b.I || a.S - b.S; });
       list.forEach(function (x) { x.n = x.v.length; x.m = x.v.reduce(function (a, b) { return a + b; }, 0) / x.n; x.sd = x.n > 1 ? Math.sqrt(x.v.reduce(function (a, b) { return a + (b - x.m) * (b - x.m); }, 0) / (x.n - 1)) : NaN; });
       h = list.length ? '<table class="data"><thead><tr><th>[I] (' + su + ')</th><th>[S] (' + su + ')</th><th>n</th><th>mean rate (' + vu + ')</th><th>SD</th><th>CV</th><th style="text-align:left">wells</th></tr></thead><tbody>' + list.map(function (x) { return '<tr><td>' + sig(x.I) + '</td><td>' + sig(x.S) + '</td><td>' + x.n + '</td><td>' + sig(x.m) + '</td><td>' + (x.n > 1 ? sig(x.sd) : "") + '</td><td>' + (x.n > 1 && x.m ? Math.round(100 * Math.abs(x.sd / x.m)) + "%" : "") + '</td><td style="text-align:left;font-family:var(--font)">' + x.wells.join(" ") + '</td></tr>'; }).join("") + '</tbody></table>' : '<p class="hint" style="margin:0">Enter [S] and [I] in the plate layout to group the replicates.</p>';
-      document.getElementById("rateHint").textContent = list.length ? "Wells with the same [I] and [S] are averaged here. The fit uses every well, not the means." : "";
+      document.getElementById("rateHint").textContent = list.length ? "Wells with the same [I] and [S] are averaged here" + (plates.length > 1 ? ", across all " + plates.length + " plates (P1, P2 … in the wells column)" : "") + ". The fit uses every well, not the means." : "";
     }
     document.getElementById("rateTbl").innerHTML = h;
   }
@@ -969,7 +993,9 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (!plate) return;
     var run = pRun(), C = pCompute(), tmax = pTmax(), dt = run.t.length > 1 ? (run.t[run.t.length - 1] - run.t[0]) / (run.t.length - 1) : NaN;
     drawPlateGrid(C); drawWell(C); drawRates(C);
-    document.getElementById("plateTitle").textContent = "Plate: " + plate.file;
+    var pi = plates.indexOf(plate);
+    document.getElementById("plateTitle").textContent = plates.length > 1 ? "Plate " + (pi + 1) + " of " + plates.length + ": " + plate.file : "Plate: " + plate.file;
+    syncPlateSel();
     document.getElementById("plateInfo").textContent = (run.device ? "Tecan " + run.device.replace(/^tecan\s*/i, "") + ": " : "") + run.order.length + " wells, " + run.t.length + " reads about every " + sig(dt) + " s over " + sig(tmax) + " min" + (run.wl ? ", " + run.wl + " nm" : "") + ". " +
       (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample." : " (not subtracted).") : "No wells are marked blank, so no background is subtracted.");
     var Es = {}; pRows(run).forEach(function (R) { var c = plate.cfg.rows[R]; if (run.order.some(function (w) { return w.charAt(0) === R && plate.cfg.wells[w].role === "sample"; }) && isFinite(c.E)) Es[c.E] = 1; });
@@ -977,8 +1003,21 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     convOut();
     document.getElementById("cunit").value = pCU();
     document.getElementById("vunit").value = rUnit();
-    plate.missing = pMissing();
-    var list = plate.missing.length ? [] : plateSeries(C);
+    if (plates.length > 1) document.getElementById("plateInfo").innerHTML += " <b>" + plates.length + " replicate plates loaded: the fit pools every well from all of them.</b> Use the menu above to check each plate's slopes and layout.";
+    var miss = [], pool = {}, list = [], cur = plate;
+    plates.forEach(function (pl, i) {
+      withPlate(pl, function () {
+        var m = pMissing();
+        if (m.length) { miss = miss.concat(m.map(function (x) { return (plates.length > 1 ? "<b>" + esc(plateLabel(i)) + ":</b> " : "") + x; })); return; }
+        plateSeries(pl === cur ? C : pCompute()).forEach(function (sr) {
+          var k = String(sr.I);
+          if (!pool[k]) { pool[k] = { name: sr.name, I: sr.I, S: [], v: [] }; list.push(pool[k]); }
+          pool[k].S = pool[k].S.concat(sr.S); pool[k].v = pool[k].v.concat(sr.v);
+        });
+      });
+    });
+    plate.missing = miss;
+    list = miss.length ? [] : list.sort(function (a, b) { return a.I - b.I; });
     if (fresh) setSeries(list, true); else { series = list.slice(0, 12); rebuildList(); render(); }
   }
   var pPending = false;
@@ -1007,6 +1046,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     $p("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-pw]"); if (!tr) return; plate.sel = tr.dataset.pw; pRender(); var wp = $p("wellPanel"); if (wp.scrollIntoView) wp.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
     $p("pResetWin").addEventListener("click", function () { pRun().order.forEach(function (w) { plate.cfg.wells[w].win = null; }); pRender(); });
     $p("runSel").addEventListener("change", function (e) { plate.ri = +e.target.value; setupRun(); updatePlate(true); });
+    $p("plateSel").addEventListener("change", function (e) { plate = plates[+e.target.value]; buildPlateCtl(); buildLayout(); updatePlate(); });
+    $p("plateDel").addEventListener("click", function () {
+      if (plates.length < 2) return; var i = plates.indexOf(plate); plates.splice(i, 1); plate = plates[Math.min(i, plates.length - 1)];
+      state.fitted = false; buildPlateCtl(); buildLayout(); updatePlate();
+    });
     // one-well panel
     function step(d) { var o = pRun().order, i = o.indexOf(plate.sel); plate.sel = o[(i + d + o.length) % o.length]; pRender(); }
     $p("prevW").addEventListener("click", function () { step(-1); }); $p("nextW").addEventListener("click", function () { step(1); });
@@ -1065,24 +1109,28 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   var dropEl = document.getElementById("drop");
   function plateMsg(t) { var m = document.getElementById("msgs"); if (m) m.innerHTML = '<p class="msg warn">' + t + '</p>'; }
   function readFile(f) {
-    if (!f) return;
+    if (!f) return Promise.resolve();
     if (/\.xls[xm]$/i.test(f.name)) {
-      f.arrayBuffer().then(PR.readXlsx).then(function (sheets) {
+      return f.arrayBuffer().then(PR.readXlsx).then(function (sheets) {
         var all = []; sheets.forEach(function (sh) { all = all.concat(PR.findRuns(sh.rows, sh.name)); });
         if (!all.length) { plateMsg("No kinetic data found in " + esc(f.name) + ". Expected a “Time [s]” row followed by rows named A1, A2… (infinite 200Pro), or a Time column with well names as headers (Spark)."); return; }
         loadPlate(all, f.name.replace(/\.[^.]+$/, ""));
       }).catch(function (e) { plateMsg("Could not read " + esc(f.name) + ": " + esc(e.message)); });
-      return;
     }
-    if (/\.xls$/i.test(f.name)) { plateMsg("Old .xls files cannot be read here. Save as .xlsx in Excel."); return; }
-    var r = new FileReader();
-    r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); };
-    r.readAsText(f);
+    if (/\.xls$/i.test(f.name)) { plateMsg("Old .xls files cannot be read here. Save as .xlsx in Excel."); return Promise.resolve(); }
+    return new Promise(function (done) {
+      var r = new FileReader();
+      r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); done(); };
+      r.onerror = function () { done(); };
+      r.readAsText(f);
+    });
   }
-  document.getElementById("fileIn").addEventListener("change", function (e) { readFile(e.target.files[0]); e.target.value = ""; });
+  // several files at once: read them one after another, so plates keep their order
+  function readFiles(list) { Array.prototype.reduce.call(list || [], function (chain, f) { return chain.then(function () { return readFile(f); }); }, Promise.resolve()); }
+  document.getElementById("fileIn").addEventListener("change", function (e) { var fl = Array.prototype.slice.call(e.target.files); e.target.value = ""; readFiles(fl); });
   ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
   ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
-  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFile(e.dataTransfer.files[0]); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });
   document.getElementById("pasteBtn").addEventListener("click", function () {
     var box = document.getElementById("pasteText"), got = parseTable(box.value, "pasted");
     if (got.length) { box.value = ""; setSeries(got); }
@@ -1095,7 +1143,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var b = e.target.closest("button[data-del]"); if (!b) return;
     series.splice(+b.dataset.del, 1); state.fitted = false; rebuildList(); render();
   });
-  document.getElementById("clearBtn").addEventListener("click", function () { plate = null; document.getElementById("plateWrap").hidden = true; document.getElementById("convPanel").hidden = true; document.getElementById("slopePanel").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
+  document.getElementById("clearBtn").addEventListener("click", function () { plate = null; plates = []; document.getElementById("plateWrap").hidden = true; document.getElementById("convPanel").hidden = true; document.getElementById("slopePanel").hidden = true; series = []; state.fitted = false; rebuildList(); render(); });
   // Template: the example data written out in the layout the parser expects, so the format can be seen rather than read.
   document.getElementById("templateBtn").addEventListener("click", function () {
     var note = document.getElementById("tmplMsg");
