@@ -217,8 +217,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
         <p class="hint" style="margin-top:12px">Practice plate (simulated, competitive inhibitor, class plate map), in either reader's format:</p>
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_spark.xlsx" download>⤓ Spark .xlsx</a></div>
-        <p class="hint" style="margin-top:12px">Practice replicate plates (one replicate per plate, wells A1–D6 of the class plate map): add both files and the fit pools them.</p>
-        <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate1_infinite.xlsx" download>⤓ Plate 1 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_infinite.xlsx" download>⤓ Plate 2 .xlsx</a></div>
+        <p class="hint" style="margin-top:12px">Practice replicate plates (one replicate per plate, wells A1–D6 of the class plate map): add both files and the fit pools them. Plate 2 also comes as a Spark file, to try mixing readers.</p>
+        <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate1_infinite.xlsx" download>⤓ Plate 1 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_infinite.xlsx" download>⤓ Plate 2 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_spark.xlsx" download>⤓ Plate 2, Spark .xlsx</a></div>
       </section>
 
       <section class="panel" id="slopePanel" hidden>
@@ -782,7 +782,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     plates.push(plate);
     updatePlate(plates.length === 1);
   }
-  function plateLabel(i) { return "Plate " + (i + 1) + " · " + plates[i].file; }
+  function plateDevice(pl) { var d = pl.runs[pl.ri].device; return d ? String(d).replace(/^tecan\s*/i, "") : ""; }
+  function plateLabel(i) { var d = plateDevice(plates[i]); return "Plate " + (i + 1) + (d ? " (" + d + ")" : "") + " · " + plates[i].file; }
   function setupRun() {
     var run = pRun(), wells = {}, rows = {};
     run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN, E: NaN }; });
@@ -1014,7 +1015,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     convOut();
     document.getElementById("cunit").value = pCU();
     document.getElementById("vunit").value = rUnit();
-    if (plates.length > 1) document.getElementById("plateInfo").innerHTML += " <b>" + plates.length + " replicate plates loaded: the fit pools every well from all of them.</b> Use the menu above to check each plate's slopes and layout.";
+    if (plates.length > 1) {
+      document.getElementById("plateInfo").innerHTML += " <b>" + plates.length + " replicate plates loaded: the fit pools every well from all of them.</b> Use the menu above to check each plate's slopes and layout.";
+      var devs = {}; plates.forEach(function (pl) { var d = plateDevice(pl); if (d) devs[d] = 1; });
+      if (Object.keys(devs).length > 1) document.getElementById("plateInfo").innerHTML += ' <b style="color:var(--warn)">These plates come from different readers (' + esc(Object.keys(devs).join(", ")) + ').</b> That is fine for pooling, but check in the replicate-means table (or by fitting each plate alone) that their rates agree: a different temperature or a different well volume shows up as one plate running consistently faster.';
+    }
     var miss = [], pool = {}, list = [], cur = plate;
     plates.forEach(function (pl, i) {
       withPlate(pl, function () {
