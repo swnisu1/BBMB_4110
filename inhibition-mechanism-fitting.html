@@ -314,6 +314,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         </div>
         <div class="tablewrap" id="layoutGrid"></div>
         <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's [S] to every row</button><button type="button" class="btn" id="classMap">Fill the class plate map</button><button type="button" class="btn" id="clearLayout">Clear the layout</button></div>
+        <label id="shareWrap" class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0" hidden><input type="checkbox" id="shareLayout" checked style="margin-top:3px;accent-color:var(--accent)"><span>Same plate layout on every replicate plate ([S], [I], [E] and row use). Untick if a plate was set up differently. Wells you leave out or mark blank by clicking stay plate-specific.</span></label>
         <p class="hint">Type the substrate concentration in each well, as it is on the plate, the inhibitor concentration [I] for each row (0 for no inhibitor), and the final enzyme concentration [E] in the well (used for v/[E] and k<sub>cat</sub>). [I] uses the same units as [S]. If every row has the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. Rows with the same [I] are replicates and are fit together. Set a row to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit. <b>Fill the class plate map</b> enters 2, 5, 10, 20, 40, 80 mM in columns 1–6 and 7–12, and [I] = 0, 1.5, 3, 9 mM in rows A–D.</p>
       </section>
       <section class="panel">
@@ -763,6 +764,16 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     Object.keys(dst.cfg.wells).forEach(function (w) { var a = src.cfg.wells[w]; if (a) { dst.cfg.wells[w].S = a.S; dst.cfg.wells[w].role = a.role; } });
     Object.keys(dst.cfg.rows).forEach(function (R) { var a = src.cfg.rows[R]; if (a) { dst.cfg.rows[R].I = a.I; dst.cfg.rows[R].E = a.E; } });
   }
+  // copy the plate map ([S], [I], [E]; row roles when asked) from the shown plate to the other replicate plates
+  function shareMap(rowsWithRoles) {
+    var box = document.getElementById("shareLayout");
+    if (plates.length < 2 || (box && !box.checked)) return;
+    plates.forEach(function (q) {
+      if (q === plate) return;
+      Object.keys(q.cfg.wells).forEach(function (w) { var a = plate.cfg.wells[w]; if (!a) return; q.cfg.wells[w].S = a.S; if (rowsWithRoles && rowsWithRoles.indexOf(w.charAt(0)) >= 0) q.cfg.wells[w].role = a.role; });
+      Object.keys(q.cfg.rows).forEach(function (R) { var a = plate.cfg.rows[R]; if (a) { q.cfg.rows[R].I = a.I; q.cfg.rows[R].E = a.E; } });
+    });
+  }
   function loadPlate(runs, fname) {
     var keep = plate;
     plate = { runs: runs, ri: 0, file: fname, win: keep ? keep.win.slice() : [0, 5], dir: keep ? keep.dir : "up", sub: keep ? keep.sub : true, sel: null, click: "inspect" };
@@ -848,7 +859,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   // ---------- plate panel ----------
   function syncPlateSel() {
     var ps = document.getElementById("plateSel"), pi = plates.indexOf(plate);
-    ps.hidden = plates.length < 2; document.getElementById("plateDel").hidden = plates.length < 2;
+    ps.hidden = plates.length < 2; document.getElementById("plateDel").hidden = plates.length < 2; document.getElementById("shareWrap").hidden = plates.length < 2;
     ps.innerHTML = plates.map(function (p, i) { return '<option value="' + i + '">' + esc(plateLabel(i)) + '</option>'; }).join(""); ps.value = String(pi);
   }
   function buildPlateCtl() {
@@ -1046,6 +1057,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     $p("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-pw]"); if (!tr) return; plate.sel = tr.dataset.pw; pRender(); var wp = $p("wellPanel"); if (wp.scrollIntoView) wp.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
     $p("pResetWin").addEventListener("click", function () { pRun().order.forEach(function (w) { plate.cfg.wells[w].win = null; }); pRender(); });
     $p("runSel").addEventListener("change", function (e) { plate.ri = +e.target.value; setupRun(); updatePlate(true); });
+    $p("shareLayout").addEventListener("change", function (e) { if (e.target.checked) { shareMap(Object.keys(plate.cfg.rows)); pRender(); } });
     $p("plateSel").addEventListener("change", function (e) { plate = plates[+e.target.value]; buildPlateCtl(); buildLayout(); updatePlate(); });
     $p("plateDel").addEventListener("click", function () {
       if (plates.length < 2) return; var i = plates.indexOf(plate); plates.splice(i, 1); plate = plates[Math.min(i, plates.length - 1)];
@@ -1087,11 +1099,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var lg = $p("layoutGrid");
     lg.addEventListener("input", function (e) {
       var el = e.target, cfg = plate.cfg;
-      if (el.dataset.ri !== undefined) { cfg.rows[el.dataset.ri].I = pNum(el.value); pRender(); return; }
-      if (el.dataset.re !== undefined) { cfg.rows[el.dataset.re].E = pNum(el.value); pRender(); return; }
-      if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws].S = pNum(el.value); pRender(); }
+      if (el.dataset.ri !== undefined) { cfg.rows[el.dataset.ri].I = pNum(el.value); shareMap(); pRender(); return; }
+      if (el.dataset.re !== undefined) { cfg.rows[el.dataset.re].E = pNum(el.value); shareMap(); pRender(); return; }
+      if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws].S = pNum(el.value); shareMap(); pRender(); }
     });
-    lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) plate.cfg.wells[w].role = el.value; }); buildLayout(); pRender(); });
+    lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) plate.cfg.wells[w].role = el.value; }); shareMap([el.dataset.rrole]); buildLayout(); pRender(); });
     lg.addEventListener("paste", function (e) {
       var el = e.target; if (el.tagName !== "INPUT" || el.dataset.ws === undefined) return;
       var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n,; ]/.test(t.trim())) return;
@@ -1099,11 +1111,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
       var r0 = +el.dataset.r, c0 = +el.dataset.c;
       grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); plate.cfg.wells[x.dataset.ws].S = pNum(v); } }); });
-      pRender();
+      shareMap(); pRender();
     });
-    $p("copyTop").addEventListener("click", function () { if (!plate) return; var run = pRun(), top = pRows(run)[0]; run.order.forEach(function (w) { var src = plate.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src && plate.cfg.wells[w].role === "sample") plate.cfg.wells[w].S = src.S; }); buildLayout(); pRender(); });
-    $p("classMap").addEventListener("click", function () { if (!plate) return; classMap(); buildLayout(); pRender(); });
-    $p("clearLayout").addEventListener("click", function () { if (!plate) return; pRun().order.forEach(function (w) { plate.cfg.wells[w].S = NaN; }); Object.keys(plate.cfg.rows).forEach(function (R) { plate.cfg.rows[R].I = NaN; }); buildLayout(); pRender(); });
+    $p("copyTop").addEventListener("click", function () { if (!plate) return; var run = pRun(), top = pRows(run)[0]; run.order.forEach(function (w) { var src = plate.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src && plate.cfg.wells[w].role === "sample") plate.cfg.wells[w].S = src.S; }); shareMap(); buildLayout(); pRender(); });
+    $p("classMap").addEventListener("click", function () { if (!plate) return; classMap(); shareMap(Object.keys(plate.cfg.rows)); buildLayout(); pRender(); });
+    $p("clearLayout").addEventListener("click", function () { if (!plate) return; pRun().order.forEach(function (w) { plate.cfg.wells[w].S = NaN; }); Object.keys(plate.cfg.rows).forEach(function (R) { plate.cfg.rows[R].I = NaN; }); shareMap(); buildLayout(); pRender(); });
     $p("pCU").addEventListener("change", function (e) { CV.sUnit = e.target.value === "mM" ? "mM" : "µM"; saveCV(); if (plate) { buildLayout(); pRender(); } });
   })();
   var dropEl = document.getElementById("drop");
@@ -1296,9 +1308,10 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   function kcatCards(F) {
     if (state.mode === "sim" || !plate) return "";
     var A = aPerUM(), E = plateE(), Eum = eUM(E), kc = A > 0 && Eum > 0 ? F.V / 60 / Eum : NaN, se = A > 0 && Eum > 0 ? F.seV / 60 / Eum : NaN, KmM = F.Km * (pCU() === "mM" ? 1e-3 : 1e-6), eu = CV.eUnit === "nM" ? "nM" : "µM";
+    var cv = F.cov, relVK = cv ? Math.sqrt(Math.max(cv[0][0] + cv[1][1] - 2 * cv[0][1], 0)) : NaN;   // relative SE of Vmax/Km, Vmax–Km correlation included
     var why = A === null ? "needs a conversion to µM (ΔA₃₄₀ → µM NADPH)" : !(Eum > 0) ? "enter [E] for the rows in the plate layout (one value for all rows)" : "";
     return '<div class="card"><div class="k">k<sub>cat</sub> (s⁻¹)</div><div class="v">' + (isFinite(kc) ? sig(kc) : "—") + '</div><div class="s">' + (isFinite(kc) ? "± " + sig(se) + " SE | [E] " + sig(E) + " " + eu : why) + '</div></div>' +
-      '<div class="card"><div class="k">k<sub>cat</sub>/K<sub>m</sub> (M⁻¹s⁻¹)</div><div class="v">' + (isFinite(kc) ? Math.round(kc / KmM).toLocaleString("en-US") : "—") + '</div><div class="s">V<sub>max</sub>/K<sub>m</sub> = ' + sig(F.V / F.Km) + '</div></div>';
+      '<div class="card"><div class="k">k<sub>cat</sub>/K<sub>m</sub> (M⁻¹s⁻¹)</div><div class="v">' + (isFinite(kc) ? Math.round(kc / KmM).toLocaleString("en-US") : "—") + '</div><div class="s">' + (isFinite(kc) && isFinite(relVK) ? "± " + Math.round(relVK * kc / KmM).toLocaleString("en-US") + " SE | " : "") + 'V<sub>max</sub>/K<sub>m</sub> = ' + sig(F.V / F.Km) + '</div></div>';
   }
   function showPanels(on) { Array.prototype.forEach.call(document.querySelectorAll(".main > section.panel:not(#tryPanel)"), function (p) { p.hidden = !on; }); }
   function paramTxt(v, se, hit) { return !isFinite(v) ? "—" : hit ? "→ ∞" : sig(v) + (isFinite(se) ? " ± " + sig(se) : ""); }
@@ -1351,7 +1364,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K<sub>m</sub></th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' +
       ranked.map(function (k) {
         var f = fits[k];
-        return '<tr data-key="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td>' + UNAME[k] + (k === best ? " (best)" : "") + '</td><td>' + sig(f.V) + '</td><td>' + sig(f.Km) + '</td><td>' + paramTxt(f.Ki, f.seKi, f.hitKi) + '</td><td>' + paramTxt(f.Kii, f.seKii, f.hitKii) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+        return '<tr data-key="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td>' + UNAME[k] + (k === best ? " (best)" : "") + '</td><td>' + paramTxt(f.V, f.seV, false) + '</td><td>' + paramTxt(f.Km, f.seKm, false) + '</td><td>' + paramTxt(f.Ki, f.seKi, f.hitKi) + '</td><td>' + paramTxt(f.Kii, f.seKii, f.hitKii) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
       }).join("") + '</tbody></table>';
 
     // ---- messages
