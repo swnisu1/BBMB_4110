@@ -155,9 +155,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
 .wl.off { opacity: 0.35; }
 .wl.off .num { text-decoration: line-through; }
 .wl.blank { border-style: dashed; border-color: var(--muted); }
-.wl.q1 { background: var(--q1); }
-.wl.q2 { background: var(--q2); }
-.wl.q3 { background: var(--q3); }
 .wl.empty { cursor: default; opacity: 0.25; height: 50px; }
 .qkey { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin: 0 3px 0 6px; border: 1px solid var(--line); }
 .sgrid { border-collapse: separate; border-spacing: 3px; }
@@ -280,7 +277,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         </div>
         <p class="hint" id="plateInfo" style="margin:0 0 8px"></p>
         <div class="tablewrap" id="plateGrid"></div>
-        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. Colour shows how well a straight line fits the window:<span class="qkey" style="background:var(--q1)"></span>good<span class="qkey" style="background:var(--q2)"></span>worth a look (slope changes 20–45% across the window, or R² 0.95–0.98)<span class="qkey" style="background:var(--q3)"></span>problem (strong bend, R² below 0.95, A above 2, or too few points). Hover over a well, or click it, to see why. A <b>no-enzyme blank</b> has substrate, NADP⁺ and buffer but no enzyme; the mean slope of the blank wells is subtracted from every sample.</p>
+        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. Look at every time course yourself: click a well and set its slope window with the sliders or by dragging on the plot. A <b>no-enzyme blank</b> has substrate, NADP⁺ and buffer but no enzyme; the mean slope of the blank wells is subtracted from every sample.</p>
       </section>
 
       <section class="panel" id="wellPanel">
@@ -810,7 +807,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     for (var k = 0; k < run.t.length; k++) { var m = run.t[k] / 60; if (m < win[0] - 1e-9 || m > win[1] + 1e-9 || cfg.excl[k] || !isFinite(y[k])) continue; x.push(m); yy.push(y[k]); }
     if (x.length < 3) return { ok: false, n: x.length, flags: ["too few points in window"], q: 3 };
     var L = pLinreg(x, yy), out = { ok: true, n: x.length, slope: L.b, a: L.a, se: L.se, r2: L.r2, amax: Math.max.apply(null, yy), flags: [], q: 1 };
-    function flag(t, q) { out.flags.push(t); out.q = Math.max(out.q, q); }
+    function flag() {}   // slope-quality warnings switched off: students judge each time course themselves
     if (x.length >= 8) {
       var h = Math.floor(x.length / 2), b1 = pLinreg(x.slice(0, h), yy.slice(0, h)).b, b2 = pLinreg(x.slice(x.length - h), yy.slice(yy.length - h)).b;
       out.curv = (b2 - b1) / Math.abs(L.b || 1e-12);
