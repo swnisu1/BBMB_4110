@@ -834,10 +834,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     runs.forEach(function (run, ri) { run.order.forEach(function (w) { rows.push({ ri: ri, w: w, o: calc[ri].w[w] }); }); });
     if (G.rateView === "well") {
       var list = rows.filter(function (x) { return x.ri === cur; });
-      h = '<table class="data"><thead><tr><th>Well</th><th style="text-align:left">Enzyme</th><th>[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th>[S] (' + sLabel() + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '<th style="text-align:left">note</th></tr></thead><tbody>';
+      h = '<table class="data"><thead><tr><th>Well</th><th style="text-align:left">Enzyme</th><th>[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th>[S] (' + sLabel() + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '</tr></thead><tbody>';
       h += list.map(function (x) {
         var o = x.o, E = o.E, ve = showE && E > 0 && o.role === "sample" ? o.v / 60 / (G.eUnit === "nM" ? E / 1000 : E) : NaN, fl = wellFlag(o);
-        return '<tr data-w="' + x.w + '" class="' + (x.w === selWell ? "sel " : "") + (o.role === "off" ? "off" : "") + '"><td>' + x.w + '</td><td class="l">' + (o.role === "blank" ? "blank (no enzyme)" : esc(o.series)) + '</td><td>' + (o.role === "sample" ? sig(o.E) : "") + '</td><td>' + (o.role === "sample" ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000, 4) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000, 2) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (o.role === "sample" ? sig(o.v, 4) : "") + '</td>' + (showE ? '<td>' + sig(ve) + '</td>' : '') + '<td class="l">' + (fl.length ? '<span class="flag">' + esc(fl.join("; ")) + '</span>' : "") + '</td></tr>';
+        return '<tr data-w="' + x.w + '" class="' + (x.w === selWell ? "sel " : "") + (o.role === "off" ? "off" : "") + '"><td>' + x.w + '</td><td class="l">' + (o.role === "blank" ? "blank (no enzyme)" : esc(o.series)) + '</td><td>' + (o.role === "sample" ? sig(o.E) : "") + '</td><td>' + (o.role === "sample" ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000, 4) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000, 2) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (o.role === "sample" ? sig(o.v, 4) : "") + '</td>' + (showE ? '<td>' + sig(ve) + '</td>' : '') + '</tr>';
       }).join("") + '</tbody></table>';
       var C = calc[cur];
       $("rateHint").innerHTML = (C.blankN ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.blankN + " well" + (C.blankN > 1 ? "s" : "") + (G.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
@@ -1005,8 +1005,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     return "—";
   }
   function wellRows() {
-    var out = [["run", "well", "use", "enzyme", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "S (" + sLabel() + ")", "window_start_min", "window_end_min", "points", "slope (A340/min)", "SE_slope", "R2", "rate_minus_blank (A340/min)", "rate (" + vUnit() + ")", "flags"]];
-    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w], win = winOf(run, w); out.push([run.label, w, o.role === "off" ? "left out" : o.role, o.series, o.E, o.S, win[0], win[1], o.fit.n, o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" ? o.corr : "", o.role === "sample" ? o.v : "", wellFlag(o).join("; ")]); }); });
+    var out = [["run", "well", "use", "enzyme", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "S (" + sLabel() + ")", "window_start_min", "window_end_min", "points", "slope (A340/min)", "SE_slope", "R2", "rate_minus_blank (A340/min)", "rate (" + vUnit() + ")"]];
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w], win = winOf(run, w); out.push([run.label, w, o.role === "off" ? "left out" : o.role, o.series, o.E, o.S, win[0], win[1], o.fit.n, o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" ? o.corr : "", o.role === "sample" ? o.v : ""]); }); });
     return out;
   }
   function meanRows() { var out = [["series", "S (" + sLabel() + ")", "n", "mean rate (" + vUnit() + ")", "SD", "wells"]]; meanTable().forEach(function (g) { out.push([g.series, g.S, g.n, g.mean, g.sd, g.wells.join(" ")]); }); return out; }
