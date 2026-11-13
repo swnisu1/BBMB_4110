@@ -153,6 +153,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
 .wl .sx { display: block; font-size: 9.5px; line-height: 1.2; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .wl.sel { border: 2px solid var(--accent); padding: 1px 2px 0; }
 .wl.off { opacity: 0.35; }
+.wl.unchk { border-style: dashed; }
+.wl.unchk .num { color: var(--muted); }
 .wl.off .num { text-decoration: line-through; }
 .wl.blank { border-style: dashed; border-color: var(--muted); }
 .wl.empty { cursor: default; opacity: 0.25; height: 50px; }
@@ -293,10 +295,10 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
           <svg id="plotW" viewBox="0 0 640 250" role="img" aria-label="Absorbance against time for the selected well"></svg>
           <div class="sliders"><label for="sA">Window start</label><input type="range" id="sA" min="0" aria-label="Slope window start for this well"><output id="sAo"></output><label for="sB">Window end</label><input type="range" id="sB" min="0" aria-label="Slope window end for this well"><output id="sBo"></output></div>
           <div class="pstats" id="wellStats"></div>
+          <div class="dctl"><button type="button" class="btn primary" id="wUse">Use this slope</button><span id="wUseNote" class="hint" style="margin:0"></span></div>
           <div class="dctl">
             <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="blank">a blank (no enzyme)</option><option value="off">left out (bad well)</option></select></label>
             <label>Window <input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
-            <button type="button" class="btn" id="wApply">Use this window for all wells</button>
             <button type="button" class="btn" id="wReset">Back to the shared window</button>
             <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
           </div>
@@ -767,7 +769,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (plates.length < 2 || (box && !box.checked)) return;
     plates.forEach(function (q) {
       if (q === plate) return;
-      Object.keys(q.cfg.wells).forEach(function (w) { var a = plate.cfg.wells[w]; if (!a) return; q.cfg.wells[w].S = a.S; if (rowsWithRoles && rowsWithRoles.indexOf(w.charAt(0)) >= 0) q.cfg.wells[w].role = a.role; });
+      Object.keys(q.cfg.wells).forEach(function (w) { var a = plate.cfg.wells[w]; if (!a) return; q.cfg.wells[w].S = a.S; if (rowsWithRoles && rowsWithRoles.indexOf(w.charAt(0)) >= 0 && q.cfg.wells[w].role !== a.role) { q.cfg.wells[w].role = a.role; q.cfg.wells[w].ok = false; } });
       Object.keys(q.cfg.rows).forEach(function (R) { var a = plate.cfg.rows[R]; if (a) { q.cfg.rows[R].I = a.I; q.cfg.rows[R].E = a.E; } });
     });
   }
@@ -783,14 +785,14 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   function plateLabel(i) { var d = plateDevice(plates[i]); return "Plate " + (i + 1) + (d ? " (" + d + ")" : "") + " · " + plates[i].file; }
   function setupRun() {
     var run = pRun(), wells = {}, rows = {};
-    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {} }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN, E: NaN }; });
+    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {}, ok: false }; rows[w.charAt(0)] = rows[w.charAt(0)] || { I: NaN, E: NaN }; });
     plate.cfg = { wells: wells, rows: rows }; plate.sel = run.order[0];
     if (plate.win[0] >= pTmax()) plate.win = [0, Math.min(5, pTmax())];
     buildPlateCtl(); buildLayout();
   }
   function classMap() {
     var run = pRun(), cfg = plate.cfg;
-    run.order.forEach(function (w) { var c = +w.slice(1), R = w.charAt(0); if (MAP_I[R] !== undefined) { cfg.wells[w].S = c <= MAP_S.length ? MAP_S[c - 1] : NaN; if (cfg.wells[w].role === "blank") cfg.wells[w].role = "sample"; } });
+    run.order.forEach(function (w) { var c = +w.slice(1), R = w.charAt(0); if (MAP_I[R] !== undefined) { cfg.wells[w].S = c <= MAP_S.length ? MAP_S[c - 1] : NaN; if (cfg.wells[w].role === "blank") { cfg.wells[w].role = "sample"; cfg.wells[w].ok = false; } } });
     Object.keys(cfg.rows).forEach(function (R) { if (MAP_I[R] !== undefined) cfg.rows[R].I = MAP_I[R]; });
     CV.sUnit = "mM"; saveCV(); document.getElementById("pCU").value = "mM";
   }
@@ -819,7 +821,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   }
   function pCompute() {
     var run = pRun(), out = {}, bl = [], sgn = plate.dir === "down" ? -1 : 1;
-    run.order.forEach(function (w) { var f = pSlope(w), c = plate.cfg.wells[w]; out[w] = { fit: f, role: c.role, S: c.S, I: plate.cfg.rows[w.charAt(0)].I, signed: f.ok ? sgn * f.slope : NaN }; if (c.role === "blank" && f.ok) bl.push(out[w].signed); });
+    run.order.forEach(function (w) { var f = pSlope(w), c = plate.cfg.wells[w]; out[w] = { fit: f, role: c.role, ok: !!c.ok, S: c.S, I: plate.cfg.rows[w.charAt(0)].I, signed: f.ok ? sgn * f.slope : NaN }; if (c.role === "blank" && f.ok && c.ok) bl.push(out[w].signed); });
     var blank = bl.length ? bl.reduce(function (a, b) { return a + b; }, 0) / bl.length : 0, A = aPerUM();
     run.order.forEach(function (w) {
       var o = out[w]; o.E = plate.cfg.rows[w.charAt(0)].E; o.corr = o.signed - (plate.sub && o.role === "sample" ? blank : 0);
@@ -828,8 +830,9 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     return { w: out, blank: blank, nb: bl.length };
   }
   // no fit until every row in use has [S] in its wells, [I] and [E]
+  function pUnchecked() { return pRun().order.filter(function (w) { var c = plate.cfg.wells[w]; return c.role !== "off" && !c.ok; }).length; }
   function pMissing() {
-    var run = pRun(), noS = [], noI = [], noE = [];
+    var run = pRun(), noS = [], noI = [], noE = [], unchk = pUnchecked();
     pRows(run).forEach(function (R) {
       var ws = run.order.filter(function (w) { return w.charAt(0) === R && plate.cfg.wells[w].role === "sample"; });
       if (!ws.length) return;
@@ -839,6 +842,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     });
     function rows(l) { return "row" + (l.length > 1 ? "s " : " ") + l.join(", "); }
     var m = [];
+    if (unchk) m.push("<b>" + unchk + " well" + (unchk > 1 ? "s have" : " has") + " not been checked yet.</b> Open each well, look at its time course, set its slope window and click <b>Use this slope</b> (or leave the well out). Only checked wells go into the rates and the fit.");
     if (noS.length) m.push("<b>Missing substrate concentrations</b> for " + rows(noS) + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
     if (noI.length) m.push("<b>Missing inhibitor concentration</b> for " + rows(noI) + ". Enter [I] for each row (0 for no inhibitor).");
     if (noE.length) m.push("<b>Missing enzyme concentration</b> for " + rows(noE) + ". Enter the final [E] in the well for each row.");
@@ -848,7 +852,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var map = {}, list = [];
     pRun().order.forEach(function (w) {
       var o = C.w[w];
-      if (o.role !== "sample" || !o.fit.ok || !isFinite(o.S) || !(o.S > 0) || !isFinite(o.I) || o.I < 0 || !isFinite(o.v)) return;
+      if (o.role !== "sample" || !o.ok || !o.fit.ok || !isFinite(o.S) || !(o.S > 0) || !isFinite(o.I) || o.I < 0 || !isFinite(o.v)) return;
       var k = String(o.I); if (!map[k]) { map[k] = { name: "[I] = " + sig(o.I) + " " + pCU(), I: o.I, S: [], v: [] }; list.push(map[k]); }
       map[k].S.push(o.S); map[k].v.push(o.v);
     });
@@ -894,8 +898,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (rateView === "well") {
       h = '<table class="data"><thead><tr><th>Well</th><th>[I] (' + su + ')</th><th>[E] (' + eu + ')</th><th>[S] (' + su + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '</tr></thead><tbody>';
       h += run.order.map(function (w) {
-        var o = C.w[w], smp = o.role === "sample";
-        return '<tr data-pw="' + w + '" style="cursor:pointer' + (o.role === "off" ? ';color:var(--muted);text-decoration:line-through' : '') + (w === plate.sel ? ';background:var(--accent-soft)' : '') + '"><td>' + w + (o.role === "blank" ? " (blank)" : "") + '</td><td>' + (smp ? sig(o.I) : "") + '</td><td>' + (smp ? sig(o.E) : "") + '</td><td>' + (smp ? sig(o.S) : "") + '</td><td>' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</td><td>' + (o.fit.ok ? sig(o.fit.se * 1000) : "") + '</td><td>' + (o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (smp ? sig(o.v) : "") + '</td>' + (showE ? '<td>' + (smp ? sig(o.ve) : "") + '</td>' : '') + '</tr>';
+        var o = C.w[w], smp = o.role === "sample", hid = o.role !== "off" && !o.ok;
+        return '<tr data-pw="' + w + '" style="cursor:pointer' + (o.role === "off" ? ';color:var(--muted);text-decoration:line-through' : '') + (w === plate.sel ? ';background:var(--accent-soft)' : '') + '"><td>' + w + (o.role === "blank" ? " (blank)" : "") + '</td><td>' + (smp ? sig(o.I) : "") + '</td><td>' + (smp ? sig(o.E) : "") + '</td><td>' + (smp ? sig(o.S) : "") + '</td><td>' + (hid ? "not checked" : o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</td><td>' + (!hid && o.fit.ok ? sig(o.fit.se * 1000) : "") + '</td><td>' + (!hid && o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (smp && !hid ? sig(o.v) : "") + '</td>' + (showE ? '<td>' + (smp && !hid ? sig(o.ve) : "") + '</td>' : '') + '</tr>';
       }).join("") + '</tbody></table>';
       document.getElementById("rateHint").innerHTML = (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
     } else {
@@ -903,7 +907,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       plates.forEach(function (pl, pi) {
         withPlate(pl, function () {
           var Cp = pl === cur ? C : pCompute();
-          pRun().order.forEach(function (w) { var o = Cp.w[w]; if (o.role !== "sample" || !o.fit.ok || !isFinite(o.S) || !isFinite(o.I)) return; var k = o.I + "|" + o.S; if (!g[k]) { g[k] = { I: o.I, S: o.S, v: [], wells: [] }; list.push(g[k]); } g[k].v.push(o.v); g[k].wells.push((multi ? "P" + (pi + 1) + " " : "") + w); });
+          pRun().order.forEach(function (w) { var o = Cp.w[w]; if (o.role !== "sample" || !o.ok || !o.fit.ok || !isFinite(o.S) || !isFinite(o.I)) return; var k = o.I + "|" + o.S; if (!g[k]) { g[k] = { I: o.I, S: o.S, v: [], wells: [] }; list.push(g[k]); } g[k].v.push(o.v); g[k].wells.push((multi ? "P" + (pi + 1) + " " : "") + w); });
         });
       });
       list.sort(function (a, b) { return a.I - b.I || a.S - b.S; });
@@ -927,9 +931,9 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         s += pPoly(run.t.map(function (t, k) { return [X(t / 60), Y(y[k])]; }).filter(function (p) { return isFinite(p[1]); }), "var(--muted)", 1);
         if (o.fit.ok) s += pPoly([[X(win[0]), Y(o.fit.a + o.fit.slope * win[0])], [X(Math.min(win[1], tmax)), Y(o.fit.a + o.fit.slope * Math.min(win[1], tmax))]], "var(--accent)", 1.6);
         s += '</svg>';
-        var cls = "wl" + (w === plate.sel ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : " q" + o.fit.q);
-        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "") + (o.fit.flags.length ? " | " + o.fit.flags.join(", ") : "")) + '">' + s +
-          '<span class="num">' + (o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</span><span class="sx">' + (o.role === "blank" ? "no enzyme" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
+        var unk = o.role !== "off" && !o.ok, cls = "wl" + (w === plate.sel ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "") + (unk ? " unchk" : "");
+        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (unk ? ": not checked yet" : o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "")) + '">' + s +
+          '<span class="num">' + (unk ? "?" : o.fit.ok ? sig(o.fit.slope * 1000) + " ✓" : "—") + '</span><span class="sx">' + (o.role === "blank" ? "no enzyme" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
       });
       h += '</tr>';
     });
@@ -981,6 +985,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (document.activeElement !== sA) sA.value = String(win[0]); if (document.activeElement !== sB) sB.value = String(Math.min(win[1], tmax));
     document.getElementById("sAo").textContent = sig(win[0]) + " min"; document.getElementById("sBo").textContent = sig(Math.min(win[1], tmax)) + " min";
     document.getElementById("wReset").disabled = !cfg.win; document.getElementById("wClearPts").disabled = !Object.keys(cfg.excl).length;
+    var use = document.getElementById("wUse"), left = pUnchecked();
+    use.disabled = !o.fit.ok && !cfg.ok;
+    use.textContent = cfg.ok ? "✓ Slope accepted (click to undo)" : "Use this slope";
+    use.classList.toggle("primary", !cfg.ok);
+    document.getElementById("wUseNote").textContent = left ? left + " well" + (left > 1 ? "s" : "") + " on this plate still to check." : "Every well on this plate is checked.";
   }
   // ---------- layout: [S] in every well, [I] for every row ----------
   function buildLayout() {
@@ -1043,7 +1052,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       plate.sel = w;
       if (plate.click === "off") cfg.role = cfg.role === "off" ? "sample" : "off";
       else if (plate.click === "blank") cfg.role = cfg.role === "blank" ? "sample" : "blank";
-      if (plate.click !== "inspect") buildLayout();
+      if (plate.click !== "inspect") { cfg.ok = false; buildLayout(); }
       pRender();
     });
     function num2(id, fn) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v) && plate) { fn(v); pRender(); } }); }
@@ -1057,7 +1066,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     $p("pEU").addEventListener("change", function (e) { CV.eUnit = e.target.value; saveCV(); buildLayout(); pRender(); });
     $p("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; rateView = b.dataset.r; pRender(); });
     $p("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-pw]"); if (!tr) return; plate.sel = tr.dataset.pw; pRender(); var wp = $p("wellPanel"); if (wp.scrollIntoView) wp.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
-    $p("pResetWin").addEventListener("click", function () { pRun().order.forEach(function (w) { plate.cfg.wells[w].win = null; }); pRender(); });
+    $p("pResetWin").addEventListener("click", function () { pRun().order.forEach(function (w) { if (!plate.cfg.wells[w].ok) plate.cfg.wells[w].win = null; }); pRender(); });
     $p("runSel").addEventListener("change", function (e) { plate.ri = +e.target.value; setupRun(); updatePlate(true); });
     $p("shareLayout").addEventListener("change", function (e) { if (e.target.checked) { shareMap(Object.keys(plate.cfg.rows)); pRender(); } });
     $p("plateSel").addEventListener("change", function (e) { plate = plates[+e.target.value]; buildPlateCtl(); buildLayout(); updatePlate(); });
@@ -1068,15 +1077,23 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     // one-well panel
     function step(d) { var o = pRun().order, i = o.indexOf(plate.sel); plate.sel = o[(i + d + o.length) % o.length]; pRender(); }
     $p("prevW").addEventListener("click", function () { step(-1); }); $p("nextW").addEventListener("click", function () { step(1); });
-    $p("wRole").addEventListener("change", function (e) { plate.cfg.wells[plate.sel].role = e.target.value; buildLayout(); pRender(); });
-    $p("wBack").addEventListener("click", function () { plate.cfg.wells[plate.sel].role = "sample"; buildLayout(); pRender(); });
-    $p("wReset").addEventListener("click", function () { plate.cfg.wells[plate.sel].win = null; pRender(); });
-    $p("wClearPts").addEventListener("click", function () { plate.cfg.wells[plate.sel].excl = {}; pRender(); });
-    $p("wApply").addEventListener("click", function () { plate.win = pWin(plate.sel).slice(); pRun().order.forEach(function (w) { plate.cfg.wells[w].win = null; }); buildPlateCtl(); pRender(); });
-    function setWellEdge(i, v) { var c = plate.cfg.wells[plate.sel]; if (!c.win) c.win = plate.win.slice(); c.win[i] = v; pRender(); }
+    $p("wRole").addEventListener("change", function (e) { plate.cfg.wells[plate.sel].role = e.target.value; plate.cfg.wells[plate.sel].ok = false; buildLayout(); pRender(); });
+    $p("wBack").addEventListener("click", function () { plate.cfg.wells[plate.sel].role = "sample"; plate.cfg.wells[plate.sel].ok = false; buildLayout(); pRender(); });
+    $p("wReset").addEventListener("click", function () { plate.cfg.wells[plate.sel].win = null; plate.cfg.wells[plate.sel].ok = false; pRender(); });
+    $p("wClearPts").addEventListener("click", function () { plate.cfg.wells[plate.sel].excl = {}; plate.cfg.wells[plate.sel].ok = false; pRender(); });
+    // accept this well's slope (its window is frozen), then move on to the next well still to check
+    $p("wUse").addEventListener("click", function () {
+      var c = plate.cfg.wells[plate.sel];
+      if (c.ok) { c.ok = false; pRender(); return; }
+      c.win = pWin(plate.sel).slice(); c.ok = true;
+      var o = pRun().order, i = o.indexOf(plate.sel);
+      for (var d = 1; d < o.length; d++) { var w = o[(i + d) % o.length], cw = plate.cfg.wells[w]; if (cw.role !== "off" && !cw.ok) { plate.sel = w; break; } }
+      pRender();
+    });
+    function setWellEdge(i, v) { var c = plate.cfg.wells[plate.sel]; if (!c.win) c.win = plate.win.slice(); c.win[i] = v; c.ok = false; pRender(); }
     ["wA", "wB"].forEach(function (id, i) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v)) setWellEdge(i, v); }); });
     // sliders: window start and end for this well
-    ["sA", "sB"].forEach(function (id, i) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (!isFinite(v)) return; var c = plate.cfg.wells[plate.sel], cur = pWin(plate.sel); if (i === 0 && v > cur[1]) v = cur[1]; if (i === 1 && v < cur[0]) v = cur[0]; if (!c.win) c.win = plate.win.slice(); c.win[i] = v; pRender(); }); });
+    ["sA", "sB"].forEach(function (id, i) { $p(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (!isFinite(v)) return; var c = plate.cfg.wells[plate.sel], cur = pWin(plate.sel); if (i === 0 && v > cur[1]) v = cur[1]; if (i === 1 && v < cur[0]) v = cur[0]; if (!c.win) c.win = plate.win.slice(); c.win[i] = v; c.ok = false; pRender(); }); });
     // drag on the plot to set the window (or drag an edge); a plain click drops a point
     var drag = null, plotW = $p("plotW");
     function plotTime(e) { var rc = plotW.getBoundingClientRect(), x = (e.clientX - rc.left) * 640 / rc.width; return { x: x, t: Math.max(0, Math.min(pTmax(), wellXR[0] + (x - PM.l) / (640 - PM.l - PM.r) * (wellXR[1] - wellXR[0]))), px: 640 / rc.width }; }
@@ -1086,7 +1103,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var xa = PM.l + (Math.max(win[0], 0) - wellXR[0]) * k, xb = PM.l + (Math.min(win[1], tmax) - wellXR[0]) * k, da = Math.abs(p.x - xa), db = Math.abs(p.x - xb);
       if (da > tol && db > tol) return -1; return db <= da ? 1 : 0;
     }
-    function setWin(a, b) { var tmax = pTmax(), lo = Math.max(0, Math.round(Math.min(a, b) * 100) / 100), hi = Math.min(Math.round(tmax * 100) / 100, Math.round(Math.max(a, b) * 100) / 100); plate.cfg.wells[plate.sel].win = [lo, hi]; pRender(); }
+    function setWin(a, b) { var tmax = pTmax(), lo = Math.max(0, Math.round(Math.min(a, b) * 100) / 100), hi = Math.min(Math.round(tmax * 100) / 100, Math.round(Math.max(a, b) * 100) / 100); plate.cfg.wells[plate.sel].win = [lo, hi]; plate.cfg.wells[plate.sel].ok = false; pRender(); }
     plotW.addEventListener("pointerdown", function (e) { if (!plate || e.button !== 0) return; var p = plotTime(e), ed = edgeAt(e), win = pWin(plate.sel); drag = { x0: p.x, t0: p.t, fixed: ed === 0 ? win[1] : ed === 1 ? win[0] : null, moved: false, id: e.pointerId }; });
     plotW.addEventListener("pointermove", function (e) {
       if (!drag) { plotW.style.cursor = edgeAt(e) >= 0 ? "ew-resize" : "crosshair"; return; }
@@ -1096,7 +1113,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     });
     function endDrag() { if (drag && drag.moved) { drag.justDragged = true; setTimeout(function () { drag = null; }, 0); } else drag = null; }
     plotW.addEventListener("pointerup", endDrag); plotW.addEventListener("pointercancel", endDrag);
-    plotW.addEventListener("click", function (e) { if (drag && drag.justDragged) return; var g = e.target.closest("g[data-k]"); if (!g) return; var ex = plate.cfg.wells[plate.sel].excl, k = g.dataset.k; if (ex[k]) delete ex[k]; else ex[k] = true; pRender(); });
+    plotW.addEventListener("click", function (e) { if (drag && drag.justDragged) return; var g = e.target.closest("g[data-k]"); if (!g) return; var ex = plate.cfg.wells[plate.sel].excl, k = g.dataset.k; if (ex[k]) delete ex[k]; else ex[k] = true; plate.cfg.wells[plate.sel].ok = false; pRender(); });
     // layout grid
     var lg = $p("layoutGrid");
     lg.addEventListener("input", function (e) {
@@ -1105,7 +1122,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       if (el.dataset.re !== undefined) { cfg.rows[el.dataset.re].E = pNum(el.value); shareMap(); pRender(); return; }
       if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws].S = pNum(el.value); shareMap(); pRender(); }
     });
-    lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) plate.cfg.wells[w].role = el.value; }); shareMap([el.dataset.rrole]); buildLayout(); pRender(); });
+    lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) { plate.cfg.wells[w].role = el.value; plate.cfg.wells[w].ok = false; } }); shareMap([el.dataset.rrole]); buildLayout(); pRender(); });
     lg.addEventListener("paste", function (e) {
       var el = e.target; if (el.tagName !== "INPUT" || el.dataset.ws === undefined) return;
       var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n,; ]/.test(t.trim())) return;
