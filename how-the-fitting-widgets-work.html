@@ -150,7 +150,7 @@ footer { color: var(--muted); font-size: 12.5px; margin-top: 20px; max-width: 74
     <h2>Choosing between models</h2>
     <p>A model with more constants can always follow the data more closely, so a lower SSE alone does not make it better. The widgets use the Bayesian information criterion, which charges a penalty for every extra constant:</p>
     <div class="eq">BIC = n ln( SSE / n ) + ( k + 1 ) ln( n )</div>
-    <p>Here n is the number of points and k is the number of fitted constants (the extra 1 counts the scatter). The lower the BIC, the better the balance between fit and simplicity. The widgets show ΔBIC, the difference from the best model, and a weight that turns the differences into approximate probabilities.</p>
+    <p>Here n is the number of points and k is the number of fitted constants (the extra 1 counts the scatter). The lower the BIC, the better the balance between fit and simplicity. The widgets show ΔBIC, the difference from the best model, and a weight that turns the differences into approximate probabilities. They do not choose a model for you: you read these numbers and the residuals, decide which model the data support, and click it to see its fit.</p>
     <div class="tablewrap"><table>
       <thead><tr><th>ΔBIC (versus the best model)</th><th>How to read it</th></tr></thead>
       <tbody>

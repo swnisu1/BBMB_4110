@@ -342,7 +342,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       <section class="panel">
         <h2>Model comparison</h2>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Click a row to show that model in the plots. BIC = n ln(SSE/n) + k ln(n); lower is better. The weight is the approximate probability of each model among those compared (Δ BIC above 10 is very strong evidence).</p>
+        <p class="hint">The widget does not choose a model for you. Compare the models, then click the row of the one the data support; the fit, residuals and constants are shown only for the model you choose (click the row again to clear it). BIC = n ln(SSE/n) + k ln(n); lower is better. The weight is the approximate probability of each model among those compared (Δ BIC above 10 is very strong evidence).</p>
       </section>
       <section class="panel plot">
         <h3>Velocity vs. [S]</h3>
@@ -396,7 +396,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   function fmtC(v) { return sig(v) + " " + cu(); }
 
   var sim = { V: 1.6, Km: LOG(12.5), K1: LOG(0.83), K2: LOG(2.62), noise: 6, floor: 0.02, reps: 1, seed: 1 };
-  var state = { mode: "data", sel: "auto", diag: "app", fitted: false };
+  var state = { mode: "data", sel: "none", diag: "app", fitted: false };
   var series = [];   // {name, I, S[], v[]}
 
   // ---------- random numbers ----------
@@ -601,7 +601,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       render();
     });
   }
-  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.sel = "auto"; });
+  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.sel = "none"; });
   bindSeg("diagSeg", "d", function (v) { state.diag = v; });
   document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
 
@@ -1194,7 +1194,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   });
   document.getElementById("curveList").addEventListener("input", function (e) {
     var el = e.target; if (el.dataset.i === undefined) return;
-    var v = parseFloat(el.value); series[+el.dataset.i].I = isFinite(v) ? v : NaN; state.sel = "auto"; render();
+    var v = parseFloat(el.value); series[+el.dataset.i].I = isFinite(v) ? v : NaN; state.sel = "none"; render();
   });
   document.getElementById("curveList").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-del]"); if (!b) return;
@@ -1216,10 +1216,10 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
   document.getElementById("tbl").addEventListener("click", function (e) {
     var tr = e.target.closest("tr[data-key]"); if (!tr) return;
-    state.sel = state.sel === tr.dataset.key ? "auto" : tr.dataset.key; render();
+    state.sel = state.sel === tr.dataset.key ? "none" : tr.dataset.key; render();
   });
   ["simMech", "simS", "simI", "wmode", "cunit", "vunit"].forEach(function (id) {
-    var el = document.getElementById(id); el.addEventListener("input", function () { if (id !== "wmode" && id !== "cunit" && id !== "vunit") state.sel = "auto"; render(); }); el.addEventListener("change", render);
+    var el = document.getElementById(id); el.addEventListener("input", function () { if (id !== "wmode" && id !== "cunit" && id !== "vunit") state.sel = "none"; render(); }); el.addEventListener("change", render);
   });
 
   // ---------- plotting ----------
@@ -1249,13 +1249,17 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   function previewDraw(P, uniq) {
     showPanels(false);
     document.getElementById("plotA").closest("section").hidden = false;
+    previewPoints(P, uniq);
+    document.getElementById("cards").innerHTML = "";
+    document.getElementById("msgs").innerHTML = '<p class="msg">' + P.v.length + ' points at ' + uniq.length + ' inhibitor concentrations loaded. Check the data below, then press <b>Fit data</b> in the panel on the left.</p>';
+  }
+  // the data alone, coloured by [I] (before fitting, and while no model is chosen)
+  function previewPoints(P, uniq) {
     var Smax = Math.max.apply(null, P.S), vmaxD = Math.max.apply(null, P.v), vminD = Math.min(0, Math.min.apply(null, P.v));
     var fa = frame(640, 320, { l: 54, r: 14, t: 12, b: 42 }, [0, Smax * 1.05], [vminD, vmaxD * 1.1], "[S] (" + cu() + ")", "v (" + vu() + ")"), s = fa.svg;
     P.S.forEach(function (x, j) { s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(P.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[uniq.indexOf(P.I[j]) % 8] + '" opacity="0.9"/>'; });
     document.getElementById("plotA").innerHTML = s;
     document.getElementById("legendA").innerHTML = '<span>[I] (' + esc(cu()) + '):</span>' + uniq.map(function (I, i) { return '<span><i style="background:' + COLORS[i % 8] + '"></i>' + sig(I) + '</span>'; }).join("");
-    document.getElementById("cards").innerHTML = "";
-    document.getElementById("msgs").innerHTML = '<p class="msg">' + P.v.length + ' points at ' + uniq.length + ' inhibitor concentrations loaded. Check the data below, then press <b>Fit data</b> in the panel on the left.</p>';
   }
   // ---------- export: PNG figures and CSV tables ----------
   // Published pages save through the platform's `downloads` capability (the viewer confirms); a locally opened copy downloads directly.
@@ -1390,37 +1394,38 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var bmin = Math.min.apply(null, keys.map(function (k) { return fits[k].bic; })), tot = 0;
     keys.forEach(function (k) { fits[k].dB = fits[k].bic - bmin; fits[k].wt = Math.exp(-fits[k].dB / 2); tot += fits[k].wt; });
     keys.forEach(function (k) { fits[k].wt /= tot; });
-    var ranked = keys.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; }), best = ranked[0];
-    var selKey = state.sel === "auto" ? best : state.sel, F = fits[selKey], truth = D.truth;
-    // does the winner change under the other error model?
+    // the app does not pick a model: the student reads the table and chooses one (state.sel); until then no fit is drawn
+    var best = keys.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; })[0];
+    var selKey = fits[state.sel] ? state.sel : null, F = selKey ? fits[selKey] : null, truth = D.truth;
+    // does the BIC ranking change under the other error model?
     var altMode = wmode === "const" ? "prop" : "const", altBics = keys.map(function (k) { return [k, fitModel(k, P, altMode).bic]; }).sort(function (a, b) { return a[1] - b[1]; }), altBest = altBics[0][0];
+    var fitPanels = ["plotB", "appBox", "interp", "eq"].map(function (id) { return document.getElementById(id).closest("section.panel"); });
+    fitPanels.push(document.getElementById("exportPanel"));
+    fitPanels.forEach(function (p) { if (p) p.hidden = !F; });
+
+    // ---- table (fixed order; nothing marked as best)
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K<sub>m</sub></th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' +
+      keys.map(function (k) {
+        var f = fits[k];
+        return '<tr data-key="' + k + '" class="' + (k === selKey ? "sel" : "") + '"><td>' + UNAME[k] + '</td><td>' + paramTxt(f.V, f.seV, false) + '</td><td>' + paramTxt(f.Km, f.seKm, false) + '</td><td>' + paramTxt(f.Ki, f.seKi, f.hitKi) + '</td><td>' + paramTxt(f.Kii, f.seKii, f.hitKii) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+      }).join("") + '</tbody></table>';
 
     // ---- cards
     var tru = function (v) { return truth && isFinite(v) ? " | true " + sig(v) : ""; };
-    var runner = fits[ranked[1]];
-    cards.innerHTML =
-      '<div class="card hot"><div class="k">' + (selKey === best ? "Best model (BIC)" : "Showing (best: " + UNAME[best] + ")") + '</div><div class="v">' + UNAME[selKey] + '</div><div class="s">weight ' + Math.round(100 * F.wt) + '%' + (selKey === best ? ' | ΔBIC to next ' + sig(runner.dB) : ' | ΔBIC ' + sig(F.dB)) + '</div></div>' +
+    cards.innerHTML = !F ? '<div class="card hot"><div class="k">Model</div><div class="v" style="font-size:15px">Not chosen yet</div><div class="s">Compare the models in the table below and click the one the data support. The fit, residuals and constants appear for the model you choose.</div></div>' :
+      '<div class="card hot"><div class="k">Model you chose</div><div class="v">' + UNAME[selKey] + '</div><div class="s">click its row again to clear</div></div>' +
       '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + tru(truth && truth.V) + '</div></div>' +
       '<div class="card"><div class="k">K<sub>m</sub> (' + esc(cu()) + ')</div><div class="v">' + sig(F.Km) + '</div><div class="s">± ' + sig(F.seKm) + ' SE' + tru(truth && truth.Km) + '</div></div>' +
       '<div class="card"><div class="k">K<sub>i</sub> (binds E)</div><div class="v">' + (isFinite(F.Ki) && !F.hitKi ? sig(F.Ki) : F.hitKi ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKi) && !F.hitKi ? "± " + sig(F.seKi) + " SE" : "") + tru(truth && truth.Ki) + '</div></div>' +
       '<div class="card"><div class="k">K<sub>ii</sub> (binds ES)</div><div class="v">' + (isFinite(F.Kii) && !F.hitKii ? sig(F.Kii) : F.hitKii ? "→ ∞" : "—") + '</div><div class="s">' + (isFinite(F.seKii) && !F.hitKii ? "± " + sig(F.seKii) + " SE" : "") + tru(truth && truth.Kii) + '</div></div>' + kcatCards(F);
-
-    // ---- table
-    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K<sub>m</sub></th><th>K<sub>i</sub></th><th>K<sub>ii</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' +
-      ranked.map(function (k) {
-        var f = fits[k];
-        return '<tr data-key="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td>' + UNAME[k] + (k === best ? " (best)" : "") + '</td><td>' + paramTxt(f.V, f.seV, false) + '</td><td>' + paramTxt(f.Km, f.seKm, false) + '</td><td>' + paramTxt(f.Ki, f.seKi, f.hitKi) + '</td><td>' + paramTxt(f.Kii, f.seKii, f.hitKii) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
-      }).join("") + '</tbody></table>';
 
     // ---- messages
     var m = [];
     if (skipped) m.push(["warn", skipped + " series ha" + (skipped > 1 ? "ve" : "s") + " no [I] value (or too few points) and " + (skipped > 1 ? "are" : "is") + " not in the fit."]);
     if (uniq[0] > 0) m.push(["warn", "There is no series at [I] = 0. Without a no-inhibitor control, V<sub>max</sub> and K<sub>m</sub> are poorly anchored."]);
     if (uniq.length < 4) m.push(["warn", "Only " + uniq.length + " inhibitor concentrations. Telling the mechanisms apart is much easier with four or five, spanning about 0.3 to 5 × K<sub>i</sub>."]);
-    if (selKey === best && runner.dB < 2) m.push(["warn", "<b>The data cannot separate " + UNAME[best] + " from " + UNAME[ranked[1]] + "</b> (ΔBIC = " + sig(runner.dB) + "). Collect more points, replicates, or inhibitor concentrations near K<sub>i</sub>."]);
-    else if (selKey === best && runner.dB < 6) m.push(["", UNAME[best] + " is favoured over " + UNAME[ranked[1]] + " (ΔBIC = " + sig(runner.dB) + ") but the evidence is only moderate."]);
-    else if (selKey === best) m.push(["", UNAME[best] + " is strongly favoured (ΔBIC = " + sig(runner.dB) + " over " + UNAME[ranked[1]] + ")."]);
-    if (altBest !== best) m.push(["warn", "<b>The best model depends on the error model.</b> With " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error the best model is " + UNAME[altBest] + ". Look at the residuals: scatter that is the same size at all velocities means constant error, scatter that grows with v means proportional error. Choose the error model before comparing mechanisms."]);
+    if (altBest !== best) m.push(["warn", "<b>The BIC ranking of the models changes with the error model.</b> Switch to " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error to see how. Look at the residuals: scatter that is the same size at all velocities means constant error, scatter that grows with v means proportional error. Choose the error model before comparing mechanisms."]);
+    if (!F) { msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join(""); previewPoints(P, uniq); return; }
     if (F.key === "mixed" && (F.hitKi || F.hitKii)) m.push(["warn", "In the mixed fit, " + (F.hitKi ? "K<sub>i</sub>" : "K<sub>ii</sub>") + " ran to infinity, so the data describe " + (F.hitKi ? "uncompetitive" : "competitive") + " inhibition. Compare the " + (F.hitKi ? "uncompetitive" : "competitive") + " row."]);
     var big = [["V<sub>max</sub>", F.seV / F.V], ["K<sub>m</sub>", F.seKm / F.Km], ["K<sub>i</sub>", F.seKi / F.Ki], ["K<sub>ii</sub>", F.seKii / F.Kii]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
     if (big.length && !F.hitKi && !F.hitKii) m.push(["warn", "Poorly determined (SE over 50% of the value): " + big.map(function (x) { return x[0]; }).join(", ") + "."]);
@@ -1493,8 +1498,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     // ---- equation
     var eqs = { comp: "v = Vmax [S] / ( Km (1 + [I]/Ki) + [S] )", uncomp: "v = Vmax [S] / ( Km + [S] (1 + [I]/Kii) )", nc: "v = Vmax [S] / ( (Km + [S]) (1 + [I]/Ki) )", mixed: "v = Vmax [S] / ( Km (1 + [I]/Ki) + [S] (1 + [I]/Kii) )" };
     exportTables = (function () {
-      var tp = [["model", "Vmax", "SE_Vmax", "Km", "SE_Km", "Ki", "SE_Ki", "Kii", "SE_Kii", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best_model"]];
-      keys.forEach(function (k) { var f = fits[k]; tp.push([UNAME[k], f.V, f.seV, f.Km, f.seKm, f.Ki, f.seKi, f.Kii, f.seKii, f.rmse, f.bic, f.dB, f.wt, k === best ? "yes" : ""]); });
+      var tp = [["model", "Vmax", "SE_Vmax", "Km", "SE_Km", "Ki", "SE_Ki", "Kii", "SE_Kii", "RMSE", "BIC", "delta_BIC", "BIC_weight", "chosen_model"]];
+      keys.forEach(function (k) { var f = fits[k]; tp.push([UNAME[k], f.V, f.seV, f.Km, f.seKm, f.Ki, f.seKi, f.Kii, f.seKii, f.rmse, f.bic, f.dB, f.wt, k === selKey ? "yes" : ""]); });
       var td = [["S", "I", "v_observed", "fit_competitive", "fit_uncompetitive", "fit_noncompetitive", "fit_mixed", "residual_shown_model"]];
       P.S.forEach(function (S, j) { td.push([S, P.I[j], P.v[j]].concat(keys.map(function (k) { var f = fits[k]; return vel(f.V, f.Km, f.Ki, f.Kii, S, P.I[j]); })).concat([P.v[j] - vel(F.V, F.Km, F.Ki, F.Kii, S, P.I[j])])); });
       var tc = [["I", "S", "v_competitive", "v_uncompetitive", "v_noncompetitive", "v_mixed"]], smax = Math.max.apply(null, P.S) * 1.05;

@@ -311,10 +311,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       <section class="panel fitp" hidden>
         <div class="plothead">
           <h3>Model comparison for <span id="dsName"></span></h3>
-          <div class="seg small" id="modelSeg"><button type="button" data-m="auto" aria-pressed="true">best (BIC)</button><button type="button" data-m="mm" aria-pressed="false">MM</button><button type="button" data-m="hill" aria-pressed="false">Hill</button><button type="button" data-m="si" aria-pressed="false">Subst. inhib.</button></div>
+          <div class="seg small" id="modelSeg"><button type="button" data-m="mm" aria-pressed="false">MM</button><button type="button" data-m="hill" aria-pressed="false">Hill</button><button type="button" data-m="si" aria-pressed="false">Subst. inhib.</button></div>
         </div>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Choose the model to show above or by clicking a row. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is roughly the probability of each model; a ΔBIC above 10 is very strong evidence.</p>
+        <p class="hint">The widget does not choose a model for you. Compare the models, then choose the one the data support with the buttons above or by clicking its row; the fit, residuals and constants are shown only for the model you choose (choose it again to clear). With several series, choose a model for each one. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is roughly the probability of each model; a ΔBIC above 10 is very strong evidence.</p>
       </section>
       <section class="panel plot fitp" hidden>
         <div class="plothead">
@@ -360,7 +360,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
   // ---------- settings ----------
   var G = { gk: "S", win: [0, 5], dir: "up", sub: true, conv: { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm" }, sUnit: "uM", eUnit: "nM", wmode: "const",
-    model: "auto", x: "lin", click: "inspect", rateView: "well", show: "all", d: 0 };
+    choice: {}, x: "lin", click: "inspect", rateView: "well", show: "all", d: 0 };
   var STORE = "bbmb_plate_kinetics_v1";
   try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { ["win", "dir", "sub", "sUnit", "eUnit", "wmode"].forEach(function (k) { if (sv[k] !== undefined) G[k] = sv[k]; }); if (sv.conv) Object.keys(G.conv).forEach(function (k) { if (sv.conv[k] !== undefined) G.conv[k] = sv.conv[k]; }); } } catch (e) {}
   function saveSettings() { try { localStorage.setItem(STORE, JSON.stringify({ win: G.win, dir: G.dir, sub: G.sub, sUnit: G.sUnit, eUnit: G.eUnit, wmode: G.wmode, conv: G.conv })); } catch (e) {} }
@@ -932,7 +932,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         ok.forEach(function (k) { fits[k].wt /= tot; });
       }
       var ranked = ok.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; });
-      return { d: d, fits: fits, ranked: ranked, best: ranked[0] };
+      var pk = G.choice[d.name];
+      return { d: d, fits: fits, ranked: ranked, best: ranked[0], pick: pk && fits[pk] ? pk : null };
     });
     var fitted = all.filter(function (a) { return a.best; });
     if (!fitted.length) {
@@ -950,16 +951,18 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     sel.hidden = !multi;
     if (sel.dataset.key !== kk) { sel.innerHTML = '<option value="all">All series</option>' + names.map(function (n, i) { return '<option value="' + i + '">' + esc(n) + '</option>'; }).join(""); sel.dataset.key = kk; }
     sel.value = !multi || G.show === "all" ? "all" : String(G.d);
-    pressed("modelSeg", "m", G.model); pressed("xSeg", "x", G.x);
+    pressed("xSeg", "x", G.x);
 
-    var cur2 = all[G.d], d = cur2.d, fits = cur2.fits, best = cur2.best, selKey = G.model !== "auto" && fits[G.model] ? G.model : best, F = fits[selKey];
+    // the app does not pick a model: the student chooses one per series (G.choice, by series name); until then no fit is shown
+    var cur2 = all[G.d], d = cur2.d, fits = cur2.fits, best = cur2.best, selKey = cur2.pick, F = selKey ? fits[selKey] : null;
+    pressed("modelSeg", "m", selKey || ""); G.curName = d.name;
+    ["plotB", "exportPanel"].forEach(function (id) { var el = $(id), sec = el.tagName === "SECTION" ? el : el.closest("section.panel"); if (sec) sec.hidden = !F; });
     $("dsName").textContent = d.name;
-    var E = d.E, Eum = E > 0 ? (G.eUnit === "nM" ? E / 1000 : E) : NaN, kcat = A !== null && Eum > 0 ? F.V / 60 / Eum : NaN, KmM = F.K * (G.sUnit === "mM" ? 1e-3 : 1e-6), seK = A !== null && Eum > 0 ? F.seV / 60 / Eum : NaN;
-    var runner = cur2.ranked[1] ? fits[cur2.ranked[1]] : null;
-    var third = selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE</div></div>'
+    var E = d.E, Eum = E > 0 ? (G.eUnit === "nM" ? E / 1000 : E) : NaN, kcat = F && A !== null && Eum > 0 ? F.V / 60 / Eum : NaN, KmM = F ? F.K * (G.sUnit === "mM" ? 1e-3 : 1e-6) : NaN, seK = F && A !== null && Eum > 0 ? F.seV / 60 / Eum : NaN;
+    var third = !F ? "" : selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE</div></div>'
       : selKey === "si" ? '<div class="card"><div class="k">K<sub>si</sub> (' + su + ')</div><div class="v">' + (F.noSI ? "not detected" : sig(F.Ksi)) + '</div><div class="s">' + (F.noSI ? "beyond the [S] range" : "± " + sig(F.seKsi) + " SE | optimum [S] " + sig(Math.sqrt(F.K * F.Ksi))) + '</div></div>' : "";
-    cards.innerHTML =
-      '<div class="card hot"><div class="k">' + (selKey === best ? "Best model (BIC) · " + esc(d.name) : "Showing (best: " + MN[best] + ")") + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">weight ' + Math.round(100 * F.wt) + '%' + (runner ? (selKey === best ? ' | ΔBIC to next ' + sig(runner.dB) : ' | ΔBIC ' + sig(F.dB)) : " | only model with enough points") + '</div></div>' +
+    cards.innerHTML = !F ? '<div class="card hot"><div class="k">Model · ' + esc(d.name) + '</div><div class="v" style="font-size:15px">Not chosen yet</div><div class="s">Compare the models in the table below and choose the one the data support (click its row or its button). The fit, residuals and constants appear for the model you choose.</div></div>' :
+      '<div class="card hot"><div class="k">Model you chose · ' + esc(d.name) + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">click its row again to clear</div></div>' +
       '<div class="card"><div class="k">V<sub>max</sub> (' + vu + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE</div></div>' +
       '<div class="card"><div class="k">' + (selKey === "hill" ? "K<sub>0.5</sub>" : "K<sub>m</sub>") + ' (' + su + ')</div><div class="v">' + sig(F.K) + '</div><div class="s">± ' + sig(F.seK) + ' SE</div></div>' + third +
       '<div class="card"><div class="k">k<sub>cat</sub> (s⁻¹)</div><div class="v">' + sig(kcat) + '</div><div class="s">' + (isFinite(kcat) ? "± " + sig(seK) + " SE | [E] " + sig(E) + " " + (G.eUnit === "nM" ? "nM" : "µM") : A === null ? "needs a conversion to µM (step 3)" : "enter [E] for these rows in the plate layout") + '</div></div>' +
@@ -967,27 +970,26 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
     // series table
     $("dsPanel").hidden = all.length < 2;
-    $("dsTbl").innerHTML = '<table class="data"><thead><tr><th>Series</th><th>points</th><th>best model</th><th>V<sub>max</sub> (' + vu + ')</th><th>K (' + su + ')</th><th>n or K<sub>si</sub></th><th>k<sub>cat</sub> (s⁻¹)</th></tr></thead><tbody>' + all.map(function (a, i) {
-      var f = a.fits[a.best], e = a.d.E > 0 ? (G.eUnit === "nM" ? a.d.E / 1000 : a.d.E) : NaN;
-      return '<tr data-d="' + i + '" class="' + (i === G.d ? "sel" : "") + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + '</td><td>' + a.d.S.length + '</td><td>' + MN[a.best] + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + (A !== null && e > 0 ? sig(f.V / 60 / e) : "—") + '</td></tr>';
+    $("dsTbl").innerHTML = '<table class="data"><thead><tr><th>Series</th><th>points</th><th>model chosen</th><th>V<sub>max</sub> (' + vu + ')</th><th>K (' + su + ')</th><th>n or K<sub>si</sub></th><th>k<sub>cat</sub> (s⁻¹)</th></tr></thead><tbody>' + all.map(function (a, i) {
+      var f = a.pick ? a.fits[a.pick] : null, e = a.d.E > 0 ? (G.eUnit === "nM" ? a.d.E / 1000 : a.d.E) : NaN;
+      return '<tr data-d="' + i + '" class="' + (i === G.d ? "sel" : "") + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + '</td><td>' + a.d.S.length + '</td>' + (f ? '<td>' + MN[a.pick] + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + (A !== null && e > 0 ? sig(f.V / 60 / e) : "—") + '</td>' : '<td>not chosen</td><td>—</td><td>—</td><td>—</td><td>—</td>') + '</tr>';
     }).join("") + '</tbody></table>';
 
     // model table
     $("tbl").innerHTML = '<table class="data"><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' + KEYS.map(function (k) {
       var f = fits[k];
       if (!f) return '<tr><td>' + MN[k] + '</td><td colspan="7" style="text-align:left;font-family:var(--font);color:var(--muted)">needs at least ' + (k === "mm" ? 3 : 4) + ' different [S] values</td></tr>';
-      return '<tr data-k="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px solid ' + MCOL[k] + ';margin-right:6px;vertical-align:middle"></i>' + MN[k] + (k === best ? " (best)" : "") + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+      return '<tr data-k="' + k + '" class="' + (k === selKey ? "sel" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px solid ' + MCOL[k] + ';margin-right:6px;vertical-align:middle"></i>' + MN[k] + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
     }).join("") + '</tbody></table>';
 
     // messages
-    var m = [], maxS = F.maxS, minS = F.minS;
-    if (runner && selKey === best && runner.dB < 2) m.push(["warn", "<b>The data cannot tell " + MN[best] + " from " + MN[cur2.ranked[1]] + "</b> (ΔBIC = " + sig(runner.dB) + "). More [S] values or replicates, especially at the lowest and highest [S], would help."]);
-    else if (runner && selKey === best && runner.dB < 6) m.push(["", MN[best] + " is favoured over " + MN[cur2.ranked[1]] + " (ΔBIC = " + sig(runner.dB) + "), but only moderately."]);
-    else if (runner && selKey === best) m.push(["", MN[best] + " is strongly favoured (ΔBIC = " + sig(runner.dB) + " over " + MN[cur2.ranked[1]] + ")."]);
+    var m = [], maxS = F ? F.maxS : NaN, minS = F ? F.minS : NaN;
+    if (F) {
     if (maxS < 3 * F.K && selKey !== "si") m.push(["warn", "The highest [S] is only " + sig(maxS / F.K) + " × K, so the curve is not near saturation and V<sub>max</sub> and K are poorly separated."]);
     if (minS > 0.5 * F.K) m.push(["warn", "The lowest nonzero [S] is " + sig(minS / F.K) + " × K, so few points define the initial slope (V<sub>max</sub>/K)."]);
     var bad = [["V<sub>max</sub>", F.seV / F.V], ["K", F.seK / F.K], ["n", F.seN / F.n], ["K<sub>si</sub>", F.noSI ? NaN : F.seKsi / F.Ksi]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
     if (bad.length) m.push(["warn", "Poorly determined (SE over 50% of the value): " + bad.map(function (x) { return x[0]; }).join(", ") + "."]);
+    }
     msgs.innerHTML = m.slice(0, 5).map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
 
     // plot A
@@ -999,33 +1001,35 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var grid = []; for (var q = 0; q <= 220; q++) grid.push(xlog ? Math.pow(10, xr[0] + (xr[1] - xr[0]) * q / 220) : xr[1] * q / 220 + 1e-12);
     function curve(k, f, col, dash, wd) { return polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(f), S))]; }), col, dash, wd); }
     function dots(a, col) { var s = ""; a.d.S.forEach(function (x, j) { if (xlog && !(x > 0)) return; s += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(a.d.v[j]).toFixed(1) + '" r="3.2" fill="' + col + '" opacity="0.85"><title>' + esc(a.d.wells[j] + ": [S] " + sig(x) + ", v " + sig(a.d.v[j])) + '</title></circle>'; }); return s; }
-    if (showAll) all.forEach(function (a, i) { var k = i === G.d ? selKey : (G.model !== "auto" && a.fits[G.model] ? G.model : a.best); sA += curve(k, a.fits[k], COLORS[i % 6], null, i === G.d ? 3 : 2.2) + dots(a, COLORS[i % 6]); });
+    if (showAll) all.forEach(function (a, i) { var k = a.pick; sA += (k ? curve(k, a.fits[k], COLORS[i % 6], null, i === G.d ? 3 : 2.2) : "") + dots(a, COLORS[i % 6]); });
     else {
       KEYS.forEach(function (k) { if (k !== selKey && fits[k]) sA += curve(k, fits[k], MCOL[k], "5 4", 1.5); });
-      sA += curve(selKey, F, MCOL[selKey], null, 2.8) + dots(cur2, COLORS[G.d % 6]);
+      sA += (F ? curve(selKey, F, MCOL[selKey], null, 2.8) : "") + dots(cur2, COLORS[G.d % 6]);
       if (selKey === "si" && !F.noSI) { var so = Math.sqrt(F.K * F.Ksi), vo = rate("si", par(F), so); if (so <= (xlog ? Math.pow(10, xr[1]) : xr[1])) sA += '<circle cx="' + fa.sx(so) + '" cy="' + fa.sy(vo) + '" r="4.5" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/>'; }
     }
     $("plotA").innerHTML = sA;
     $("legendA").innerHTML = showAll
-      ? all.map(function (a, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + ' (' + MN[i === G.d ? selKey : (G.model !== "auto" && a.fits[G.model] ? G.model : a.best)].toLowerCase() + ')</span>'; }).join("")
-      : KEYS.filter(function (k) { return fits[k]; }).map(function (k) { return '<span><i class="ln" style="border-color:' + MCOL[k] + (k === selKey ? "" : ";border-top-style:dashed") + '"></i>' + MN[k] + '</span>'; }).join("") + (selKey === "si" && !F.noSI ? '<span>open dot: optimum [S]</span>' : '');
+      ? all.map(function (a, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + ' (' + (a.pick ? MN[a.pick].toLowerCase() : "no model chosen") + ')</span>'; }).join("")
+      : KEYS.filter(function (k) { return fits[k]; }).map(function (k) { return '<span><i class="ln" style="border-color:' + MCOL[k] + (k === selKey ? "" : ";border-top-style:dashed") + '"></i>' + MN[k] + '</span>'; }).join("") + (F ? "" : '<span>dashed: every fit; choose one in the table</span>') + (selKey === "si" && !F.noSI ? '<span>open dot: optimum [S]</span>' : '');
 
-    // plot B
+    // plot B (only for the model the student chose)
+    if (F) {
     var res = d.S.map(function (S, j) { return d.v[j] - rate(selKey, par(F), S); }), rm = Math.max.apply(null, res.map(Math.abs)) * 1.2 || 0.05;
     var fb = frame(640, 170, xr, [-rm, rm], "[S] (" + su + (xlog ? ", log scale" : "") + ")", "residual", xlog), sB = fb.svg;
     d.S.forEach(function (x, j) { if (xlog && !(x > 0)) return; sB += '<circle cx="' + fb.sx(x).toFixed(1) + '" cy="' + fb.sy(res[j]).toFixed(1) + '" r="3" fill="' + COLORS[G.d % 6] + '" opacity="0.9"/>'; });
     $("plotB").innerHTML = sB;
+    }
 
     $("eq").textContent = "Slope:                   A340 = a + b·t over the window (min); rate = (b − blank) / (ε·l)" + (A !== null ? "   [1 µM NADPH = " + sig(A * 1000) + " mA340]" : "") +
       "\nMichaelis-Menten:        v = Vmax [S] / ( Km + [S] )\nHill:                    v = Vmax [S]^n / ( K0.5^n + [S]^n )\nSubstrate inhibition:    v = Vmax [S] / ( Km + [S] + [S]²/Ksi )     optimum at [S] = sqrt(Km Ksi)\n" +
       "kcat = Vmax / [E]  (Vmax converted to µM/s)\n\nEach series is fit to every well (not the means) by nonlinear least squares" + (wmode === "prop" ? " with weights 1/v" : "") + ".\nBIC = n ln(SSE/n) + (k + 1) ln(n), k = number of fitted constants (2, 3, 3).";
 
     // export tables
-    var tp = [["series", "model", "Vmax (" + vu + ")", "SE_Vmax", "K (" + su + ")", "SE_K", "n", "SE_n", "Ksi (" + su + ")", "SE_Ksi", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "kcat (1/s)", "kcat/K (1/M/s)", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best"]];
+    var tp = [["series", "model", "Vmax (" + vu + ")", "SE_Vmax", "K (" + su + ")", "SE_K", "n", "SE_n", "Ksi (" + su + ")", "SE_Ksi", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "kcat (1/s)", "kcat/K (1/M/s)", "RMSE", "BIC", "delta_BIC", "BIC_weight", "chosen"]];
     var td = [["series", "well", "S (" + su + ")", "v (" + vu + ")", "fit_MM", "fit_Hill", "fit_SI"]], tc = [["series", "S (" + su + ")", "v_MM", "v_Hill", "v_SI"]];
     all.forEach(function (a) {
       var e = a.d.E > 0 ? (G.eUnit === "nM" ? a.d.E / 1000 : a.d.E) : NaN;
-      KEYS.forEach(function (k) { var f = a.fits[k]; if (!f) return; var kc = A !== null && e > 0 ? f.V / 60 / e : NaN; tp.push([a.d.name, MN[k], f.V, f.seV, f.K, f.seK, k === "hill" ? f.n : "", k === "hill" ? f.seN : "", k === "si" ? f.Ksi : "", k === "si" ? f.seKsi : "", a.d.E, kc, kc / (f.K * (G.sUnit === "mM" ? 1e-3 : 1e-6)), f.rmse, f.bic, f.dB, f.wt, k === a.best ? "yes" : ""]); });
+      KEYS.forEach(function (k) { var f = a.fits[k]; if (!f) return; var kc = A !== null && e > 0 ? f.V / 60 / e : NaN; tp.push([a.d.name, MN[k], f.V, f.seV, f.K, f.seK, k === "hill" ? f.n : "", k === "hill" ? f.seN : "", k === "si" ? f.Ksi : "", k === "si" ? f.seKsi : "", a.d.E, kc, kc / (f.K * (G.sUnit === "mM" ? 1e-3 : 1e-6)), f.rmse, f.bic, f.dB, f.wt, k === a.pick ? "yes" : ""]); });
       function fv(k, S) { return a.fits[k] ? rate(k, par(a.fits[k]), S) : ""; }
       a.d.S.forEach(function (S, j) { td.push([a.d.name, a.d.wells[j], S, a.d.v[j], fv("mm", S), fv("hill", S), fv("si", S)]); });
       var smax = Math.max.apply(null, a.d.S) * 1.05;
@@ -1244,11 +1248,12 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     render();
   });
   $("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; G.rateView = b.dataset.r; render(); });
-  $("modelSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-m]"); if (!b) return; G.model = b.dataset.m; render(); });
+  function choose(k) { var nm = G.curName; if (!nm) return; if (G.choice[nm] === k) delete G.choice[nm]; else G.choice[nm] = k; render(); }
+  $("modelSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-m]"); if (!b) return; choose(b.dataset.m); });
   $("xSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-x]"); if (!b) return; G.x = b.dataset.x; render(); });
   $("showSel").addEventListener("change", function (e) { var v = e.target.value; if (v === "all") G.show = "all"; else { G.show = "one"; G.d = +v; } render(); });
   $("dsTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-d]"); if (!tr) return; G.d = +tr.dataset.d; render(); });
-  $("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-k]"); if (!tr) return; G.model = G.model === tr.dataset.k ? "auto" : tr.dataset.k; render(); });
+  $("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-k]"); if (!tr) return; choose(tr.dataset.k); });
 
   syncInputs(); buildRunSel(); render();
 })();

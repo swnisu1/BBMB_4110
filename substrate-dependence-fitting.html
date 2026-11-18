@@ -198,7 +198,7 @@ ul.try li { margin-bottom: 4px; }
       <section class="panel">
         <h2>Model comparison for <span id="dsName"></span></h2>
         <div class="tablewrap" id="tbl"></div>
-        <p class="hint">Click a row to show that model in the plots. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is the approximate probability of each model (ΔBIC above 10 is very strong evidence).</p>
+        <p class="hint">The widget does not choose a model for you. Compare the models, then click the row of the one the data support; the fit, residuals and constants are shown only for the model you choose (click the row again to clear it). With several datasets, choose a model for each one. BIC = n ln(SSE/n) + (k + 1) ln(n); lower is better. The weight is the approximate probability of each model (ΔBIC above 10 is very strong evidence).</p>
       </section>
       <section class="panel plot">
         <div class="plothead">
@@ -250,7 +250,7 @@ ul.try li { margin-bottom: 4px; }
   function vu() { return document.getElementById("vunit").value || "rate"; }
 
   var sim = { V: 2, K: LOG(15), n: 1.8, Ksi: LOG(450), noise: 5, floor: 0.01, reps: 2, seed: 1 };
-  var state = { mode: "data", d: 0, model: "auto", show: "all", x: "lin", fitted: false };
+  var state = { mode: "data", d: 0, choice: {}, show: "all", x: "lin", fitted: false };
   var sets = [];    // {name, E, S[], v[]}
 
   function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
@@ -313,7 +313,7 @@ ul.try li { margin-bottom: 4px; }
         '<div class="crvin"><label>[Enzyme] (nM), optional<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.E) ? c.E : "") + '"></label></div></div>';
     }).join("");
   }
-  function setSets(l) { sets = l.slice(0, 6); state.d = 0; state.model = "auto"; state.fitted = false; rebuildList(); render(); }
+  function setSets(l) { sets = l.slice(0, 6); state.d = 0; state.choice = {}; state.fitted = false; rebuildList(); render(); }
 
   // ---------- Levenberg-Marquardt ----------
   function solve(A, b) {
@@ -422,8 +422,8 @@ ul.try li { margin-bottom: 4px; }
       Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (x) { x.setAttribute("aria-pressed", x === b); }); render();
     });
   }
-  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.d = 0; state.model = "auto"; });
-  document.getElementById("showSel").addEventListener("change", function (e) { var v = e.target.value; if (v === "all") state.show = "all"; else { state.show = "one"; state.d = +v; state.model = "auto"; } render(); });
+  bindSeg("modeSeg", "mode", function (v) { state.mode = v; state.d = 0; state.choice = {}; });
+  document.getElementById("showSel").addEventListener("change", function (e) { var v = e.target.value; if (v === "all") state.show = "all"; else { state.show = "one"; state.d = +v; } render(); });
   bindSeg("xSeg", "x", function (v) { state.x = v; });
   document.getElementById("rerollBtn").addEventListener("click", function () { sim.seed++; render(); });
   var dropEl = document.getElementById("drop");
@@ -450,9 +450,9 @@ ul.try li { margin-bottom: 4px; }
   document.getElementById("exampleBtn").addEventListener("click", function () { document.getElementById("cunit").value = "µM"; document.getElementById("vunit").value = "µM/s"; setSets(clone(EXAMPLE)); });
   document.getElementById("clearBtn").addEventListener("click", function () { sets = []; state.fitted = false; rebuildList(); render(); });
   document.getElementById("fitBtn").addEventListener("click", function () { state.fitted = true; render(); var c = document.getElementById("cards"); if (c.scrollIntoView) c.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
-  document.getElementById("dsTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-d]"); if (!tr) return; state.d = +tr.dataset.d; state.model = "auto"; render(); });
-  document.getElementById("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-k]"); if (!tr) return; state.model = state.model === tr.dataset.k ? "auto" : tr.dataset.k; render(); });
-  ["simModel", "simS", "wmode", "cunit", "vunit"].forEach(function (id) { var el = document.getElementById(id); el.addEventListener("input", function () { if (id === "simModel" || id === "simS") state.model = "auto"; render(); }); el.addEventListener("change", render); });
+  document.getElementById("dsTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-d]"); if (!tr) return; state.d = +tr.dataset.d; render(); });
+  document.getElementById("tbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-k]"); if (!tr) return; if (state.choice[state.d] === tr.dataset.k) delete state.choice[state.d]; else state.choice[state.d] = tr.dataset.k; render(); });
+  ["simModel", "simS", "wmode", "cunit", "vunit"].forEach(function (id) { var el = document.getElementById(id); el.addEventListener("input", function () { if (id === "simModel" || id === "simS") state.choice = {}; render(); }); el.addEventListener("change", render); });
 
   // ---------- plotting ----------
   function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
@@ -620,49 +620,51 @@ ul.try li { margin-bottom: 4px; }
       keys.forEach(function (k) { fits[k].dB = fits[k].bic - bmin; fits[k].wt = Math.exp(-fits[k].dB / 2); tot += fits[k].wt; });
       keys.forEach(function (k) { fits[k].wt /= tot; });
       var ranked = keys.slice().sort(function (a, b) { return fits[a].bic - fits[b].bic; });
-      all.push({ d: d, fits: fits, ranked: ranked, best: ranked[0] });
+      all.push({ d: d, fits: fits, ranked: ranked, best: ranked[0], pick: fits[state.choice[all.length]] ? state.choice[all.length] : null });
     });
     if (state.d >= all.length) state.d = 0;
     syncShowSel(all.map(function (a) { return a.d.name; }));
-    var cur = all[state.d], d = cur.d, fits = cur.fits, best = cur.best, selKey = state.model === "auto" ? best : state.model, F = fits[selKey], truth = D.truth;
+    // the app does not pick a model: the student chooses one per dataset from the table (state.choice); until then no fit is shown
+    var cur = all[state.d], d = cur.d, fits = cur.fits, best = cur.best, selKey = cur.pick, F = selKey ? fits[selKey] : null, truth = D.truth;
+    ["plotB", "interp", "exportPanel"].forEach(function (id) { var el = document.getElementById(id), sec = el.tagName === "SECTION" ? el : el.closest("section.panel"); if (sec) sec.hidden = !F; });
     document.getElementById("dsName").textContent = d.name;
 
     // ---- cards
-    var runner = fits[cur.ranked[1]], E = d.E, kcat = E > 0 ? F.V / (E / 1000) : NaN;
-    var third = selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE' + (truth && truth.key === "hill" ? " | true " + sig(truth.p.n) : "") + '</div></div>'
+    var E = d.E, kcat = F && E > 0 ? F.V / (E / 1000) : NaN;
+    var third = !F ? "" : selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE' + (truth && truth.key === "hill" ? " | true " + sig(truth.p.n) : "") + '</div></div>'
       : selKey === "si" ? '<div class="card"><div class="k">K<sub>si</sub> (' + esc(cu()) + ')</div><div class="v">' + (F.noSI ? "not detected" : sig(F.Ksi)) + '</div><div class="s">' + (F.noSI ? "beyond the [S] range" : "± " + sig(F.seKsi) + " SE | Sₒₚₜ " + sig(Math.sqrt(F.K * F.Ksi))) + (truth && truth.key === "si" ? " | true " + sig(truth.p.Ksi) : "") + '</div></div>'
       : '<div class="card"><div class="k">V<sub>max</sub>/K<sub>m</sub></div><div class="v">' + sig(F.V / F.K) + '</div><div class="s">' + (isFinite(F.seSpec) ? "± " + sig(F.seSpec) + " SE" : "") + (isFinite(kcat) ? " | kᶜᵃᵗ/Kₘ " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹" : "") + '</div></div>';
-    cards.innerHTML =
-      '<div class="card hot"><div class="k">' + (selKey === best ? "Best model (BIC)" : "Showing (best: " + MN[best] + ")") + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">weight ' + Math.round(100 * F.wt) + '%' + (selKey === best ? ' | ΔBIC to next ' + sig(runner.dB) : ' | ΔBIC ' + sig(F.dB)) + '</div></div>' +
+    cards.innerHTML = !F ? '<div class="card hot"><div class="k">Model' + (all.length > 1 ? " · " + esc(d.name) : "") + '</div><div class="v" style="font-size:15px">Not chosen yet</div><div class="s">Compare the models in the table below and click the one the data support. The fit, residuals and constants appear for the model you choose.</div></div>' :
+      '<div class="card hot"><div class="k">Model you chose' + (all.length > 1 ? " · " + esc(d.name) : "") + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">click its row again to clear</div></div>' +
       '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + (isFinite(kcat) ? ' | kᶜᵃᵗ ' + sig(kcat) + ' s⁻¹' : '') + (truth ? " | true " + sig(truth.p.V) : "") + '</div></div>' +
       '<div class="card"><div class="k">' + (selKey === "hill" ? "K<sub>0.5</sub>" : "K<sub>m</sub>") + ' (' + esc(cu()) + ')</div><div class="v">' + sig(F.K) + '</div><div class="s">± ' + sig(F.seK) + ' SE' + (truth ? " | true " + sig(truth.p.K) : "") + '</div></div>' + third;
 
     // ---- dataset table
     document.getElementById("dsPanel").hidden = all.length < 2;
-    document.getElementById("dsTbl").innerHTML = '<table><thead><tr><th>Dataset</th><th>best model</th><th>ΔBIC to next</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>V<sub>max</sub>/K</th></tr></thead><tbody>' + all.map(function (a, i) {
-      var f = a.fits[a.best];
-      return '<tr data-d="' + i + '" class="' + (i === state.d ? "sel" : "") + '"><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + '</td><td>' + MN[a.best] + '</td><td>' + sig(a.fits[a.ranked[1]].dB) + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.V / f.K) + '</td></tr>';
+    document.getElementById("dsTbl").innerHTML = '<table><thead><tr><th>Dataset</th><th>model chosen</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>V<sub>max</sub>/K</th></tr></thead><tbody>' + all.map(function (a, i) {
+      var f = a.pick ? a.fits[a.pick] : null, dot = '<i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[i % 6] + '"></i>';
+      return '<tr data-d="' + i + '" class="' + (i === state.d ? "sel" : "") + '"><td>' + dot + esc(a.d.name) + '</td>' + (f ? '<td>' + MN[a.pick] + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.V / f.K) + '</td>' : '<td>not chosen</td><td>—</td><td>—</td><td>—</td><td>—</td>') + '</tr>';
     }).join("") + '</tbody></table>';
 
     // ---- model table
-    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' + cur.ranked.map(function (k) {
+    document.getElementById("tbl").innerHTML = '<table><thead><tr><th>Model</th><th>V<sub>max</sub></th><th>K</th><th>n or K<sub>si</sub></th><th>' + (wmode === "prop" ? "RMSE (weighted)" : "RMSE") + '</th><th>BIC</th><th>ΔBIC</th><th>weight</th></tr></thead><tbody>' + keys.map(function (k) {
       var f = fits[k];
-      return '<tr data-k="' + k + '" class="' + (k === selKey ? "sel " : "") + (k === best ? "best" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px solid ' + MCOL[k] + ';margin-right:6px;vertical-align:middle"></i>' + MN[k] + (k === best ? " (best)" : "") + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
+      return '<tr data-k="' + k + '" class="' + (k === selKey ? "sel" : "") + '"><td><i style="display:inline-block;width:14px;border-top:2.5px solid ' + MCOL[k] + ';margin-right:6px;vertical-align:middle"></i>' + MN[k] + '</td><td>' + sig(f.V) + ' ± ' + sig(f.seV) + '</td><td>' + sig(f.K) + ' ± ' + sig(f.seK) + '</td><td>' + paramStr(f) + '</td><td>' + sig(f.rmse) + '</td><td>' + sig(f.bic) + '</td><td>' + sig(f.dB) + '</td><td>' + Math.round(100 * f.wt) + '%</td></tr>';
     }).join("") + '</tbody></table>';
 
     // ---- messages
     var m = [];
     var altMode = wmode === "const" ? "prop" : "const", altB = keys.map(function (k) { return [k, fitModel(k, d, altMode).bic]; }).sort(function (a, b) { return a[1] - b[1]; })[0][0];
-    if (selKey === best && runner.dB < 2) m.push(["warn", "<b>The data cannot separate " + MN[best] + " from " + MN[cur.ranked[1]] + "</b> (ΔBIC = " + sig(runner.dB) + "). More points or replicates, especially at the highest and lowest [S], would help."]);
-    else if (selKey === best && runner.dB < 6) m.push(["", MN[best] + " is favoured over " + MN[cur.ranked[1]] + " (ΔBIC = " + sig(runner.dB) + ") but the evidence is only moderate."]);
-    else if (selKey === best) m.push(["", MN[best] + " is strongly favoured (ΔBIC = " + sig(runner.dB) + " over " + MN[cur.ranked[1]] + ")."]);
-    if (altB !== best) m.push(["warn", "<b>The best model depends on the error model.</b> With " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error the best model is " + MN[altB] + ". Check whether the residual scatter grows with v before deciding."]);
+    if (altB !== best) m.push(["warn", "<b>The BIC ranking of the models changes with the error model.</b> Switch to " + (altMode === "prop" ? "proportional (1/v)" : "constant") + " error to see how. Check whether the residual scatter grows with v before deciding."]);
+    if (!F) { msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join(""); }
+    else {
     var maxS = Math.max.apply(null, d.S), minS = Math.min.apply(null, d.S);
     if (maxS < 3 * F.K && selKey !== "si") m.push(["warn", "The highest [S] is only " + sig(maxS / F.K) + " × K, so the curve may not be close to saturation and V<sub>max</sub> and K are poorly separated. Go to at least 5 × K if solubility allows."]);
     if (minS > 0.5 * F.K) m.push(["warn", "The lowest [S] is " + sig(minS / F.K) + " × K, so there is little data in the linear region that defines V<sub>max</sub>/K."]);
     var big = [["V<sub>max</sub>", F.seV / F.V], ["K", F.seK / F.K], ["n", F.seN / F.n], ["K<sub>si</sub>", F.noSI ? NaN : F.seKsi / F.Ksi]].filter(function (x) { return isFinite(x[1]) && x[1] > 0.5; });
     if (big.length) m.push(["warn", "Poorly determined (SE over 50% of the value): " + big.map(function (x) { return x[0]; }).join(", ") + "."]);
     msgs.innerHTML = m.slice(0, 5).map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join("");
+    }
 
     // ---- plot A
     var xlog = state.x === "log", showAll = state.show === "all" && all.length > 1;
@@ -673,27 +675,29 @@ ul.try li { margin-bottom: 4px; }
     var grid = []; for (var q = 0; q <= 220; q++) grid.push(xlog ? Math.pow(10, xr[0] + (xr[1] - xr[0]) * q / 220) : xr[1] * q / 220 + 1e-9);
     function curveOf(f, key) { return polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(key, par(f), S))]; }), null, null, 0); }
     if (showAll) {
-      all.forEach(function (a, i) { var k = i === state.d ? selKey : a.best, f = a.fits[k], col = COLORS[i % 6];
-        sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(f), S))]; }), col, null, i === state.d ? 3 : 2.2);
+      all.forEach(function (a, i) { var k = a.pick, f = k ? a.fits[k] : null, col = COLORS[i % 6];
+        if (f) sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(f), S))]; }), col, null, i === state.d ? 3 : 2.2);
         a.d.S.forEach(function (x, j) { sA += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(a.d.v[j]).toFixed(1) + '" r="3" fill="' + col + '" opacity="0.85"/>'; }); });
     } else {
       keys.forEach(function (k) { if (k === selKey) return; sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(k, par(fits[k]), S))]; }), MCOL[k], "5 4", 1.5); });
-      sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(selKey, par(F), S))]; }), MCOL[selKey], null, 2.8);
+      if (F) sA += polyline(grid.map(function (S) { return [fa.sx(S), fa.sy(rate(selKey, par(F), S))]; }), MCOL[selKey], null, 2.8);
       d.S.forEach(function (x, j) { sA += '<circle cx="' + fa.sx(x).toFixed(1) + '" cy="' + fa.sy(d.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
       if (selKey === "si" && !F.noSI) { var so = Math.sqrt(F.K * F.Ksi), vo = rate("si", par(F), so); if (so >= (xlog ? Math.pow(10, xr[0]) : 0) && so <= (xlog ? Math.pow(10, xr[1]) : xr[1])) sA += '<line x1="' + fa.sx(so) + '" x2="' + fa.sx(so) + '" y1="' + fa.sy(vo) + '" y2="' + (330 - M.b) + '" stroke="var(--muted)" stroke-dasharray="2 3"/><circle cx="' + fa.sx(so) + '" cy="' + fa.sy(vo) + '" r="4.5" fill="var(--panel)" stroke="var(--fg)" stroke-width="2"/>'; }
     }
     document.getElementById("plotA").innerHTML = sA;
     document.getElementById("legendA").innerHTML = showAll
-      ? all.map(function (a, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + ' (' + MN[i === state.d ? selKey : a.best].toLowerCase() + ')</span>'; }).join("")
-      : keys.map(function (k) { return '<span><i class="ln" style="border-color:' + MCOL[k] + (k === selKey ? "" : ";border-top-style:dashed") + '"></i>' + MN[k] + '</span>'; }).join("") + (selKey === "si" && !F.noSI ? '<span>open dot: optimum [S]</span>' : '');
+      ? all.map(function (a, i) { return '<span><i style="background:' + COLORS[i % 6] + '"></i>' + esc(a.d.name) + ' (' + (a.pick ? MN[a.pick].toLowerCase() : "no model chosen") + ')</span>'; }).join("")
+      : keys.map(function (k) { return '<span><i class="ln" style="border-color:' + MCOL[k] + (k === selKey ? "" : ";border-top-style:dashed") + '"></i>' + MN[k] + '</span>'; }).join("") + (F ? "" : '<span>dashed: all three fits; choose one in the table</span>') + (selKey === "si" && !F.noSI ? '<span>open dot: optimum [S]</span>' : '');
 
     // ---- plot B
+    if (!F) { drawEH(); return; }
     var res = d.S.map(function (S, j) { return d.v[j] - rate(selKey, par(F), S); }), rm = Math.max.apply(null, res.map(Math.abs)) * 1.2 || 0.05;
     var fb = frame(640, 170, xr, [-rm, rm], "[S] (" + esc(cu()) + (xlog ? ", log scale" : "") + ")", "residual", xlog), sB = fb.svg;
     d.S.forEach(function (x, j) { sB += '<circle cx="' + fb.sx(x).toFixed(1) + '" cy="' + fb.sy(res[j]).toFixed(1) + '" r="3" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
     document.getElementById("plotB").innerHTML = sB;
 
-    // ---- Eadie-Hofstee
+    drawEH();
+    function drawEH() {
     var hx = d.S.map(function (S, j) { return d.v[j] / S; }), xmaxE = Math.max.apply(null, hx) * 1.08, ymaxE = Math.max.apply(null, d.v) * 1.1;
     var fe = frame(640, 300, [0, xmaxE], [0, ymaxE], "v / [S] (" + esc(vu()) + " per " + esc(cu()) + ")", "v (" + esc(vu()) + ")", false), sE = fe.svg, sg = [];
     for (q = 1; q <= 300; q++) sg.push(Smax * 1.3 * Math.pow(q / 300, 3) + Smin * 0.3);
@@ -701,21 +705,22 @@ ul.try li { margin-bottom: 4px; }
       if (pts.length > 1) sE += polyline(pts, MCOL[k], k === selKey ? null : "5 4", k === selKey ? 2.6 : 1.4); });
     d.S.forEach(function (x, j) { sE += '<circle cx="' + fe.sx(hx[j]).toFixed(1) + '" cy="' + fe.sy(d.v[j]).toFixed(1) + '" r="3.2" fill="' + COLORS[state.d % 6] + '" opacity="0.9"/>'; });
     document.getElementById("plotC").innerHTML = sE;
+    }
 
     // ---- interpretation
     var tx = [];
     if (selKey === "mm") tx.push("<b>Michaelis-Menten.</b> A single hyperbola describes the data: one kind of binding site, no detectable cooperativity or substrate inhibition over this [S] range. K<sub>m</sub> = " + sig(F.K) + " " + esc(cu()) + (isFinite(kcat) ? ", k<sub>cat</sub> = " + sig(kcat) + " s⁻¹, k<sub>cat</sub>/K<sub>m</sub> = " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹." : "."));
     else if (selKey === "hill") tx.push("<b>Hill.</b> The curve is " + (F.n > 1 ? "sigmoidal" : "more gradual than a hyperbola") + " (n = " + sig(F.n) + " ± " + sig(F.seN) + "). " + (F.n > 1.2 ? "A Hill coefficient above 1 means substrate binding to one site raises affinity at another, which requires an oligomer. The Hill coefficient is a lower bound on the number of interacting sites, so n near 2 fits a dimer and n up to 4 a tetramer. If the enzyme exists as a mixture of oligomeric states, the apparent cooperativity can partly reflect that mixture, so it is worth knowing the oligomeric state under assay conditions." : F.n < 0.85 ? "A Hill coefficient below 1 suggests negative cooperativity or two classes of site (or two enzyme forms), so check whether a mixture of oligomers could contribute." : "A value near 1 means the Hill model has little to add over Michaelis-Menten."));
     else tx.push("<b>Substrate inhibition.</b> The rate rises, peaks near [S] = " + (F.noSI ? "—" : sig(Math.sqrt(F.K * F.Ksi)) + " " + esc(cu())) + " and then falls (K<sub>si</sub> = " + (F.noSI ? "beyond the data" : sig(F.Ksi) + " " + esc(cu())) + "). The usual explanation is a second substrate molecule binding the enzyme-substrate complex to make an unproductive ESS. Check for artifacts before reading mechanism into it: co-solvent or ionic strength rising with [S], a contaminant in the stock, depletion of cofactor, or substrate absorbance at the detection wavelength.");
-    tx.push("BIC picks among these three equations only; it does not prove a mechanism. For poorly soluble substrates the highest [S] may be limited, so a model that needs data beyond the solubility limit (substrate inhibition, or saturation itself) cannot be tested and the widget will say so.");
+    tx.push("BIC only compares these three equations; it does not prove a mechanism. For poorly soluble substrates the highest [S] may be limited, so a model that needs data beyond the solubility limit (substrate inhibition, or saturation itself) cannot be tested and the widget will say so.");
     document.getElementById("interp").innerHTML = tx.map(function (t) { return "<p>" + t + "</p>"; }).join("");
 
     exportTables = (function () {
-      var tp = [["dataset", "model", "Vmax", "SE_Vmax", "K (Km or K0.5)", "SE_K", "n (Hill)", "SE_n", "Ksi", "SE_Ksi", "RMSE", "BIC", "delta_BIC", "BIC_weight", "best_model"]];
-      var td = [["dataset", "S", "v_observed", "fit_MichaelisMenten", "fit_Hill", "fit_SubstrateInhibition", "residual_best_model"]], tc = [["dataset", "S", "v_MichaelisMenten", "v_Hill", "v_SubstrateInhibition"]];
+      var tp = [["dataset", "model", "Vmax", "SE_Vmax", "K (Km or K0.5)", "SE_K", "n (Hill)", "SE_n", "Ksi", "SE_Ksi", "RMSE", "BIC", "delta_BIC", "BIC_weight", "chosen_model"]];
+      var td = [["dataset", "S", "v_observed", "fit_MichaelisMenten", "fit_Hill", "fit_SubstrateInhibition", "residual_chosen_model"]], tc = [["dataset", "S", "v_MichaelisMenten", "v_Hill", "v_SubstrateInhibition"]];
       all.forEach(function (a) {
-        keys.forEach(function (k) { var f = a.fits[k]; tp.push([a.d.name, MN[k], f.V, f.seV, f.K, f.seK, k === "hill" ? f.n : "", k === "hill" ? f.seN : "", k === "si" ? f.Ksi : "", k === "si" ? f.seKsi : "", f.rmse, f.bic, f.dB, f.wt, k === a.best ? "yes" : ""]); });
-        a.d.S.forEach(function (S, j) { td.push([a.d.name, S, a.d.v[j], rate("mm", par(a.fits.mm), S), rate("hill", par(a.fits.hill), S), rate("si", par(a.fits.si), S), a.d.v[j] - rate(a.best, par(a.fits[a.best]), S)]); });
+        keys.forEach(function (k) { var f = a.fits[k]; tp.push([a.d.name, MN[k], f.V, f.seV, f.K, f.seK, k === "hill" ? f.n : "", k === "hill" ? f.seN : "", k === "si" ? f.Ksi : "", k === "si" ? f.seKsi : "", f.rmse, f.bic, f.dB, f.wt, k === a.pick ? "yes" : ""]); });
+        a.d.S.forEach(function (S, j) { td.push([a.d.name, S, a.d.v[j], rate("mm", par(a.fits.mm), S), rate("hill", par(a.fits.hill), S), rate("si", par(a.fits.si), S), a.pick ? a.d.v[j] - rate(a.pick, par(a.fits[a.pick]), S) : ""]); });
         var smax = Math.max.apply(null, a.d.S) * 1.05;
         for (var q = 0; q <= 150; q++) { var S = smax * q / 150; tc.push([a.d.name, S, rate("mm", par(a.fits.mm), S), rate("hill", par(a.fits.hill), S), rate("si", par(a.fits.si), S)]); }
       });
