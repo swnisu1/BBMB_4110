@@ -217,9 +217,9 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <div id="curveList"></div>
         <div class="btns"><button type="button" class="btn" id="templateBtn">Download template</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
         <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
-        <p class="hint" style="margin-top:12px">Practice plate (simulated, competitive inhibitor, class plate map), in either reader's format:</p>
+        <p class="hint" style="margin-top:12px">Practice plate (simulated, competitive inhibitor; [S] = 2, 5, 10, 20, 40, 80 mM in columns 1–6 and again in 7–12, [I] = 0, 1.5, 3, 9 mM in rows A–D), in either reader's format:</p>
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_competitive_spark.xlsx" download>⤓ Spark .xlsx</a></div>
-        <p class="hint" style="margin-top:12px">Practice replicate plates (one replicate per plate, wells A1–D6 of the class plate map): add both files and the fit pools them. Plate 2 also comes as a Spark file, to try mixing readers.</p>
+        <p class="hint" style="margin-top:12px">Practice replicate plates (one replicate per plate, wells A1–D6, same [S] and [I] as above): add both files and the fit pools them. Plate 2 also comes as a Spark file, to try mixing readers.</p>
         <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate1_infinite.xlsx" download>⤓ Plate 1 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_infinite.xlsx" download>⤓ Plate 2 .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="examples/practice_inhibition_replicate_plate2_spark.xlsx" download>⤓ Plate 2, Spark .xlsx</a></div>
       </section>
 
@@ -316,9 +316,9 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         </div>
         <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="I" aria-pressed="false">[I]</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div></div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button><button type="button" class="btn" id="classMap">Fill the class plate map</button><button type="button" class="btn" id="clearLayout">Clear the layout</button></div>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button><button type="button" class="btn" id="clearLayout">Clear the layout</button></div>
         <label id="shareWrap" class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0" hidden><input type="checkbox" id="shareLayout" checked style="margin-top:3px;accent-color:var(--accent)"><span>Same plate layout on every replicate plate ([S], [I], [E] and row use). Untick if a plate was set up differently. Wells you leave out or mark blank by clicking stay plate-specific.</span></label>
-        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the inhibitor concentration <b>[I]</b> (0 for no inhibitor) or the final enzyme concentration <b>[E]</b> (used for v/[E] and k<sub>cat</sub>). Every well has its own values, so [S] and [I] can run along rows or columns, whichever way your plate is set up. [I] uses the same units as [S]. The <b>[I]</b> and <b>[E]</b> boxes at the end of each row fill the whole row at once. <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same [I] are fit together as one series. Set a row (or a well, by clicking it) to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit. <b>Fill the class plate map</b> enters 2, 5, 10, 20, 40, 80 mM in columns 1–6 and 7–12, and [I] = 0, 1.5, 3, 9 mM in rows A–D.</p>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the inhibitor concentration <b>[I]</b> (0 for no inhibitor) or the final enzyme concentration <b>[E]</b> (used for v/[E] and k<sub>cat</sub>). Every well has its own values, so [S] and [I] can run along rows or columns, whichever way your plate is set up. [I] uses the same units as [S]. The <b>[I]</b> and <b>[E]</b> boxes at the end of each row fill the whole row at once. <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same [I] are fit together as one series. Set a row (or a well, by clicking it) to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
       </section>
       <section class="panel">
         <div class="plothead">
@@ -734,7 +734,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     }
     return { readXlsx: readXlsx, findRuns: findRuns };
   })();
-  var MAP_S = [2, 5, 10, 20, 40, 80, 2, 5, 10, 20, 40, 80], MAP_I = { A: 0, B: 1.5, C: 3, D: 9 };
   var CV = { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm", eUnit: "nM", sUnit: "mM" }, CVKEY = "bbmb_inhib_plate_conv_v1";
   try { var cvs = JSON.parse(localStorage.getItem(CVKEY) || "null"); if (cvs) Object.keys(CV).forEach(function (k) { if (cvs[k] !== undefined) CV[k] = cvs[k]; }); } catch (e) {}
   function saveCV() { try { localStorage.setItem(CVKEY, JSON.stringify(CV)); } catch (e) {} }
@@ -792,11 +791,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (plate.win[0] >= pTmax()) plate.win = [0, Math.min(5, pTmax())];
     buildPlateCtl(); buildLayout();
   }
-  function classMap() {
-    var run = pRun(), cfg = plate.cfg;
-    run.order.forEach(function (w) { var c = +w.slice(1), R = w.charAt(0); if (MAP_I[R] !== undefined) { cfg.wells[w].S = c <= MAP_S.length ? MAP_S[c - 1] : NaN; cfg.wells[w].I = MAP_I[R]; if (cfg.wells[w].role === "blank") { cfg.wells[w].role = "sample"; cfg.wells[w].ok = false; } } });
-    CV.sUnit = "mM"; saveCV(); document.getElementById("pCU").value = "mM";
-  }
+
   // ---------- slopes (same rules as Plate Reader Kinetics) ----------
   function pWin(w) { var v = plate.cfg.wells[w].win || plate.win; return v[0] <= v[1] ? v : [v[1], v[0]]; }
   function pLinreg(x, y) {
@@ -1165,7 +1160,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     $p("copyTop").addEventListener("click", function () { copyAcross(true); });
     $p("copyLeft").addEventListener("click", function () { copyAcross(false); });
     $p("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b || !plate) return; PGK = b.dataset.g; buildLayout(); });
-    $p("classMap").addEventListener("click", function () { if (!plate) return; classMap(); shareMap(Object.keys(plate.cfg.rows)); buildLayout(); pRender(); });
     $p("clearLayout").addEventListener("click", function () { if (!plate) return; pRun().order.forEach(function (w) { plate.cfg.wells[w].S = NaN; plate.cfg.wells[w].I = NaN; }); shareMap(); buildLayout(); pRender(); });
     $p("pCU").addEventListener("change", function (e) { CV.sUnit = e.target.value === "mM" ? "mM" : "µM"; saveCV(); if (plate) { buildLayout(); pRender(); } });
   })();
@@ -1381,7 +1375,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var D = simOn ? simulate() : { series: series, truth: null };
     var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
     function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC1", "plotC2", "plotD", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); }
-    if (!simOn && plate && !series.length) { empty(plate.missing && plate.missing.length ? plate.missing.join("<br>") : "Plate loaded. Enter [S] for each well, and [I] and [E] for each row, in the plate layout above (or press <b>Fill the class plate map</b>)."); msgs.firstChild.className = "msg warn"; return; }
+    if (!simOn && plate && !series.length) { empty(plate.missing && plate.missing.length ? plate.missing.join("<br>") : "Plate loaded. Enter [S], [I] and [E] for the wells in the plate layout above."); msgs.firstChild.className = "msg warn"; return; }
     if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop a plate reader .xlsx or a table, or paste from Excel, in the panel on the left. To practise, download a practice plate there and load it."); return; }
     var ok = D.series.filter(function (s) { return isFinite(s.I) && s.I >= 0 && s.S.length >= 3; }), skipped = D.series.length - ok.length;
     var P = { S: [], I: [], v: [] };
