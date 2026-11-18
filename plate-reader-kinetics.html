@@ -62,6 +62,9 @@ h2 .step { color: var(--accent); margin-right: 4px; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
 .seg button:last-child { border-right: 0; }
+.gridshow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.gridshow .seg { width: 260px; }
+.sgrid input.mixed::placeholder { color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
@@ -282,9 +285,10 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <h3>Plate layout: what is in each well?</h3>
           <div class="toggles"><label style="font-size:12.5px;color:var(--muted)" for="sUnit">[S] units</label><select id="sUnit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select><label style="font-size:12.5px;color:var(--muted);margin-left:8px" for="eUnit">[E] units</label><select id="eUnit" style="width:auto"><option value="nM">nM</option><option value="uM">µM</option></select></div>
         </div>
+        <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="series" aria-pressed="false">Enzyme</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div></div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's [S] to every row</button></div>
-        <p class="hint">Type the substrate concentration in each well, as it is on the plate. If every row (A1–A12) is the same [S] series, fill in the top row and press <b>Copy the top row's [S] to every row</b>. You can also paste a row or block of numbers copied from Excel. For each row, enter the <b>enzyme</b> (WT, mutantA…) and its final <b>[E]</b> in the well, used for k<sub>cat</sub> = V<sub>max</sub>/[E]. Rows with the same enzyme and [E] are replicates and are fit together. The same enzyme at two different [E] is fit as two series. Set a row to blank for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button></div>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the <b>enzyme</b> (WT, mutantA…) or its final <b>[E]</b> in the well (used for k<sub>cat</sub> = V<sub>max</sub>/[E]). Every well has its own values, so the plate can be laid out any way you like. The <b>Enzyme</b> and <b>[E]</b> boxes at the end of each row fill the whole row at once. <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same enzyme and [E] are replicates and are fit together; the same enzyme at two different [E] is fit as two series. Set a row (or a well, by clicking it) to blank for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
       </section>
 
       <section class="panel" id="ratePanel" hidden>
@@ -355,7 +359,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function num(v) { if (typeof v === "number") return v; if (typeof v !== "string" || !v.trim()) return NaN; var x = Number(v.trim()); return x; }
 
   // ---------- settings ----------
-  var G = { win: [0, 5], dir: "up", sub: true, conv: { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm" }, sUnit: "uM", eUnit: "nM", wmode: "const",
+  var G = { gk: "S", win: [0, 5], dir: "up", sub: true, conv: { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm" }, sUnit: "uM", eUnit: "nM", wmode: "const",
     model: "auto", x: "lin", click: "inspect", rateView: "well", show: "all", d: 0 };
   var STORE = "bbmb_plate_kinetics_v1";
   try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { ["win", "dir", "sub", "sUnit", "eUnit", "wmode"].forEach(function (k) { if (sv[k] !== undefined) G[k] = sv[k]; }); if (sv.conv) Object.keys(G.conv).forEach(function (k) { if (sv.conv[k] !== undefined) G.conv[k] = sv.conv[k]; }); } } catch (e) {}
@@ -492,7 +496,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   }
   function initCfg(run, series) {
     var wells = {}, rows = {}, ncol = 12;
-    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, win: null, excl: {}, ok: false }; rows[w.charAt(0)] = rows[w.charAt(0)] || { series: series, E: NaN }; ncol = Math.max(ncol, +w.slice(1)); });
+    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, series: series, E: NaN, win: null, excl: {}, ok: false }; rows[w.charAt(0)] = 1; ncol = Math.max(ncol, +w.slice(1)); });
     run.ncol = ncol; run.rowsUsed = Object.keys(rows).sort();
     run.colsUsed = []; for (var c = 1; c <= ncol; c++) if (run.order.some(function (w) { return +w.slice(1) === c; })) run.colsUsed.push(c);
     run.cfg = { wells: wells, rows: rows };
@@ -567,7 +571,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       var out = { w: {}, blankN: 0, blank: 0 }, bl = [];
       run.order.forEach(function (w) {
         var f = slopeOf(run, w), cfg = run.cfg.wells[w], sgn = G.dir === "down" ? -1 : 1;
-        out.w[w] = { fit: f, role: cfg.role, ok: !!cfg.ok, signed: f.ok ? sgn * f.slope : NaN, S: sOf(run, w), series: (run.cfg.rows[w.charAt(0)].series || "").trim() || "Enzyme", E: run.cfg.rows[w.charAt(0)].E };
+        out.w[w] = { fit: f, role: cfg.role, ok: !!cfg.ok, signed: f.ok ? sgn * f.slope : NaN, S: sOf(run, w), series: (cfg.series || "").trim() || "Enzyme", E: cfg.E };
         if (cfg.role === "blank" && f.ok && cfg.ok) bl.push(out.w[w].signed);
       });
       out.blankN = bl.length; out.blank = bl.length ? bl.reduce(function (s, x) { return s + x; }, 0) / bl.length : 0;
@@ -724,29 +728,50 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     $("runInfo").innerHTML = esc((r.device ? "Tecan " + r.device.replace(/^tecan\s*/i, "") + ": " : "") + r.order.length + " wells, " + r.t.length + " reads, about every " + sig(dt) + " s over " + sig(tmax) + " min" + (r.part ? " (" + r.part + ")" : "") + (r.wl ? ", " + r.wl + " nm" : "")) + (r.wl && Math.abs(+r.wl - 340) > 5 ? ' <b style="color:var(--warn)">Not read at 340 nm, so the NADPH conversion does not apply.</b>' : "");
   }
 
-  // layout editor: one [S] box per well (rebuilt only when the run or a role changes, so typing keeps focus)
+  // layout editor: one box per well for the property chosen in "Grid shows" ([S], enzyme or [E]); rebuilt only when
+  // the run, the property or a role changes, so typing keeps focus
+  function cellVal(cfgw, k) { var x = cfgw[k]; return k === "series" ? (x || "") : isFinite(x) ? String(x) : ""; }
+  function rowCommon(r, R, k) {   // the row's value if every well in it agrees, else null
+    var ws = r.order.filter(function (w) { return w.charAt(0) === R; }), v = ws.map(function (w) { return cellVal(r.cfg.wells[w], k); });
+    return v.every(function (x) { return x === v[0]; }) ? v[0] : null;
+  }
+  function rowBox(r, R, k) {
+    var c = rowCommon(r, R, k), lab = k === "series" ? "Enzyme" : "Enzyme concentration";
+    return '<input type="text"' + (k === "E" ? ' inputmode="decimal" class="econc' : ' class="ser') + (c === null ? ' mixed" placeholder="mixed"' : '"') + (k === "E" ? ' data-erow="' : ' data-ser="') + R + '" value="' + esc(c === null ? "" : c) + '" aria-label="' + lab + ' for all of row ' + R + '">';
+  }
   function buildLayout() {
     var host = $("layoutGrid");
     if (cur < 0) { host.innerHTML = ""; return; }
-    var r = runs[cur], cfg = r.cfg, rowsU = r.rowsUsed, cols = r.colsUsed, h = "";
-    function val(x) { return isFinite(x) ? String(x) : ""; }
+    var r = runs[cur], cfg = r.cfg, rowsU = r.rowsUsed, cols = r.colsUsed, h = "", k = G.gk;
+    Array.prototype.forEach.call($("gridSeg").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.g === k)); });
+    var what = k === "S" ? "[S]" : k === "series" ? "Enzyme" : "[E]";
     function roleSel(R) {
       var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
       return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no enzyme)" : o) + '</option>'; }).join("") + '</select>';
     }
-    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Enzyme</th><th style="text-align:left">[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Enzyme (row)</th><th style="text-align:left">[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ', row)</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
     rowsU.forEach(function (R, ri) {
       h += '<tr><th>' + R + '</th>';
-      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text" inputmode="decimal" data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cfg.wells[w].S) + '" aria-label="[S] in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
-      h += '<td><input type="text" class="ser" data-ser="' + R + '" value="' + esc(cfg.rows[R].series) + '" aria-label="Enzyme in row ' + R + '"></td><td><input type="text" inputmode="decimal" class="econc" data-erow="' + R + '" value="' + val(cfg.rows[R].E) + '" aria-label="Enzyme concentration in row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
+      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text"' + (k === "series" ? "" : ' inputmode="decimal"') + ' data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + esc(cellVal(cfg.wells[w], k)) + '" aria-label="' + what + ' in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
+      h += '<td>' + rowBox(r, R, "series") + '</td><td>' + rowBox(r, R, "E") + '</td><td>' + roleSel(R) + '</td></tr>';
     });
     h += '</tbody></table>';
     host.innerHTML = h;
   }
-  function setS(el, v) {
-    var r = runs[cur], cfg = r.cfg, x = v === "" ? NaN : num(String(v).replace(",", "."));
-    if (el.dataset.ws !== undefined) cfg.wells[el.dataset.ws].S = x;
+  function parseKey(k, v) { return k === "series" ? String(v) : String(v).trim() === "" ? NaN : num(String(v).trim().replace(",", ".")); }
+  // refresh the row-end boxes (and, if shown, the wells) without rebuilding the table
+  function syncRowBoxes(R) {
+    var r = runs[cur];
+    ["series", "E"].forEach(function (k) {
+      var el = $("layoutGrid").querySelector(k === "E" ? 'input[data-erow="' + R + '"]' : 'input[data-ser="' + R + '"]'); if (!el || el === document.activeElement) return;
+      var c = rowCommon(r, R, k); el.value = c === null ? "" : c; el.placeholder = c === null ? "mixed" : ""; el.classList.toggle("mixed", c === null);
+    });
   }
+  function setS(el, v) {
+    var r = runs[cur], cfg = r.cfg;
+    if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws][G.gk] = parseKey(G.gk, v); if (G.gk !== "S") syncRowBoxes(el.dataset.ws.charAt(0)); }
+  }
+
 
   // ---------- render ----------
   var pending = false;
@@ -883,13 +908,13 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         if (!ws.length) return;
         var lab = (runs.length > 1 ? "run " + (ri + 1) + " " : "") + R;
         if (!ws.some(function (w) { return isFinite(run.cfg.wells[w].S); })) noS.push(lab);
-        else if (!(run.cfg.rows[R].E > 0)) noE.push(lab);
+        else if (ws.some(function (w) { return isFinite(run.cfg.wells[w].S) && !(run.cfg.wells[w].E > 0); })) noE.push(lab);
       });
     });
     var m = [];
     if (unchk) m.push("<b>" + unchk + " well" + (unchk > 1 ? "s have" : " has") + " not been checked yet.</b> Open each well, look at its time course, set its slope window and click <b>Use this slope</b> (or leave the well out). Only checked wells go into the rates and the fit.");
     if (noS.length) m.push("<b>Missing substrate concentrations</b> for row" + (noS.length > 1 ? "s " : " ") + noS.join(", ") + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
-    if (noE.length) m.push("<b>Missing enzyme concentration</b> for row" + (noE.length > 1 ? "s " : " ") + noE.join(", ") + ". Enter the final [E] in the well for each row in the plate layout.");
+    if (noE.length) m.push("<b>Missing enzyme concentration</b> for row" + (noE.length > 1 ? "s " : " ") + noE.join(", ") + ". Enter the final [E] in the well for every well that has an [S] (Grid shows [E], or the [E] box at the end of the row).");
     return m;
   }
   function drawFit() {
@@ -1183,16 +1208,25 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     render();
   });
 
-  $("copyTop").addEventListener("click", function () {
-    if (cur < 0) return; var r = runs[cur], top = r.rowsUsed[0];
-    r.order.forEach(function (w) { var src = r.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src && r.cfg.wells[w].role === "sample") r.cfg.wells[w].S = src.S; });
+  function copyAcross(byRow) {
+    if (cur < 0) return; var r = runs[cur], k = G.gk, top = r.rowsUsed[0], left = r.colsUsed[0];
+    r.order.forEach(function (w) { var src = r.cfg.wells[byRow ? top + w.slice(1) : w.charAt(0) + left]; if ((byRow ? w.charAt(0) !== top : +w.slice(1) !== left) && src && r.cfg.wells[w].role === "sample") r.cfg.wells[w][k] = src[k]; });
     buildLayout(); render();
-  });
+  }
+  $("copyTop").addEventListener("click", function () { copyAcross(true); });
+  $("copyLeft").addEventListener("click", function () { copyAcross(false); });
+  $("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; G.gk = b.dataset.g; buildLayout(); });
   var lg = $("layoutGrid");
   lg.addEventListener("input", function (e) {
     var el = e.target, cfg = runs[cur].cfg;
-    if (el.dataset.ser !== undefined) { cfg.rows[el.dataset.ser].series = el.value; render(); return; }
-    if (el.dataset.erow !== undefined) { cfg.rows[el.dataset.erow].E = el.value.trim() === "" ? NaN : num(el.value.replace(",", ".")); render(); return; }
+    var rk = el.dataset.ser !== undefined ? "series" : el.dataset.erow !== undefined ? "E" : null;
+    if (rk) {
+      var R = el.dataset.ser !== undefined ? el.dataset.ser : el.dataset.erow, x = parseKey(rk, el.value), r = runs[cur];
+      r.order.forEach(function (w) { if (w.charAt(0) === R) cfg.wells[w][rk] = x; });
+      el.classList.remove("mixed"); el.placeholder = "";
+      if (G.gk === rk) Array.prototype.forEach.call(lg.querySelectorAll('input[data-ws^="' + R + '"]'), function (c) { if (c.dataset.ws.charAt(0) === R && /^\d+$/.test(c.dataset.ws.slice(1))) c.value = cellVal(cfg.wells[c.dataset.ws], rk); });
+      render(); return;
+    }
     setS(el, el.value); render();
   });
   lg.addEventListener("change", function (e) {
