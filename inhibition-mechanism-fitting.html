@@ -47,6 +47,8 @@ h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacin
 .seg button:last-child { border-right: 0; }
 .gridshow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
 .gridshow .seg { width: 240px; }
+.gridshow input { padding: 4px 6px; }
+.gridshow .btn { padding: 4px 10px; }
 .sgrid input.mixed::placeholder { color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
@@ -314,11 +316,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
           <h3>Plate layout: what is in each well?</h3>
           <div class="ptog"><label for="pCU">[S] units</label><select id="pCU"><option value="µM">µM</option><option value="mM">mM</option></select><label for="pEU" style="margin-left:8px">[E] units</label><select id="pEU"><option value="nM">nM</option><option value="uM">µM</option></select></div>
         </div>
-        <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="I" aria-pressed="false">[I]</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div></div>
+        <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="I" aria-pressed="false">[I]</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div><label for="fillAll" style="margin-left:10px">Fill every well with</label><input id="fillAll" type="text" inputmode="decimal" style="width:80px"><button type="button" class="btn" id="fillBtn">Fill</button></div>
         <div class="tablewrap" id="layoutGrid"></div>
         <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button><button type="button" class="btn" id="clearLayout">Clear the layout</button></div>
         <label id="shareWrap" class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0" hidden><input type="checkbox" id="shareLayout" checked style="margin-top:3px;accent-color:var(--accent)"><span>Same plate layout on every replicate plate ([S], [I], [E] and row use). Untick if a plate was set up differently. Wells you leave out or mark blank by clicking stay plate-specific.</span></label>
-        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the inhibitor concentration <b>[I]</b> (0 for no inhibitor) or the final enzyme concentration <b>[E]</b> (used for v/[E] and k<sub>cat</sub>). Every well has its own values, so [S] and [I] can run along rows or columns, whichever way your plate is set up. [I] uses the same units as [S]. The <b>[I]</b> and <b>[E]</b> boxes at the end of each row fill the whole row at once. <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same [I] are fit together as one series. Set a row (or a well, by clicking it) to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the inhibitor concentration <b>[I]</b> (0 for no inhibitor) or the final enzyme concentration <b>[E]</b> (used for v/[E] and k<sub>cat</sub>). Every well has its own values, so [S] and [I] can run along rows or columns, whichever way your plate is set up. [I] uses the same units as [S]. <b>Fill every well with</b> puts one value in every sample well (for example the same [E] across the plate). <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same [I] are fit together as one series. Set a row (or a well, by clicking it) to <b>blank</b> for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
       </section>
       <section class="panel">
         <div class="plothead">
@@ -841,8 +843,8 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var m = [];
     if (unchk) m.push("<b>" + unchk + " well" + (unchk > 1 ? "s have" : " has") + " not been checked yet.</b> Open each well, look at its time course, set its slope window and click <b>Use this slope</b> (or leave the well out). Only checked wells go into the rates and the fit.");
     if (noS.length) m.push("<b>Missing substrate concentrations</b> for " + rows(noS) + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
-    if (noI.length) m.push("<b>Missing inhibitor concentration</b> for " + rows(noI) + ". Enter [I] for every well that has an [S] (0 for no inhibitor): Grid shows [I], or the [I] box at the end of the row.");
-    if (noE.length) m.push("<b>Missing enzyme concentration</b> for " + rows(noE) + ". Enter the final [E] for every well that has an [S]: Grid shows [E], or the [E] box at the end of the row.");
+    if (noI.length) m.push("<b>Missing inhibitor concentration</b> for " + rows(noI) + ". Enter [I] for every well that has an [S] (0 for no inhibitor) (Grid shows [I]).");
+    if (noE.length) m.push("<b>Missing enzyme concentration</b> for " + rows(noE) + ". Enter the final [E] for every well that has an [S] (Grid shows [E]).");
     return m;
   }
   function plateSeries(C) {
@@ -991,20 +993,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   // ---------- layout: [S], [I] and [E] in every well; "Grid shows" picks which one the grid edits ----------
   var PGK = "S";
   function pCell(c, k) { return isFinite(c[k]) ? String(c[k]) : ""; }
-  function pRowCommon(R, k) {   // the row's value if every well in it agrees, else null
-    var v = pRun().order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return pCell(plate.cfg.wells[w], k); });
-    return v.every(function (x) { return x === v[0]; }) ? v[0] : null;
-  }
-  function pRowBox(R, k) {
-    var c = pRowCommon(R, k);
-    return '<input type="text" inputmode="decimal" class="ri' + (c === null ? ' mixed" placeholder="mixed"' : '"') + (k === "I" ? ' data-ri="' : ' data-re="') + R + '" value="' + (c === null ? "" : c) + '" aria-label="' + (k === "I" ? "[I]" : "Enzyme concentration") + ' for all of row ' + R + '">';
-  }
-  function pSyncRowBoxes(R) {
-    ["I", "E"].forEach(function (k) {
-      var el = document.getElementById("layoutGrid").querySelector('input[' + (k === "I" ? "data-ri" : "data-re") + '="' + R + '"]'); if (!el || el === document.activeElement) return;
-      var c = pRowCommon(R, k); el.value = c === null ? "" : c; el.placeholder = c === null ? "mixed" : ""; el.classList.toggle("mixed", c === null);
-    });
-  }
   function buildLayout() {
     var run = pRun(), cfg = plate.cfg, cols = pCols(run), rows = pRows(run), h = "", k = PGK, what = "[" + k + "]";
     Array.prototype.forEach.call(document.getElementById("gridSeg").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.g === k)); });
@@ -1012,11 +1000,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var roles = run.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
       return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no enzyme)" : "sample") + '</option>'; }).join("") + '</select>';
     }
-    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">[I] (' + esc(pCU()) + ', row)</th><th style="text-align:left">[E] (' + (CV.eUnit === "nM" ? "nM" : "µM") + ', row)</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Row is</th></tr></thead><tbody>';
     rows.forEach(function (R, ri) {
       h += '<tr><th>' + R + '</th>';
       cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text" inputmode="decimal" data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + pCell(cfg.wells[w], k) + '" aria-label="' + what + ' in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
-      h += '<td>' + pRowBox(R, "I") + '</td><td>' + pRowBox(R, "E") + '</td><td>' + roleSel(R) + '</td></tr>';
+      h += '<td>' + roleSel(R) + '</td></tr>';
     });
     document.getElementById("layoutGrid").innerHTML = h + '</tbody></table>';
   }
@@ -1131,15 +1119,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var lg = $p("layoutGrid");
     lg.addEventListener("input", function (e) {
       var el = e.target, cfg = plate.cfg;
-      var rk = el.dataset.ri !== undefined ? "I" : el.dataset.re !== undefined ? "E" : null;
-      if (rk) {
-        var R = rk === "I" ? el.dataset.ri : el.dataset.re, x = pNum(el.value);
-        pRun().order.forEach(function (w) { if (w.charAt(0) === R) cfg.wells[w][rk] = x; });
-        el.classList.remove("mixed"); el.placeholder = "";
-        if (PGK === rk) Array.prototype.forEach.call(lg.querySelectorAll("input[data-ws]"), function (c) { if (c.dataset.ws.charAt(0) === R) c.value = pCell(cfg.wells[c.dataset.ws], rk); });
-        shareMap(); pRender(); return;
-      }
-      if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws][PGK] = pNum(el.value); if (PGK !== "S") pSyncRowBoxes(el.dataset.ws.charAt(0)); shareMap(); pRender(); }
+      if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws][PGK] = pNum(el.value); shareMap(); pRender(); }
     });
     lg.addEventListener("change", function (e) { var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return; pRun().order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) { plate.cfg.wells[w].role = el.value; plate.cfg.wells[w].ok = false; } }); shareMap([el.dataset.rrole]); buildLayout(); pRender(); });
     lg.addEventListener("paste", function (e) {
@@ -1149,7 +1129,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
       var r0 = +el.dataset.r, c0 = +el.dataset.c;
       grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); plate.cfg.wells[x.dataset.ws][PGK] = pNum(v); } }); });
-      if (PGK !== "S") pRows(pRun()).forEach(pSyncRowBoxes);
       shareMap(); pRender();
     });
     function copyAcross(byRow) {
@@ -1159,6 +1138,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     }
     $p("copyTop").addEventListener("click", function () { copyAcross(true); });
     $p("copyLeft").addEventListener("click", function () { copyAcross(false); });
+    $p("fillBtn").addEventListener("click", function () { if (!plate) return; var x = pNum($p("fillAll").value); pRun().order.forEach(function (w) { if (plate.cfg.wells[w].role === "sample") plate.cfg.wells[w][PGK] = x; }); shareMap(); buildLayout(); pRender(); });
     $p("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b || !plate) return; PGK = b.dataset.g; buildLayout(); });
     $p("clearLayout").addEventListener("click", function () { if (!plate) return; pRun().order.forEach(function (w) { plate.cfg.wells[w].S = NaN; plate.cfg.wells[w].I = NaN; }); shareMap(); buildLayout(); pRender(); });
     $p("pCU").addEventListener("change", function (e) { CV.sUnit = e.target.value === "mM" ? "mM" : "µM"; saveCV(); if (plate) { buildLayout(); pRender(); } });
