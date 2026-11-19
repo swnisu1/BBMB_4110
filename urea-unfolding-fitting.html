@@ -62,6 +62,14 @@ h2 .step { color: var(--accent); margin-right: 4px; }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
 .seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
 .seg button:last-child { border-right: 0; }
+.gridshow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 12.5px; color: var(--muted); flex-wrap: wrap; }
+.gridshow .seg { width: 200px; }
+.gridshow input { padding: 4px 6px; }
+.gridshow .btn { padding: 4px 10px; }
+.sgrid .nr { display: block; min-width: 44px; height: 26px; box-sizing: border-box; border: 1px dashed var(--line); border-radius: 5px; background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line) 4px 5px); opacity: 0.6; }
+.sgrid input.txt { width: 60px; text-align: left; font-family: var(--font); }
+.wl.unchk { border-style: dashed; }
+.wl.unchk .num { color: var(--muted); }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
@@ -227,11 +235,11 @@ td.neg { color: var(--warn); }
         <div class="plothead">
           <h3 id="plateTitle">Plate</h3>
           <div class="toggles"><span class="lab">Click a well to</span>
-            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false">mark no-protein blank</button></div>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button></div>
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
-        <p class="hint">Each well shows its spectrum (blank subtracted for protein wells), the ratio F<sub>b</sub>/F<sub>a</sub> and the urea concentration. The coloured bar is the protein. Yellow: precipitate recorded (P). Red: the reader reported OVER (saturated) at some wavelength; lower the gain and reread. Dashed outline: no-protein blank.</p>
+        <p class="hint">Each well shows its spectrum (blank subtracted for protein wells), the ratio F<sub>b</sub>/F<sub>a</sub> and the urea concentration. The coloured bar is the protein. Yellow: precipitate recorded (P). Red: the reader reported OVER (saturated) at some wavelength; lower the gain and reread. Dashed outline: no-protein blank. "?" : not checked yet.</p>
       </section>
 
       <section class="panel plot" id="wellPanel" hidden>
@@ -243,18 +251,20 @@ td.neg { color: var(--warn); }
         <div class="legend" id="legendW"></div>
         <div class="stats" id="wellStats"></div>
         <div class="dctl">
-          <label>This well is <select id="wRole"><option value="sample">a protein sample</option><option value="blank">a no-protein blank</option><option value="off">left out</option></select></label>
+          <label>This well is <select id="wRole"><option value="sample">a protein sample</option><option value="off">left out</option></select></label>
           <label class="check" style="margin:0"><input type="checkbox" id="wPrecip"><span>visible precipitate</span></label>
         </div>
+        <div class="dctl"><button type="button" class="btn primary" id="wUse">This spectrum is OK</button><span id="wUseNote" class="hint" style="margin:0"></span></div>
       </section>
 
       <section class="panel" id="layoutPanel" hidden>
         <div class="plothead">
           <h3>Plate layout: what is in each well?</h3>
         </div>
+        <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="D" aria-pressed="true">Urea (M)</button><button type="button" data-g="protein" aria-pressed="false">Protein</button></div><label for="fillAll" style="margin-left:10px">Fill every well with</label><input id="fillAll" type="text" style="width:80px"><button type="button" class="btn" id="fillBtn">Fill</button></div>
         <div class="tablewrap" id="layoutGrid"></div>
-        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row's urea to every row</button><button type="button" class="btn" id="stdRows" title="Sets the protein and role of each row; the urea is not changed">Rows A–C WT, D–F mutant, G–H blank</button><button type="button" class="btn" id="copyReads">Use this layout for every read</button></div>
-        <p class="hint">Type the final urea concentration (M) in each well. For each row, enter the <b>protein</b> (WT, mutant…). Rows with the same protein in the same read are replicates and are fit together. Set a row to <b>blank</b> for the no-protein urea series; give the blank wells their urea too, so each protein well is matched to the blank at the same urea. Leave the urea empty for wells that should not be used. A reread of the same plate starts with the same layout.</p>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button><button type="button" class="btn" id="copyReads">Use this layout for every read</button></div>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the final <b>urea</b> concentration (M) or the <b>protein</b> (WT, mutant…). Every well has its own values, so the plate can be laid out any way you like. Type <b>0</b> as the protein for the no-protein (buffer + urea) blanks, and give the blanks their urea too, so each protein well is matched to the blank at the same urea. <b>Fill every well with</b> puts one value in every well (except wells you left out); <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block from Excel. Wells with the same protein in the same read are replicates and are fit together. Leave the urea empty for wells that should not be used. A reread of the same plate starts with the same layout.</p>
       </section>
 
       <section class="panel plot" id="specPanel" hidden>
@@ -343,7 +353,7 @@ td.neg { color: var(--warn); }
   function dkey(D) { return D.toFixed(4); }
 
   // ---------- settings ----------
-  var G = { la: 330, lb: 350, bw: 0, sub: true, fit: "a", slopes: true, reads: "cur", pts: "wells", norm: false, click: "inspect", sel: null, refP: null, spec: null };
+  var G = { la: 330, lb: 350, bw: 0, sub: true, fit: "a", slopes: true, reads: "cur", pts: "wells", norm: false, click: "inspect", gk: "D", sel: null, refP: null, spec: null };
   var STORE = "bbmb_urea_unfolding_v1";
   try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { if (sv.G) ["la", "lb", "bw", "sub", "fit", "slopes"].forEach(function (k) { if (sv.G[k] !== undefined) G[k] = sv.G[k]; }); } } catch (e) {}
   function save() { try { localStorage.setItem(STORE, JSON.stringify({ G: { la: G.la, lb: G.lb, bw: G.bw, sub: G.sub, fit: G.fit, slopes: G.slopes } })); } catch (e) {} }
@@ -507,23 +517,23 @@ td.neg { color: var(--warn); }
   // ---------- layout ----------
   function blankCfg(run) {
     var wells = {}, rows = {}, ncol = 12;
-    run.order.forEach(function (w) { wells[w] = { role: "sample", D: NaN, precip: false }; rows[w.charAt(0)] = rows[w.charAt(0)] || { protein: "WT" }; ncol = Math.max(ncol, +w.slice(1)); });
+    run.order.forEach(function (w) { wells[w] = { role: "sample", D: NaN, protein: "", precip: false, ok: false }; rows[w.charAt(0)] = 1; ncol = Math.max(ncol, +w.slice(1)); });
+    run.ncol = ncol;
     run.rowsUsed = Object.keys(rows).sort();
     run.colsUsed = []; for (var c = 1; c <= ncol; c++) if (run.order.some(function (w) { return +w.slice(1) === c; })) run.colsUsed.push(c);
     run.cfg = { wells: wells, rows: rows };
   }
   function copyCfg(from, to) {
-    to.order.forEach(function (w) { var s = from.cfg.wells[w]; if (s) { to.cfg.wells[w].role = s.role; to.cfg.wells[w].D = s.D; } });
-    to.rowsUsed.forEach(function (R) { if (from.cfg.rows[R]) to.cfg.rows[R].protein = from.cfg.rows[R].protein; });
+    to.order.forEach(function (w) { var s = from.cfg.wells[w]; if (s) { to.cfg.wells[w].role = s.role; to.cfg.wells[w].D = s.D; to.cfg.wells[w].protein = s.protein; } });
   }
-  // rows A–C WT, D–F mutant, G–H no-protein blank (urea left as it is)
-  function standardRows(run) {
-    run.rowsUsed.forEach(function (R) {
-      var i = R.charCodeAt(0) - 65, prot = i < 3 ? "WT" : i < 6 ? "mutant" : i < 8 ? "blank" : "";
-      run.cfg.rows[R].protein = prot;
-      run.order.forEach(function (w) { if (w.charAt(0) === R) run.cfg.wells[w].role = prot === "blank" ? "blank" : prot ? "sample" : "off"; });
-    });
+  // example plate only: rows A–C WT, D–F mutant, G–H no-protein blank (protein 0)
+  function exampleRows(run) {
+    run.order.forEach(function (w) { var i = w.charCodeAt(0) - 65; run.cfg.wells[w].protein = i < 3 ? "WT" : i < 6 ? "mutant" : i < 8 ? "0" : ""; if (i >= 8) run.cfg.wells[w].role = "off"; });
   }
+  // a well whose protein is 0 (or "blank" / "none") is a no-protein blank; any other well not left out is a protein sample
+  function isNoProtein(p) { p = String(p || "").trim().toLowerCase(); return p === "0" || p === "blank" || p === "none" || p === "buffer"; }
+  function syncBlank(run) { run.order.forEach(function (w) { var c = run.cfg.wells[w]; if (c.role !== "off") c.role = isNoProtein(c.protein) ? "blank" : "sample"; }); }
+  function uncheckedCount(run) { return run.order.filter(function (w) { var c = run.cfg.wells[w]; return c.role !== "off" && !c.ok; }).length; }
   function addRuns(found, base) {
     var fresh = found.filter(function (r) { return !runs.some(function (o) { return sameRun(o, r); }) && !found.some(function (o) { return o !== r && found.indexOf(o) < found.indexOf(r) && sameRun(o, r); }); });
     if (!fresh.length) { topMsg(found.length ? "That read is already loaded." : "No spectra found in " + esc(base) + ". Expected a “Wavel.” row followed by rows named A1, A2…, or a Wavelength column with well names as headers.", "warn"); return; }
@@ -584,7 +594,7 @@ td.neg { color: var(--warn); }
     built.forEach(function (b, i) {
       addRuns([b[0]], "Example read " + (i + 1));
       var r = runs[runs.length - 1]; r.tmin = b[1];
-      if (i === 0) { standardRows(r); r.order.forEach(function (w) { r.cfg.wells[w].D = conc[+w.slice(1) - 1]; }); }
+      if (i === 0) { exampleRows(r); r.order.forEach(function (w) { r.cfg.wells[w].D = conc[+w.slice(1) - 1]; }); }
     });
     cur = 0; selWell = "A1"; G.reads = "cur";
     syncInputs(); buildRunSel(); buildLayout(); render();
@@ -605,6 +615,7 @@ td.neg { color: var(--warn); }
   function meanSpec(list) { return list[0].map(function (_, q) { return mean(list.map(function (s) { return s[q]; })); }); }
   var calc = [];
   function computeRun(run) {
+    syncBlank(run);
     var bk = {}, pooled = [], out = { w: {}, blanks: [] };
     run.order.forEach(function (w) { var c = run.cfg.wells[w]; if (c.role !== "blank") return; if (isFinite(c.D)) { var k = dkey(c.D); (bk[k] = bk[k] || { D: c.D, specs: [], wells: [] }).specs.push(run.wells[w]); bk[k].wells.push(w); } else pooled.push(run.wells[w]); });
     var bl = Object.keys(bk).map(function (k) { var b = bk[k]; return { D: b.D, spec: meanSpec(b.specs), wells: b.wells }; }).sort(function (a, b) { return a.D - b.D; });
@@ -620,7 +631,7 @@ td.neg { color: var(--warn); }
       return { spec: null, kind: "none" };
     }
     run.order.forEach(function (w) {
-      var c = run.cfg.wells[w], raw = run.wells[w], o = { role: c.role, D: c.D, precip: c.precip, protein: (run.cfg.rows[w.charAt(0)].protein || "").trim() || "Protein", raw: raw, sat: run.sat[w] || 0 };
+      var c = run.cfg.wells[w], raw = run.wells[w], o = { role: c.role, D: c.D, precip: c.precip, protein: (c.protein || "").trim() || "Protein", ok: !!c.ok, raw: raw, sat: run.sat[w] || 0 };
       if (c.role === "sample") { var b = blankAt(c.D); o.blank = b.spec; o.bkind = b.kind; o.btext = b.text; o.corr = b.spec ? raw.map(function (v, q) { return v - b.spec[q]; }) : raw; }
       else { o.blank = null; o.bkind = "self"; o.corr = raw; }
       o.Fa = channel(run.wl, o.corr, G.la); o.Fb = channel(run.wl, o.corr, G.lb); o.R = o.Fb / o.Fa;
@@ -816,20 +827,22 @@ td.neg { color: var(--warn); }
     if ([G.la, G.lb].some(function (l) { return l < r.wl[0] - 1e-9 || l > r.wl[r.wl.length - 1] + 1e-9; })) warn.push("A channel wavelength is outside the scan.");
     $("runInfo").innerHTML = esc(t) + (warn.length ? ' <b style="color:var(--warn)">' + warn.join(" ") + '</b>' : "");
   }
+  // the grid always shows the whole plate (A–H × 1–12, or more); wells that were not read are hatched.
+  // "Grid shows" picks which value the grid edits: urea (D) or protein
+  function cellVal(cw, k) { return k === "protein" ? (cw.protein || "") : isFinite(cw.D) ? String(cw.D) : ""; }
+  function parseKey(k, v) { return k === "protein" ? String(v).trim() : String(v).trim() === "" ? NaN : num(String(v).trim()); }
   function buildLayout() {
     var host = $("layoutGrid");
     if (cur < 0) { host.innerHTML = ""; return; }
-    var r = runs[cur], cfg = r.cfg, h = "";
-    function val(x) { return isFinite(x) ? String(x) : ""; }
-    function roleSel(R) {
-      var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
-      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no protein)" : "protein") + '</option>'; }).join("") + '</select>';
-    }
-    h += '<table class="sgrid"><thead><tr><th></th>' + r.colsUsed.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Protein</th><th style="text-align:left">Row is</th></tr></thead><tbody>';
-    r.rowsUsed.forEach(function (R, ri) {
+    var r = runs[cur], cfg = r.cfg, h = "", k = G.gk, L = "ABCDEFGHIJKLMNOP";
+    Array.prototype.forEach.call($("gridSeg").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.g === k)); });
+    var cols = []; for (var c0 = 1; c0 <= Math.max(12, r.ncol || 12); c0++) cols.push(c0);
+    var rows = L.slice(0, Math.max(7, L.indexOf(r.rowsUsed[r.rowsUsed.length - 1])) + 1).split("");
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '</tr></thead><tbody>';
+    rows.forEach(function (R, ri) {
       h += '<tr><th>' + R + '</th>';
-      r.colsUsed.forEach(function (c, ci) { var w = R + c, cw = cfg.wells[w]; h += '<td>' + (cw ? '<input type="text" inputmode="decimal" data-wd="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + val(cw.D) + '" aria-label="Urea (M) in well ' + w + '"' + (cw.role === "off" ? ' class="na" title="left out"' : "") + '>' : "") + '</td>'; });
-      h += '<td><input type="text" class="ser" data-prot="' + R + '" value="' + esc(cfg.rows[R].protein) + '" aria-label="Protein in row ' + R + '"></td><td>' + roleSel(R) + '</td></tr>';
+      cols.forEach(function (c, ci) { var w = R + c, cw = cfg.wells[w]; h += '<td>' + (cw ? '<input type="text"' + (k === "D" ? ' inputmode="decimal"' : '') + ' data-wd="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + esc(cellVal(cw, k)) + '" aria-label="' + (k === "D" ? "Urea (M)" : "Protein") + ' in well ' + w + '" class="' + (k === "protein" ? "txt" : "") + (cw.role === "off" ? ' na" title="left out"' : '"') + '>' : '<span class="nr" title="not read"></span>') + '</td>'; });
+      h += '</tr>';
     });
     host.innerHTML = h + '</tbody></table>';
   }
@@ -845,7 +858,15 @@ td.neg { color: var(--warn); }
     if (!has) { hideFit(); $("specPanel").hidden = true; $("ratioPanel").hidden = true; $("repPanel").hidden = true; $("exportPanel").hidden = true; if (!$("topMsgs").innerHTML) topMsg("Load the spectra (step 1), or try <b>Load example</b> to see how this works."); return; }
     computeAll();
     var D = datasets();
-    drawPlate(); drawWell(); drawSpectra(D); drawFit(D); drawRatio(D); drawRepeat(D);
+    drawPlate(); drawWell(); drawSpectra(D);
+    // no fits until the student has looked at every spectrum (in every read)
+    var unchk = runs.reduce(function (a, r) { return a + uncheckedCount(r); }, 0);
+    if (unchk) {
+      hideFit(); $("ratioPanel").hidden = true; $("repPanel").hidden = true; $("exportPanel").hidden = true;
+      $("msgs").innerHTML = '<p class="msg warn"><b>' + unchk + ' well' + (unchk > 1 ? "s have" : " has") + ' not been checked yet' + (runs.length > 1 ? " (all reads)" : "") + '.</b> Open each well, look at its spectrum and click <b>This spectrum is OK</b> (or leave the well out). The fits appear when every well is checked.</p>';
+      return;
+    }
+    drawFit(D); drawRatio(D); drawRepeat(D);
     $("exportPanel").hidden = false;
   }
   function drawPlate() {
@@ -864,10 +885,10 @@ td.neg { color: var(--warn); }
         [G.la, G.lb].forEach(function (l) { if (l >= x0 && l <= x1) s += '<line x1="' + X(l).toFixed(1) + '" x2="' + X(l).toFixed(1) + '" y1="0" y2="30" stroke="var(--grid)" stroke-width="1"/>'; });
         s += r.wl.length > 2 ? polyline(r.wl.map(function (l, k) { return [X(l), Y(y[k])]; }), o.role === "blank" ? "var(--muted)" : protColor(o.protein), null, 1.3) : r.wl.map(function (l, k) { return isFinite(y[k]) ? '<circle cx="' + X(l) + '" cy="' + Y(y[k]) + '" r="2" fill="var(--muted)"/>' : ""; }).join("");
         s += '</svg>';
-        var q = o.sat ? " q3" : o.precip ? " q2" : "", cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "") + q;
+        var q = o.sat ? " q3" : o.precip ? " q2" : "", unk = o.role !== "off" && !o.ok, cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "") + q + (unk ? " unchk" : "");
         var tip = w + ": " + (o.role === "blank" ? "blank" : o.role === "off" ? "left out" : o.protein) + (isFinite(o.D) ? ", " + sig(o.D) + " M urea" : "") + (isFinite(o.R) ? ", ratio " + o.R.toFixed(3) : "") + (o.sat ? ", OVER at " + o.sat + " wavelength" + (o.sat > 1 ? "s" : "") : "") + (o.precip ? ", precipitate recorded" : "") + (o.bkind === "interp" || o.bkind === "nearest" ? ", " + o.btext : "");
         h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(tip) + '">' + (o.role === "sample" ? '<i class="bar" style="background:' + protColor(o.protein) + '"></i>' : "") + (o.precip ? '<span class="pp">P</span>' : "") + s +
-          '<span class="num">' + (o.role !== "blank" && isFinite(o.R) ? o.R.toFixed(3) : o.role === "blank" ? "blank" : "—") + '</span><span class="sx">' + (isFinite(o.D) ? sig(o.D) + " M" : "&nbsp;") + '</span></button></td>';
+          '<span class="num">' + (unk ? "?" : o.role !== "blank" && isFinite(o.R) ? o.R.toFixed(3) : o.role === "blank" ? "blank ✓" : "—") + (!unk && o.role === "sample" && isFinite(o.R) ? " ✓" : "") + '</span><span class="sx">' + (isFinite(o.D) ? sig(o.D) + " M" : "&nbsp;") + '</span></button></td>';
       });
       h += '</tr>';
     });
@@ -901,7 +922,12 @@ td.neg { color: var(--warn); }
     else st = "This well is left out of the fits and plots.";
     if (o.sat) st += '<br><span style="color:var(--warn)">The reader reported OVER at ' + o.sat + ' wavelength' + (o.sat > 1 ? "s" : "") + ' (shown as gaps). Lower the gain and reread, keeping the same gain for every sample.</span>';
     $("wellStats").innerHTML = st;
-    $("wRole").value = cfg.role; $("wPrecip").checked = !!cfg.precip;
+    $("wRole").value = cfg.role === "off" ? "off" : "sample"; $("wPrecip").checked = !!cfg.precip;
+    var use = $("wUse"), left = uncheckedCount(r);
+    use.hidden = cfg.role === "off";
+    use.textContent = cfg.ok ? "✓ Spectrum accepted (click to undo)" : "This spectrum is OK";
+    use.classList.toggle("primary", !cfg.ok);
+    $("wUseNote").textContent = left ? left + " well" + (left > 1 ? "s" : "") + " in this read still to check." : "Every well in this read is checked.";
   }
 
   // spectra panel
@@ -944,7 +970,7 @@ td.neg { color: var(--warn); }
     if (satW.length) m.push(["warn", "OVER (saturated) readings in " + satW.join(", ") + ". Reread with a lower gain, the same for every well."]);
     var gains = runs.map(function (r) { return r.gain; }).filter(Boolean); if (gains.length > 1 && gains.some(function (g) { return g !== gains[0]; })) m.push(["warn", "The reads were taken at different gains (" + gains.join(", ") + "), so their intensities cannot be compared directly. The ratio is less affected."]);
     var nb = 0; C && runs[cur].order.forEach(function (w) { if (C.w[w].role === "blank") nb++; });
-    if (G.sub && !nb) m.push(["warn", "No wells are marked as no-protein blanks, so nothing is subtracted. Mark the blank row in the plate layout."]);
+    if (G.sub && !nb) m.push(["warn", "No wells are no-protein blanks, so nothing is subtracted. Type 0 as the protein for the blank wells in the plate layout."]);
     var interp = runs[cur].order.filter(function (w) { var o = C.w[w]; return o.role === "sample" && (o.bkind === "interp" || o.bkind === "nearest"); });
     if (interp.length) m.push(["", "No blank at the same urea for " + interp.length + " well" + (interp.length > 1 ? "s" : "") + " (" + interp.slice(0, 6).join(", ") + (interp.length > 6 ? "…" : "") + "); the blank was interpolated from the neighbouring blank concentrations."]);
     if (!scope.length) { hideFit(); m.push(["", "Enter the urea concentration for each well, and the protein for each row, in the plate layout. The fit appears once a protein has at least six different urea concentrations."]); msgs.innerHTML = m.map(function (x) { return '<p class="msg ' + x[0] + '">' + x[1] + '</p>'; }).join(""); return; }
@@ -1209,34 +1235,37 @@ td.neg { color: var(--warn); }
   $("plateGrid").addEventListener("click", function (e) {
     var b = e.target.closest("button[data-w]"); if (!b) return; var w = b.dataset.w, cfg = runs[cur].cfg.wells[w];
     selWell = w;
-    if (G.click === "off") cfg.role = cfg.role === "off" ? "sample" : "off";
-    else if (G.click === "blank") cfg.role = cfg.role === "blank" ? "sample" : "blank";
+    if (G.click === "off") { cfg.role = cfg.role === "off" ? "sample" : "off"; cfg.ok = false; }
     if (G.click !== "inspect") buildLayout();
     render();
   });
   function step(d) { var o = runs[cur].order, i = o.indexOf(selWell); selWell = o[(i + d + o.length) % o.length]; render(); }
   $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
-  $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; buildLayout(); render(); });
+  $("wRole").addEventListener("change", function (e) { var c = runs[cur].cfg.wells[selWell]; c.role = e.target.value; c.ok = false; buildLayout(); render(); });
+  $("wUse").addEventListener("click", function () {
+    var r = runs[cur], c = r.cfg.wells[selWell];
+    if (c.ok) { c.ok = false; render(); return; }
+    c.ok = true;
+    var o = r.order, i = o.indexOf(selWell);
+    for (var dd = 1; dd < o.length; dd++) { var w = o[(i + dd) % o.length], cw = r.cfg.wells[w]; if (cw.role !== "off" && !cw.ok) { selWell = w; break; } }
+    render();
+  });
   $("wPrecip").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].precip = e.target.checked; render(); });
 
-  $("copyTop").addEventListener("click", function () {
-    if (cur < 0) return; var r = runs[cur], top = r.rowsUsed[0];
-    r.order.forEach(function (w) { var src = r.cfg.wells[top + w.slice(1)]; if (w.charAt(0) !== top && src) r.cfg.wells[w].D = src.D; });
+  function copyAcross(byRow) {
+    if (cur < 0) return; var r = runs[cur], k = G.gk, top = r.rowsUsed[0], left = r.colsUsed[0];
+    r.order.forEach(function (w) { var src = r.cfg.wells[byRow ? top + w.slice(1) : w.charAt(0) + left]; if ((byRow ? w.charAt(0) !== top : +w.slice(1) !== left) && src && r.cfg.wells[w].role !== "off") r.cfg.wells[w][k] = src[k]; });
     buildLayout(); render();
-  });
-  $("stdRows").addEventListener("click", function () { if (cur < 0) return; standardRows(runs[cur]); buildLayout(); render(); });
+  }
+  $("copyTop").addEventListener("click", function () { copyAcross(true); });
+  $("copyLeft").addEventListener("click", function () { copyAcross(false); });
+  $("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; G.gk = b.dataset.g; buildLayout(); });
+  $("fillBtn").addEventListener("click", function () { if (cur < 0) return; var r = runs[cur], x = parseKey(G.gk, $("fillAll").value); r.order.forEach(function (w) { if (r.cfg.wells[w].role !== "off") r.cfg.wells[w][G.gk] = x; }); buildLayout(); render(); });
   $("copyReads").addEventListener("click", function () { if (cur < 0) return; runs.forEach(function (r) { if (r !== runs[cur]) copyCfg(runs[cur], r); }); render(); topMsg("This layout now applies to all " + runs.length + " reads."); });
   var lg = $("layoutGrid");
   lg.addEventListener("input", function (e) {
     var el = e.target, cfg = runs[cur].cfg;
-    if (el.dataset.prot !== undefined) { cfg.rows[el.dataset.prot].protein = el.value; render(); return; }
-    if (el.dataset.wd !== undefined) { cfg.wells[el.dataset.wd].D = el.value.trim() === "" ? NaN : num(el.value); render(); }
-  });
-  lg.addEventListener("change", function (e) {
-    var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return;
-    var r = runs[cur]; r.order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) r.cfg.wells[w].role = el.value; });
-    if (el.value === "blank" && !r.cfg.rows[el.dataset.rrole].protein.trim()) r.cfg.rows[el.dataset.rrole].protein = "blank";
-    buildLayout(); render();
+    if (el.dataset.wd !== undefined) { cfg.wells[el.dataset.wd][G.gk] = parseKey(G.gk, el.value); render(); }
   });
   lg.addEventListener("paste", function (e) {
     var el = e.target; if (el.tagName !== "INPUT" || el.dataset.wd === undefined) return;
@@ -1244,7 +1273,7 @@ td.neg { color: var(--warn); }
     e.preventDefault();
     var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
     var r0 = +el.dataset.r, c0 = +el.dataset.c, cfg = runs[cur].cfg;
-    grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); cfg.wells[x.dataset.wd].D = v.trim() === "" ? NaN : num(v); } }); });
+    grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); cfg.wells[x.dataset.wd][G.gk] = parseKey(G.gk, v); } }); });
     render();
   });
 

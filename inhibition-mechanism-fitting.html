@@ -230,7 +230,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <div class="field"><label>Shared window (min)</label><span style="display:flex;gap:6px"><input type="number" id="pwA" step="any" min="0" aria-label="Window start, min"><input type="number" id="pwB" step="any" min="0" aria-label="Window end, min"></span></div>
         <div class="field" style="grid-template-columns:1fr 170px"><label for="pDir">A<sub>340</sub> during the assay</label>
           <select id="pDir"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
-        <label class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0"><input type="checkbox" id="pSub" checked style="margin-top:3px;accent-color:var(--accent)"><span>Subtract the mean slope of wells marked <b>blank</b> (no enzyme added; same run)</span></label>
+        <label class="row" style="display:flex;gap:8px;align-items:flex-start;font-size:13px;margin:6px 0"><input type="checkbox" id="pSub" checked style="margin-top:3px;accent-color:var(--accent)"><span>Subtract the mean slope of the blank wells (<b>[E] = 0</b> in the plate layout; same run)</span></label>
         <div class="btns"><button type="button" class="btn" id="pResetWin">Clear per-well windows</button></div>
         <p class="hint">Use the early part of each trace, where it is still straight. This is the shared window for every well. To change one well only, use its sliders or drag across its plot on the right.</p>
       </section>
@@ -903,7 +903,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         var o = C.w[w], smp = o.role === "sample", hid = o.role !== "off" && !o.ok;
         return '<tr data-pw="' + w + '" style="cursor:pointer' + (o.role === "off" ? ';color:var(--muted);text-decoration:line-through' : '') + (w === plate.sel ? ';background:var(--accent-soft)' : '') + '"><td>' + w + (o.role === "blank" ? " (blank)" : "") + '</td><td>' + (smp ? sig(o.I) : "") + '</td><td>' + (smp ? sig(o.E) : "") + '</td><td>' + (smp ? sig(o.S) : "") + '</td><td>' + (hid ? "not checked" : o.fit.ok ? sig(o.fit.slope * 1000) : "—") + '</td><td>' + (!hid && o.fit.ok ? sig(o.fit.se * 1000) : "") + '</td><td>' + (!hid && o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (smp && !hid ? sig(o.v) : "") + '</td>' + (showE ? '<td>' + (smp && !hid ? sig(o.ve) : "") + '</td>' : '') + '</tr>';
       }).join("") + '</tbody></table>';
-      document.getElementById("rateHint").innerHTML = (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells are marked blank, so no background slope is subtracted.") + " Click a row to inspect that well.";
+      document.getElementById("rateHint").innerHTML = (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells have [E] = 0 (no-enzyme blanks), so no background slope is subtracted.") + " Click a row to inspect that well.";
     } else {
       var g = {}, list = [], multi = plates.length > 1, cur = plate;
       plates.forEach(function (pl, pi) {
@@ -1018,7 +1018,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     document.getElementById("plateTitle").textContent = plates.length > 1 ? "Plate " + (pi + 1) + " of " + plates.length + ": " + plate.file : "Plate: " + plate.file;
     syncPlateSel();
     document.getElementById("plateInfo").textContent = (run.device ? "Tecan " + run.device.replace(/^tecan\s*/i, "") + ": " : "") + run.order.length + " wells, " + run.t.length + " reads about every " + sig(dt) + " s over " + sig(tmax) + " min" + (run.wl ? ", " + run.wl + " nm" : "") + ". " +
-      (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample." : " (not subtracted).") : "No wells are marked blank, so no background is subtracted.");
+      (C.nb ? "Mean blank slope " + sig(C.blank * 1000) + " mA/min from " + C.nb + " well" + (C.nb > 1 ? "s" : "") + (plate.sub ? ", subtracted from every sample." : " (not subtracted).") : "No wells have [E] = 0 (no-enzyme blanks), so no background is subtracted.");
     var Es = {}; run.order.forEach(function (w) { var c = plate.cfg.wells[w]; if (c.role === "sample" && isFinite(c.S) && isFinite(c.E)) Es[c.E] = 1; });
     if (Object.keys(Es).length > 1) document.getElementById("plateInfo").innerHTML += ' <b style="color:var(--warn)">The sample wells have different [E]. Use the same [E] in every well for one inhibition fit; k<sub>cat</sub> is not computed.</b>';
     convOut();

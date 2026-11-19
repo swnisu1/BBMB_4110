@@ -778,8 +778,7 @@ ul.try li { margin-bottom: 4px; }
     var m = [], worst = { z: 99, i: -1 };
     if (plain) {
       var dB = plain.bic - R.bic;
-      m.push([dB > 6 ? '' : 'warn', '<b>BIC comparison:</b> plain integrated Michaelis-Menten BIC = ' + sig(plain.bic) + ', this model = ' + sig(R.bic) + ' (ΔBIC = ' + sig(dB) + '). ' +
-        (dB > 10 ? 'The extra term(s) are very strongly supported.' : dB > 6 ? 'The extra term(s) are strongly supported.' : dB > 2 ? 'The extra term(s) are modestly supported.' : dB > -2 ? 'The extra term(s) are not justified; the plain model is adequate.' : 'The plain model is preferred.')]);
+      m.push(['', '<b>BIC comparison:</b> plain integrated Michaelis-Menten BIC = ' + sig(plain.bic) + ', this model = ' + sig(R.bic) + ' (ΔBIC = BIC<sub>plain</sub> − BIC<sub>this model</sub> = ' + sig(dB) + '). Decide from this, the residuals and the parameter errors whether the extra term(s) are justified.']);
     }
     if (D.skipped) m.push(['warn', D.skipped + ' curve' + (D.skipped > 1 ? 's are' : ' is') + ' not in the fit: enter [S]₀ and [E] for ' + (D.skipped > 1 ? 'each' : 'it') + '.']);
     win.forEach(function (w, i) {
