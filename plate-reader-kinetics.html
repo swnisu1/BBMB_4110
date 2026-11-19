@@ -66,7 +66,7 @@ h2 .step { color: var(--accent); margin-right: 4px; }
 .gridshow .seg { width: 260px; }
 .gridshow input { padding: 4px 6px; }
 .gridshow .btn { padding: 4px 10px; }
-.sgrid input.mixed::placeholder { color: var(--muted); }
+.sgrid .nr { display: block; min-width: 44px; height: 26px; box-sizing: border-box; border: 1px dashed var(--line); border-radius: 5px; background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line) 4px 5px); opacity: 0.6; }
 .seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
 :root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
@@ -253,7 +253,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="plothead">
           <h3 id="plateTitle">Plate</h3>
           <div class="toggles"><span style="font-size:12.5px;color:var(--muted)">Click a well to</span>
-            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button><button type="button" data-a="blank" aria-pressed="false" title="A well with everything except enzyme; its slope is the background">mark no-enzyme blank</button></div>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button></div>
           </div>
         </div>
         <div class="tablewrap" id="plateGrid"></div>
@@ -274,7 +274,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="stats" id="wellStats"></div>
         <div class="dctl"><button type="button" class="btn primary" id="wUse">Use this slope</button><span id="wUseNote" class="hint" style="margin:0"></span></div>
         <div class="dctl">
-          <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="blank">a blank (no enzyme)</option><option value="off">left out (bad well)</option></select></label>
+          <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="off">left out (bad well)</option></select></label>
           <label>Window <input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
           <button type="button" class="btn" id="wReset">Back to the shared window</button>
           <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
@@ -290,7 +290,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="series" aria-pressed="false">Enzyme</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div><label for="fillAll" style="margin-left:10px">Fill every well with</label><input id="fillAll" type="text" style="width:80px"><button type="button" class="btn" id="fillBtn">Fill</button></div>
         <div class="tablewrap" id="layoutGrid"></div>
         <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button></div>
-        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the <b>enzyme</b> (WT, mutantA…) or its final <b>[E]</b> in the well (used for k<sub>cat</sub> = V<sub>max</sub>/[E]). Every well has its own values, so the plate can be laid out any way you like. <b>Fill every well with</b> puts one value in every sample well (for example the same [E] across the plate). <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same enzyme and [E] are replicates and are fit together; the same enzyme at two different [E] is fit as two series. Set a row (or a well, by clicking it) to blank for the no-enzyme background; it needs no [S]. Leave [S] empty for wells that should not be fit.</p>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the substrate concentration <b>[S]</b>, the <b>enzyme</b> (WT, mutantA…) or its final <b>[E]</b> in the well (used for k<sub>cat</sub> = V<sub>max</sub>/[E]). Every well has its own values, so the plate can be laid out any way you like. <b>Fill every well with</b> puts one value in every well (except wells you left out) (for example the same [E] across the plate). <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Wells with the same enzyme and [E] are replicates and are fit together; the same enzyme at two different [E] is fit as two series. Wells with <b>[E] = 0</b> are no-enzyme blanks: their mean slope is the background, and they need no [S]. Leave [S] empty for wells that should not be fit.</p>
       </section>
 
       <section class="panel" id="ratePanel" hidden>
@@ -566,10 +566,13 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function sLabel() { return G.sUnit === "mM" ? "mM" : "µM"; }
   function sOf(run, w) { return run.cfg.wells[w].S; }
 
+  // a well with [E] = 0 is a no-enzyme blank; any other well not left out is a sample
+  function syncBlank(cfgWells) { Object.keys(cfgWells).forEach(function (w) { var c = cfgWells[w]; if (c.role !== "off") c.role = c.E === 0 ? "blank" : "sample"; }); }
   var calc = [];   // per run: { w: {fit, signed, corr, v, S, series, role} , blank }
   function computeAll() {
     var A = aPerUM();
     calc = runs.map(function (run) {
+      syncBlank(run.cfg.wells);
       var out = { w: {}, blankN: 0, blank: 0 }, bl = [];
       run.order.forEach(function (w) {
         var f = slopeOf(run, w), cfg = run.cfg.wells[w], sgn = G.dir === "down" ? -1 : 1;
@@ -736,18 +739,16 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function buildLayout() {
     var host = $("layoutGrid");
     if (cur < 0) { host.innerHTML = ""; return; }
-    var r = runs[cur], cfg = r.cfg, rowsU = r.rowsUsed, cols = r.colsUsed, h = "", k = G.gk;
+    var r = runs[cur], cfg = r.cfg, h = "", k = G.gk, L = "ABCDEFGHIJKLMNOP";
+    var cols = []; for (var c0 = 1; c0 <= Math.max(12, r.ncol); c0++) cols.push(c0);
+    var rowsU = L.slice(0, Math.max(7, L.indexOf(r.rowsUsed[r.rowsUsed.length - 1])) + 1).split("");
     Array.prototype.forEach.call($("gridSeg").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.g === k)); });
     var what = k === "S" ? "[S]" : k === "series" ? "Enzyme" : "[E]";
-    function roleSel(R) {
-      var roles = r.order.filter(function (w) { return w.charAt(0) === R; }).map(function (w) { return cfg.wells[w].role; }), one = roles.every(function (x) { return x === roles[0]; }) ? roles[0] : "mixed";
-      return '<select data-rrole="' + R + '" aria-label="Use of row ' + R + '">' + (one === "mixed" ? '<option value="mixed" selected>mixed</option>' : "") + ["sample", "blank", "off"].map(function (o) { return '<option value="' + o + '"' + (o === one ? " selected" : "") + '>' + (o === "off" ? "left out" : o === "blank" ? "blank (no enzyme)" : o) + '</option>'; }).join("") + '</select>';
-    }
-    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '<th style="text-align:left">Row is</th></tr></thead><tbody>';
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '</tr></thead><tbody>';
     rowsU.forEach(function (R, ri) {
       h += '<tr><th>' + R + '</th>';
-      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text"' + (k === "series" ? "" : ' inputmode="decimal"') + ' data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + esc(cellVal(cfg.wells[w], k)) + '" aria-label="' + what + ' in well ' + w + '"' + (cfg.wells[w].role === "sample" ? "" : ' class="na" title="' + (cfg.wells[w].role === "blank" ? "blank" : "left out") + '"') + '>' : "") + '</td>'; });
-      h += '<td>' + roleSel(R) + '</td></tr>';
+      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text"' + (k === "series" ? "" : ' inputmode="decimal"') + ' data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + esc(cellVal(cfg.wells[w], k)) + '" aria-label="' + what + ' in well ' + w + '"' + (cfg.wells[w].role === "off" ? ' class="na" title="left out"' : "") + '>' : '<span class="nr" title="not read"></span>') + '</td>'; });
+      h += '</tr>';
     });
     h += '</tbody></table>';
     host.innerHTML = h;
@@ -1145,7 +1146,6 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var b = e.target.closest("button[data-w]"); if (!b) return; var w = b.dataset.w, cfg = runs[cur].cfg.wells[w];
     selWell = w;
     if (G.click === "off") cfg.role = cfg.role === "off" ? "sample" : "off";
-    else if (G.click === "blank") cfg.role = cfg.role === "blank" ? "sample" : "blank";
     if (G.click !== "inspect") { cfg.ok = false; buildLayout(); }
     render();
   });
@@ -1200,21 +1200,17 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
   function copyAcross(byRow) {
     if (cur < 0) return; var r = runs[cur], k = G.gk, top = r.rowsUsed[0], left = r.colsUsed[0];
-    r.order.forEach(function (w) { var src = r.cfg.wells[byRow ? top + w.slice(1) : w.charAt(0) + left]; if ((byRow ? w.charAt(0) !== top : +w.slice(1) !== left) && src && r.cfg.wells[w].role === "sample") r.cfg.wells[w][k] = src[k]; });
+    r.order.forEach(function (w) { var src = r.cfg.wells[byRow ? top + w.slice(1) : w.charAt(0) + left]; if ((byRow ? w.charAt(0) !== top : +w.slice(1) !== left) && src && r.cfg.wells[w].role !== "off") r.cfg.wells[w][k] = src[k]; });
     buildLayout(); render();
   }
   $("copyTop").addEventListener("click", function () { copyAcross(true); });
   $("copyLeft").addEventListener("click", function () { copyAcross(false); });
-  $("fillBtn").addEventListener("click", function () { if (cur < 0) return; var r = runs[cur], x = parseKey(G.gk, $("fillAll").value); r.order.forEach(function (w) { if (r.cfg.wells[w].role === "sample") r.cfg.wells[w][G.gk] = x; }); buildLayout(); render(); });
+  $("fillBtn").addEventListener("click", function () { if (cur < 0) return; var r = runs[cur], x = parseKey(G.gk, $("fillAll").value); r.order.forEach(function (w) { if (r.cfg.wells[w].role !== "off") r.cfg.wells[w][G.gk] = x; }); buildLayout(); render(); });
   $("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; G.gk = b.dataset.g; buildLayout(); });
   var lg = $("layoutGrid");
   lg.addEventListener("input", function (e) {
     var el = e.target, cfg = runs[cur].cfg;
     setS(el, el.value); render();
-  });
-  lg.addEventListener("change", function (e) {
-    var el = e.target; if (el.dataset.rrole === undefined || el.value === "mixed") return;
-    var r = runs[cur]; r.order.forEach(function (w) { if (w.charAt(0) === el.dataset.rrole) { r.cfg.wells[w].role = el.value; r.cfg.wells[w].ok = false; } }); buildLayout(); render();
   });
   // paste a row or block from Excel across the [S] boxes
   lg.addEventListener("paste", function (e) {
