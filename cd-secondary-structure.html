@@ -159,7 +159,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     <div id="sampleList"><p class="hint" style="margin:0">No protein spectra loaded yet.</p></div>
     <div class="field" style="margin-top:10px"><label for="pathCm">Path length (cm)</label><input type="number" id="pathCm" value="0.1" step="any" min="0"></div>
     <div class="field"><label for="cUnit">Concentration units</label><select id="cUnit"><option value="mgml">mg/mL</option><option value="uM">µM (subunit)</option></select></div>
-    <p class="hint">For each protein enter its concentration in the cuvette, its number of residues (including the His tag) and its molecular weight (needed for mg/mL). Our WT construct: 272 residues, 28,900 Da. A 1 mm cuvette is 0.1 cm.</p>
+    <p class="hint">For each protein enter its subunit concentration in the cuvette, its number of residues (including the His tag) and its molecular weight (needed for mg/mL). Our WT construct: 272 residues, 28,900 Da. About 4 µM subunit worked well for the TAs. A 1 mm cuvette is 0.1 cm.</p>
   </section>
   <section class="panel">
     <h2><span class="step">3</span> Usable range</h2>
@@ -195,6 +195,13 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     <svg id="plotMRE" viewBox="0 0 640 320" role="img" aria-label="Mean residue ellipticity against wavelength"></svg>
     <div class="legend" id="legMRE"></div>
     <p class="hint">Grey: outside the usable range. An α-helix gives minima near 208 and 222 nm and a maximum near 192 nm; β-sheet gives a single minimum near 215–218 nm; a disordered chain gives a minimum near 198 nm.</p>
+  </section>
+
+  <section class="panel plot" id="diffPanel" hidden>
+    <div class="plothead"><h3>Difference spectrum</h3><div class="toggles"><label for="refSel" style="font-size:12.5px;color:var(--muted)">subtract</label><select id="refSel" style="width:auto"></select></div></div>
+    <svg id="plotDiff" viewBox="0 0 640 240" role="img" aria-label="Difference between mean residue ellipticity spectra"></svg>
+    <div class="legend" id="legDiff"></div>
+    <p class="hint">Each protein minus the one chosen above, over the range usable for both. Judge a difference against the variation between repeat cell fills and against your concentration uncertainty: a 5% concentration error alone gives a difference of 5% of the whole spectrum, with the same shape as the spectrum.</p>
   </section>
 
   <section class="panel" id="ssPanel" hidden>
@@ -329,7 +336,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
   function analyse() {
     var l = +$("pathCm").value, unit = $("cUnit").value, htMax = +$("htMax").value, wlMin = +$("wlMin").value;
     return samples.map(function (s, i) {
-      var sp = s.sp, C = unit === "mgml" ? s.conc / s.mw : s.conc * 1e-6, nb = s.nres - 1;   // C in mol/L of protein chains
+      var sp = s.sp, C = unit === "mgml" ? s.conc / s.mw : s.conc * 1e-6, nb = s.nres;   // C in mol/L of subunits; nb = residues per subunit (as in the E8 protocol)
       var corr = sp.wl.map(function (x, k) { return sp.cd[k] - (buffer ? interp(buffer.wl, buffer.cd, x) : 0); });
       var mre = corr.map(function (v) { return C > 0 && l > 0 && nb > 0 ? v / (10 * l * C * nb) : NaN; });   // deg cm2 dmol-1 per residue
       // usable range: from the long-wavelength end down to the first point where the protein or buffer HT exceeds the limit
@@ -384,7 +391,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
   var lastA = [];
   function render() {
     var has = samples.length > 0;
-    ["rawPanel", "htPanel", "mrePanel", "ssPanel", "resPanel", "eqPanel"].forEach(function (id) { $(id).hidden = !has && !(id === "rawPanel" && buffer); });
+    ["rawPanel", "htPanel", "mrePanel", "diffPanel", "ssPanel", "resPanel", "eqPanel"].forEach(function (id) { $(id).hidden = !has && !(id === "rawPanel" && buffer); });
     $("csvBtn").disabled = $("bestBtn").disabled = $("resBtn").disabled = true;
     var msgs = [];
     if (!has && !buffer) { $("msgs").innerHTML = '<p class="msg">Load the buffer spectrum and at least one protein spectrum in step 1, or try <b>Load example</b>.</p>'; $("cards").innerHTML = ""; return; }
@@ -425,6 +432,24 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
       $("plotMRE").innerHTML = sM; $("legMRE").innerHTML = legM.join("");
     } else { $("plotMRE").innerHTML = ""; $("legMRE").innerHTML = ""; }
 
+    // difference spectra against a chosen reference protein
+    var rs = $("refSel"), opts = ready.map(function (a) { return '<option value="' + a.i + '">' + esc(a.s.label) + '</option>'; }).join("");
+    if (rs.dataset.k !== opts) { var keep = rs.value; rs.innerHTML = opts; rs.dataset.k = opts; if (keep && ready.some(function (a) { return String(a.i) === keep; })) rs.value = keep; }
+    var ref = ready.filter(function (a) { return String(a.i) === rs.value; })[0] || ready[0];
+    $("diffPanel").hidden = ready.length < 2;
+    if (ready.length >= 2 && ref) {
+      var others = ready.filter(function (a) { return a !== ref; }), dv = [], series = [];
+      others.forEach(function (a) {
+        var xs = [], ys = [];
+        a.s.sp.wl.forEach(function (x, k) { if (!a.ok[k] || x < ref.lo - 1e-9) return; var r = interp(ref.s.sp.wl, ref.mre, x); if (!isFinite(r)) return; xs.push(x); ys.push(a.mre[k] - r); });
+        series.push({ a: a, xs: xs, ys: ys }); dv = dv.concat(ys);
+      });
+      var fd = frame(640, 240, xr, range(dv.concat([0]), 0.1), "wavelength (nm)", "Δ[θ] (deg cm² dmol⁻¹)"), sD = fd.svg;
+      series.forEach(function (q) { sD += line(fd, q.xs, q.ys, COLORS[q.a.i % 6], null, 2.2); });
+      $("plotDiff").innerHTML = sD;
+      $("legDiff").innerHTML = series.map(function (q) { return '<span><i class="ln" style="border-color:' + COLORS[q.a.i % 6] + '"></i>' + esc(q.a.s.label) + ' − ' + esc(ref.s.label) + '</span>'; }).join("");
+    }
+
     // results
     var pc = function (f) { return isFinite(f) ? Math.round(100 * f) + "%" : "—"; };
     $("resTbl").innerHTML = '<table class="data"><thead><tr><th>Protein</th><th>usable from (nm)</th><th>[θ]<sub>208</sub></th><th>[θ]<sub>222</sub></th><th>[θ]<sub>222</sub>/[θ]<sub>208</sub></th><th>minimum (nm)</th><th>helix, from 222 (Chen)</th><th>helix, from 208 (Greenfield–Fasman)</th></tr></thead><tbody>' +
@@ -449,7 +474,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     $("msgs").innerHTML = msgs.map(function (m) { return '<p class="msg ' + m[0] + '">' + m[1] + '</p>'; }).join("");
 
     $("eq").textContent = "Corrected CD:   θ(λ) = θprotein(λ) − θbuffer(λ)    (mdeg)\n" +
-      "Mean residue ellipticity:   [θ] = θ / (10 · l · C · (N − 1))    (deg cm² dmol⁻¹)\n" +
+      "Mean residue ellipticity:   [θ] = θ / (10 · l · C · N)    (deg cm² dmol⁻¹)\n" +
       "   l = path length (cm), C = protein concentration (mol/L; mg/mL ÷ MW), N = number of residues\n" +
       "Δε (per residue) = [θ] / 3298    (M⁻¹ cm⁻¹)\n" +
       "Helix (Chen et al. 1974):          fH = ([θ]222 + 2340) / −30300\n" +
@@ -491,7 +516,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     // example proteins: SP175 reference spectra of aldolase (α/β) and concanavalin A (mostly β), as they would read at
     // 0.20 mg/mL in a 0.1 cm cell (272 residues and 28,900 Da are used only to convert to mdeg and back)
     function prot(name, col, conc) {
-      var g = 10 * 0.1 * (conc / 28900) * 271;
+      var g = 10 * 0.1 * (conc / 28900) * 272;
       var cd = wl.map(function (x, k) {
         var de = x <= 240 ? SP175.A[240 - Math.round(x)][col] : SP175.A[0][col] * Math.max(0, (260 - x) / 20);
         return de * 3298 * g + bufCd[k] + 0.12 * gauss(rnd) * (1 + 3 * Math.exp(-(x - 185) / 6));
@@ -518,6 +543,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     samples[i][k] = k === "label" ? el.value : (el.value.trim() === "" ? NaN : Number(el.value)); render();
   });
   $("sampleList").addEventListener("click", function (e) { var b = e.target.closest("button[data-del]"); if (!b) return; samples.splice(+b.dataset.del, 1); buildSamples(); render(); });
+  $("refSel").addEventListener("change", render);
   ["pathCm", "cUnit", "htMax", "wlMin"].forEach(function (id) { $(id).addEventListener("input", render); $(id).addEventListener("change", render); });
   $("exampleBtn").addEventListener("click", example);
   $("clearBtn").addEventListener("click", function () { buffer = null; samples = []; $("bufName").textContent = "Drop or choose the buffer file (same cuvette, same settings)"; status(""); buildSamples(); render(); });
