@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>CD Secondary Structure · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: control column (spectra, samples, usable range, export); right: raw spectra, HT, MRE overlay, helix table. */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --win: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --win: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --win: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 80ch; }
+header a { color: var(--accent); }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 71px 71px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-k], table.data tbody tr[data-d], table.data tbody tr[data-w] { cursor: pointer; }
+table.data tbody tr[data-k]:hover, table.data tbody tr[data-d]:hover, table.data tbody tr[data-w]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+table.data tbody tr.best td:first-child { font-weight: 600; }
+table.data tr.off td { color: var(--muted); text-decoration: line-through; }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+
+.topline{display:flex;justify-content:space-between;align-items:center;gap:16px}.topline select{width:86px}
+textarea{height:210px;tab-size:10}p{margin:8px 0}.primary{background:var(--accent);color:var(--panel);border-color:var(--accent)}
+.equation{font-family:var(--mono);font-size:14px;padding:12px;background:var(--bg);border-radius:6px;margin:10px 0;overflow-x:auto}
+.equations{display:grid;grid-template-columns:1fr 1fr;gap:18px}.equations h3{margin:0 0 8px}.equations p{font-size:13px}
+.empty{padding:60px 20px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:6px}
+.badge{font-size:11px;background:var(--accent-soft);color:var(--accent);padding:3px 7px;border-radius:4px;white-space:nowrap}
+.data input{accent-color:var(--accent)}.data tr.off{opacity:.55}.notes p{font-size:12.5px;color:var(--muted)}
+.legend span{display:inline-flex;align-items:center}.legend i{flex:none}.main>.panel{overflow:hidden}
+svg text{font-size:13px}
+footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
+[hidden]{display:none!important}#status{min-height:20px}.status-error{color:var(--warn)}
+@media(max-width:600px){.equations{grid-template-columns:1fr}.topline{align-items:flex-start}.cards{grid-template-columns:1fr}body{padding-left:12px;padding-right:12px}}
+@media print{body{background:white;padding:0}.controls,.topline select,.btns,.plothead button,footer{display:none}.grid{display:block}.panel{break-inside:avoid;margin-bottom:12px}.cards{margin-bottom:12px}details:not([open]){display:none}}
+</style>
+</head>
+<body><div class="wrap">
+<header>
+  <div class="topline"><h1>CD Secondary Structure</h1><select id="theme" aria-label="Appearance"><option value="auto">System</option><option value="light">Light</option><option value="dark">Dark</option></select></div>
+  <p>Load a buffer spectrum and one or more protein spectra. The buffer is subtracted, the signal is converted to mean residue ellipticity, and the helix content is estimated. A file for the BeStSel server gives the full helix / sheet / turn / other breakdown. <a href="data-fitting-apps.html">All tools</a></p>
+</header>
+<div class="grid">
+<aside class="controls">
+  <section class="panel">
+    <h2><span class="step">1</span> Spectra</h2>
+    <label class="drop" id="dropBuf" for="bufIn">Buffer spectrum<span id="bufName">Drop or choose the buffer file (same cuvette, same settings)</span></label>
+    <input type="file" id="bufIn" accept=".csv,.txt,.tsv,.dat" hidden>
+    <div style="height:8px"></div>
+    <label class="drop" id="dropProt" for="protIn">Protein spectra<span>Drop or choose one file per protein (WT, mutant…)</span></label>
+    <input type="file" id="protIn" accept=".csv,.txt,.tsv,.dat" multiple hidden>
+    <div class="btns"><button class="btn" id="exampleBtn">Load example</button><button class="btn" id="clearBtn">Clear all</button></div>
+    <p class="hint">Text or CSV exports from the CD instrument work as saved: a column of wavelengths (nm), a column of CD (mdeg) and, if the instrument writes it, a column of HT voltage (V). Header lines are skipped.</p>
+    <p class="hint" id="status" role="status" aria-live="polite"></p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">2</span> Samples</h2>
+    <div id="sampleList"><p class="hint" style="margin:0">No protein spectra loaded yet.</p></div>
+    <div class="field" style="margin-top:10px"><label for="pathCm">Path length (cm)</label><input type="number" id="pathCm" value="0.1" step="any" min="0"></div>
+    <div class="field"><label for="cUnit">Concentration units</label><select id="cUnit"><option value="mgml">mg/mL</option><option value="uM">µM (subunit)</option></select></div>
+    <p class="hint">For each protein enter its concentration in the cuvette, its number of residues (including the His tag) and its molecular weight (needed for mg/mL). Our WT construct: 272 residues, 28,900 Da. A 1 mm cuvette is 0.1 cm.</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">3</span> Usable range</h2>
+    <div class="field"><label for="htMax">Highest acceptable HT (V)</label><input type="number" id="htMax" value="600" step="any"></div>
+    <div class="field"><label for="wlMin">Shortest wavelength used (nm)</label><input type="number" id="wlMin" value="190" step="any"></div>
+    <p class="hint">Below some wavelength the buffer and protein absorb so much light that the detector voltage (HT) climbs and the CD signal becomes noise. Points are used only where HT stays below the limit for both the protein and the buffer, and only above the shortest wavelength you set. Check your instrument's HT limit (often 600–700 V).</p>
+  </section>
+  <section class="panel">
+    <h2><span class="step">4</span> Save results</h2>
+    <div class="btns"><button class="btn" id="csvBtn" disabled>Processed spectra (CSV)</button><button class="btn" id="bestBtn" disabled>BeStSel file</button></div>
+    <p class="hint">The BeStSel file has two columns, wavelength (nm) and Δε (M⁻¹ cm⁻¹ per residue), over the usable range up to 250 nm, one file per protein. At bestsel.elte.hu choose “Single spectrum”, paste or upload the file and set the units to Δε. BeStSel needs data down to at least 200 nm; 190 nm or lower gives a more reliable sheet estimate.</p>
+  </section>
+</aside>
+
+<main class="main">
+  <div class="msgs" id="msgs"></div>
+  <div class="cards" id="cards"></div>
+
+  <section class="panel plot" id="rawPanel" hidden>
+    <div class="plothead"><h3>As measured (mdeg)</h3></div>
+    <svg id="plotRaw" viewBox="0 0 640 260" role="img" aria-label="Raw CD spectra of buffer and proteins"></svg>
+    <div class="legend" id="legRaw"></div>
+  </section>
+
+  <section class="panel plot" id="htPanel" hidden>
+    <div class="plothead"><h3>Detector voltage (HT)</h3></div>
+    <svg id="plotHT" viewBox="0 0 640 200" role="img" aria-label="HT voltage against wavelength"></svg>
+    <div class="legend" id="legHT"></div>
+  </section>
+
+  <section class="panel plot" id="mrePanel" hidden>
+    <div class="plothead"><h3>Buffer subtracted, mean residue ellipticity</h3></div>
+    <svg id="plotMRE" viewBox="0 0 640 320" role="img" aria-label="Mean residue ellipticity against wavelength"></svg>
+    <div class="legend" id="legMRE"></div>
+    <p class="hint">Grey: outside the usable range. An α-helix gives minima near 208 and 222 nm and a maximum near 192 nm; β-sheet gives a single minimum near 215–218 nm; a disordered chain gives a minimum near 198 nm.</p>
+  </section>
+
+  <section class="panel" id="resPanel" hidden>
+    <div class="plothead"><h3>Helix content from single wavelengths</h3></div>
+    <div class="tablewrap" id="resTbl"></div>
+    <p class="hint">Two classic estimates of the helix fraction, f<sub>H</sub>, from one wavelength each. Chen et al. (1974): f<sub>H</sub> = ([θ]<sub>222</sub> + 2340) / −30300. Greenfield and Fasman (1969): f<sub>H</sub> = (−[θ]<sub>208</sub> − 4000) / (33000 − 4000). Both use [θ] in deg cm² dmol⁻¹ and assume the rest of the protein contributes little at that wavelength, so they are approximate. Sheet and turn content need the whole spectrum: use the BeStSel file. Both estimates scale directly with the concentration you entered, so a concentration error moves them; the ratio [θ]<sub>222</sub>/[θ]<sub>208</sub> does not depend on concentration.</p>
+  </section>
+
+  <section class="panel" id="eqPanel" hidden>
+    <div class="plothead"><h3>Calculations</h3></div>
+    <pre class="eq" id="eq"></pre>
+  </section>
+</main>
+</div>
+<footer>BBMB 4110 · E8: Secondary structure by circular dichroism · <a href="https://github.com/swnisu1/BBMB_4110">Source on GitHub</a></footer>
+</div>
+<script>
+(function () {
+  "use strict";
+  var $ = function (id) { return document.getElementById(id); };
+  var COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
+  var buffer = null, samples = [];   // spectrum: { name, wl[], cd[], ht[] (or null) }
+  var M = { l: 70, r: 14, t: 12, b: 40 };
+
+  function sig(x, n) { if (!isFinite(x)) return "—"; n = n || 3; var a = Math.abs(x); if (a !== 0 && (a >= 1e5 || a < 1e-3)) return x.toExponential(n - 1); return String(+x.toPrecision(n)); }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function status(t, warn) { $("status").textContent = t; $("status").className = "hint" + (warn ? " status-error" : ""); }
+
+  // ---------- reading instrument exports ----------
+  // Finds the longest run of lines whose first number looks like a wavelength (150–400 nm) and that have at least two numbers.
+  function parseSpectrum(text, name) {
+    var lines = text.replace(/\r/g, "").split("\n"), best = [], run = [];
+    function nums(line) {
+      var parts = line.trim().split(/[\t;,]+|\s+/).filter(function (p) { return p !== ""; });
+      var out = [];
+      for (var i = 0; i < parts.length; i++) { var v = Number(parts[i]); if (!isFinite(v)) return null; out.push(v); }
+      return out;
+    }
+    lines.forEach(function (line) {
+      var v = line.trim() ? nums(line) : null;
+      if (v && v.length >= 2 && v[0] >= 150 && v[0] <= 400) run.push(v);
+      else { if (run.length > best.length) best = run; run = []; }
+    });
+    if (run.length > best.length) best = run;
+    if (best.length < 5) return null;
+    best.sort(function (a, b) { return a[0] - b[0]; });
+    var hasHT = best.every(function (r) { return r.length >= 3; });
+    return { name: name, wl: best.map(function (r) { return r[0]; }), cd: best.map(function (r) { return r[1]; }), ht: hasHT ? best.map(function (r) { return r[2]; }) : null };
+  }
+  function interp(wl, y, x) {
+    if (!y || x < wl[0] - 1e-9 || x > wl[wl.length - 1] + 1e-9) return NaN;
+    for (var i = 0; i < wl.length - 1; i++) if (x <= wl[i + 1] + 1e-9) { var t = (x - wl[i]) / ((wl[i + 1] - wl[i]) || 1); return y[i] + (y[i + 1] - y[i]) * t; }
+    return y[wl.length - 1];
+  }
+  function readFiles(list, isBuffer) {
+    Array.prototype.slice.call(list).forEach(function (f) {
+      var r = new FileReader();
+      r.onload = function () {
+        var sp = parseSpectrum(String(r.result), f.name.replace(/\.[^.]+$/, ""));
+        if (!sp) { status("No spectrum found in " + f.name + ". Expected rows of wavelength and CD values.", true); return; }
+        if (isBuffer) { buffer = sp; $("bufName").textContent = f.name; }
+        else samples.push({ sp: sp, label: sp.name, conc: NaN, nres: 272, mw: 28900 });
+        status("Loaded " + f.name + " (" + sp.wl.length + " points, " + sig(sp.wl[0], 4) + "–" + sig(sp.wl[sp.wl.length - 1], 4) + " nm" + (sp.ht ? ", with HT" : ", no HT column") + ").");
+        buildSamples(); render();
+      };
+      r.readAsText(f);
+    });
+  }
+
+  // ---------- sample list ----------
+  function buildSamples() {
+    var host = $("sampleList");
+    if (!samples.length) { host.innerHTML = '<p class="hint" style="margin:0">No protein spectra loaded yet.</p>'; return; }
+    host.innerHTML = samples.map(function (s, i) {
+      return '<div style="border:1px solid var(--line);border-radius:6px;padding:8px;margin-bottom:8px">' +
+        '<div class="field" style="grid-template-columns:1fr auto"><input type="text" data-k="label" data-i="' + i + '" value="' + esc(s.label) + '" aria-label="Name of sample ' + (i + 1) + '" style="font-family:var(--font)"><button class="btn" data-del="' + i + '" aria-label="Remove ' + esc(s.label) + '" style="padding:4px 9px">✕</button></div>' +
+        '<div class="field"><label>Concentration</label><input type="number" step="any" data-k="conc" data-i="' + i + '" value="' + (isFinite(s.conc) ? s.conc : "") + '" placeholder="required"></div>' +
+        '<div class="field"><label>Residues</label><input type="number" step="1" data-k="nres" data-i="' + i + '" value="' + s.nres + '"></div>' +
+        '<div class="field" style="margin-bottom:0"><label>Molecular weight (Da)</label><input type="number" step="any" data-k="mw" data-i="' + i + '" value="' + s.mw + '"></div></div>';
+    }).join("");
+  }
+
+  // ---------- calculations ----------
+  function analyse() {
+    var l = +$("pathCm").value, unit = $("cUnit").value, htMax = +$("htMax").value, wlMin = +$("wlMin").value;
+    return samples.map(function (s, i) {
+      var sp = s.sp, C = unit === "mgml" ? s.conc / s.mw : s.conc * 1e-6, nb = s.nres - 1;   // C in mol/L of protein chains
+      var corr = sp.wl.map(function (x, k) { return sp.cd[k] - (buffer ? interp(buffer.wl, buffer.cd, x) : 0); });
+      var mre = corr.map(function (v) { return C > 0 && l > 0 && nb > 0 ? v / (10 * l * C * nb) : NaN; });   // deg cm2 dmol-1 per residue
+      // usable range: from the long-wavelength end down to the first point where the protein or buffer HT exceeds the limit
+      var lo = Infinity, htBad = NaN;
+      for (var k = sp.wl.length - 1; k >= 0; k--) {
+        var x = sp.wl[k], h1 = sp.ht ? sp.ht[k] : NaN, h2 = buffer && buffer.ht ? interp(buffer.wl, buffer.ht, x) : NaN;
+        if ((isFinite(h1) && h1 > htMax) || (isFinite(h2) && h2 > htMax)) { htBad = x; break; }
+        if (x < wlMin - 1e-9) break;
+        lo = x;
+      }
+      var ok = sp.wl.map(function (x) { return x >= lo - 1e-9; });
+      var at = function (w) { return ok.some(function (o, k) { return o && Math.abs(sp.wl[k] - w) < 1.01; }) ? interp(sp.wl, mre, w) : NaN; };
+      var m222 = at(222), m208 = at(208);
+      var imin = -1; mre.forEach(function (v, k) { if (ok[k] && sp.wl[k] >= 200 && sp.wl[k] <= 240 && (imin < 0 || v < mre[imin])) imin = k; });
+      return { s: s, i: i, C: C, corr: corr, mre: mre, ok: ok, lo: lo, htBad: htBad, m222: m222, m208: m208,
+        fChen: (m222 + 2340) / -30300, fGF: (-m208 - 4000) / (33000 - 4000), ratio: m222 / m208, wlMin: imin >= 0 ? sp.wl[imin] : NaN };
+    });
+  }
+
+  // ---------- plotting ----------
+  function ticks(a, b, n) { var span = b - a, step = Math.pow(10, Math.floor(Math.log10(span / n))), e = span / n / step; step *= e >= 5 ? 5 : e >= 2 ? 2 : 1; var out = []; for (var v = Math.ceil(a / step) * step; v <= b + 1e-9; v += step) out.push(+v.toPrecision(10)); return out; }
+  function frame(W, H, xr, yr, xl, yl) {
+    var sx = function (x) { return M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); }, sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.t - M.b); };
+    var s = "";
+    ticks(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 4) + '" text-anchor="end">' + sig(t, 4) + '</text>'; });
+    ticks(xr[0], xr[1], 8).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + t + '</text>'; });
+    if (yr[0] < 0 && yr[1] > 0) s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(0) + '" y2="' + sy(0) + '" stroke="var(--ref)"/>';
+    s += '<line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--line)"/><line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + (H - M.b) + '" y2="' + (H - M.b) + '" stroke="var(--line)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 6) + '" text-anchor="middle">' + xl + '</text><text class="ttl" transform="translate(13 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+  function line(f, xs, ys, col, dash, wd, keep) {
+    var d = "", pen = false;
+    xs.forEach(function (x, k) { var y = ys[k]; if (!isFinite(y) || (keep && !keep[k])) { pen = false; return; } d += (pen ? "L" : "M") + f.sx(x).toFixed(1) + " " + f.sy(y).toFixed(1); pen = true; });
+    return d ? '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="' + (wd || 2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : "") + ' stroke-linejoin="round"/>' : "";
+  }
+  function range(vals, pad) { var v = vals.filter(isFinite); if (!v.length) return [-1, 1]; var a = Math.min.apply(null, v), b = Math.max.apply(null, v); if (a === b) { a -= 1; b += 1; } var p = (b - a) * (pad || 0.06); return [a - p, b + p]; }
+
+  // ---------- render ----------
+  var lastA = [];
+  function render() {
+    var has = samples.length > 0;
+    ["rawPanel", "htPanel", "mrePanel", "resPanel", "eqPanel"].forEach(function (id) { $(id).hidden = !has && !(id === "rawPanel" && buffer); });
+    $("csvBtn").disabled = $("bestBtn").disabled = true;
+    var msgs = [];
+    if (!has && !buffer) { $("msgs").innerHTML = '<p class="msg">Load the buffer spectrum and at least one protein spectrum in step 1, or try <b>Load example</b>.</p>'; $("cards").innerHTML = ""; return; }
+    var all = (buffer ? [buffer] : []).concat(samples.map(function (s) { return s.sp; }));
+    var xr = [Math.min.apply(null, all.map(function (s) { return s.wl[0]; })), Math.max.apply(null, all.map(function (s) { return s.wl[s.wl.length - 1]; }))];
+
+    // raw
+    var fr = frame(640, 260, xr, range([].concat.apply([], all.map(function (s) { return s.cd; }))), "wavelength (nm)", "CD (mdeg)"), sR = fr.svg, legR = [];
+    if (buffer) { sR += line(fr, buffer.wl, buffer.cd, "var(--ref)", "5 4", 1.6); legR.push('<span><i class="ln" style="border-color:var(--ref);border-top-style:dashed"></i>buffer</span>'); }
+    samples.forEach(function (s, i) { sR += line(fr, s.sp.wl, s.sp.cd, COLORS[i % 6], null, 1.8); legR.push('<span><i class="ln" style="border-color:' + COLORS[i % 6] + '"></i>' + esc(s.label) + '</span>'); });
+    $("plotRaw").innerHTML = sR; $("legRaw").innerHTML = legR.join("");
+    if (!has) { $("msgs").innerHTML = '<p class="msg">Buffer loaded. Now load the protein spectra.</p>'; $("cards").innerHTML = ""; return; }
+    if (!buffer) msgs.push(["warn", "No buffer spectrum loaded, so nothing is subtracted. Measure the buffer in the same cuvette with the same settings."]);
+
+    var A = analyse(); lastA = A;
+    var htMax = +$("htMax").value;
+
+    // HT
+    var hts = all.filter(function (s) { return s.ht; });
+    $("htPanel").hidden = !hts.length;
+    if (hts.length) {
+      var fh = frame(640, 200, xr, range([].concat.apply([htMax], hts.map(function (s) { return s.ht; }))), "wavelength (nm)", "HT (V)"), sH = fh.svg, legH = [];
+      sH += '<line x1="' + M.l + '" x2="' + (640 - M.r) + '" y1="' + fh.sy(htMax) + '" y2="' + fh.sy(htMax) + '" stroke="var(--warn)" stroke-dasharray="4 3"/><text x="' + (640 - M.r - 4) + '" y="' + (fh.sy(htMax) - 4) + '" text-anchor="end" style="fill:var(--warn)">limit ' + sig(htMax, 4) + ' V</text>';
+      if (buffer && buffer.ht) { sH += line(fh, buffer.wl, buffer.ht, "var(--ref)", "5 4", 1.6); legH.push('<span><i class="ln" style="border-color:var(--ref);border-top-style:dashed"></i>buffer</span>'); }
+      samples.forEach(function (s, i) { if (s.sp.ht) { sH += line(fh, s.sp.wl, s.sp.ht, COLORS[i % 6], null, 1.6); legH.push('<span><i class="ln" style="border-color:' + COLORS[i % 6] + '"></i>' + esc(s.label) + '</span>'); } });
+      $("plotHT").innerHTML = sH; $("legHT").innerHTML = legH.join("");
+    }
+
+    // MRE
+    var ready = A.filter(function (a) { return a.C > 0; });
+    A.forEach(function (a) { if (!(a.C > 0)) msgs.push(["warn", "Enter the concentration of <b>" + esc(a.s.label) + "</b> in step 2 to convert it to mean residue ellipticity."]); });
+    if (ready.length) {
+      var lo = Math.min.apply(null, ready.map(function (a) { return a.lo; }));
+      var fm = frame(640, 320, xr, range([].concat.apply([], ready.map(function (a) { return a.mre.filter(function (v, k) { return a.ok[k]; }); }))), "wavelength (nm)", "[θ] (deg cm² dmol⁻¹)"), sM = fm.svg, legM = [];
+      if (isFinite(lo) && lo > xr[0]) sM += '<rect x="' + M.l + '" y="' + M.t + '" width="' + (fm.sx(lo) - M.l) + '" height="' + (320 - M.t - M.b) + '" fill="var(--grid)" opacity="0.7"/>';
+      [208, 222].forEach(function (w) { if (w > xr[0] && w < xr[1]) sM += '<line x1="' + fm.sx(w) + '" x2="' + fm.sx(w) + '" y1="' + M.t + '" y2="' + (320 - M.b) + '" stroke="var(--ref)" stroke-dasharray="2 3"/><text x="' + (fm.sx(w) + 3) + '" y="' + (M.t + 11) + '">' + w + '</text>'; });
+      ready.forEach(function (a) { var col = COLORS[a.i % 6]; sM += line(fm, a.s.sp.wl, a.mre, col, "3 3", 1, null) + line(fm, a.s.sp.wl, a.mre, col, null, 2.4, a.ok); legM.push('<span><i class="ln" style="border-color:' + col + '"></i>' + esc(a.s.label) + '</span>'); });
+      $("plotMRE").innerHTML = sM; $("legMRE").innerHTML = legM.join("");
+    } else { $("plotMRE").innerHTML = ""; $("legMRE").innerHTML = ""; }
+
+    // results
+    var pc = function (f) { return isFinite(f) ? Math.round(100 * f) + "%" : "—"; };
+    $("resTbl").innerHTML = '<table class="data"><thead><tr><th>Protein</th><th>usable from (nm)</th><th>[θ]<sub>208</sub></th><th>[θ]<sub>222</sub></th><th>[θ]<sub>222</sub>/[θ]<sub>208</sub></th><th>minimum (nm)</th><th>helix, from 222 (Chen)</th><th>helix, from 208 (Greenfield–Fasman)</th></tr></thead><tbody>' +
+      A.map(function (a) { return '<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:6px;background:' + COLORS[a.i % 6] + '"></i>' + esc(a.s.label) + '</td><td>' + sig(a.lo, 4) + '</td><td>' + (a.C > 0 ? sig(a.m208, 3) : "—") + '</td><td>' + (a.C > 0 ? sig(a.m222, 3) : "—") + '</td><td>' + sig(a.ratio, 3) + '</td><td>' + sig(a.wlMin, 4) + '</td><td>' + (a.C > 0 ? pc(a.fChen) : "—") + '</td><td>' + (a.C > 0 ? pc(a.fGF) : "—") + '</td></tr>'; }).join("") + '</tbody></table>';
+    $("cards").innerHTML = ready.map(function (a) {
+      return '<div class="card"><div class="k">' + esc(a.s.label) + ' · helix</div><div class="v">' + pc(a.fChen) + ' / ' + pc(a.fGF) + '</div><div class="s">from 222 / from 208 nm</div></div>';
+    }).join("");
+
+    // messages
+    A.forEach(function (a) {
+      if (isFinite(a.htBad)) msgs.push(["", "<b>" + esc(a.s.label) + ":</b> HT goes above " + sig(htMax, 4) + " V at " + sig(a.htBad, 4) + " nm, so only " + sig(a.lo, 4) + " nm and up is used." + (a.lo > 200 ? " BeStSel needs data to at least 200 nm: use a shorter path, less protein, or a buffer that absorbs less (avoid chloride and imidazole; phosphate or borate are better)." : "")]);
+      if (a.C > 0 && [a.fChen, a.fGF].some(function (f) { return isFinite(f) && (f < -0.05 || f > 1.05); })) msgs.push(["warn", "<b>" + esc(a.s.label) + ":</b> a helix estimate is outside 0–100%. Check the concentration, path length and residue number."]);
+      if (a.C > 0 && isFinite(a.fChen) && isFinite(a.fGF) && Math.abs(a.fChen - a.fGF) > 0.15) msgs.push(["", "<b>" + esc(a.s.label) + ":</b> the 222 nm and 208 nm estimates differ by " + Math.round(100 * Math.abs(a.fChen - a.fGF)) + " points. β-sheet and disordered regions also contribute at these wavelengths, so single-wavelength estimates disagree for proteins that are not mostly helix."]);
+      if (!isFinite(a.m208) && a.C > 0) msgs.push(["warn", "<b>" + esc(a.s.label) + ":</b> 208 nm is outside the usable range."]);
+    });
+    if (buffer && samples.some(function (s) { return s.sp.wl[0] < buffer.wl[0] - 0.5 || s.sp.wl[s.sp.wl.length - 1] > buffer.wl[buffer.wl.length - 1] + 0.5; })) msgs.push(["warn", "The buffer spectrum does not cover the whole wavelength range of every protein spectrum; outside its range nothing can be subtracted."]);
+    $("msgs").innerHTML = msgs.map(function (m) { return '<p class="msg ' + m[0] + '">' + m[1] + '</p>'; }).join("");
+
+    $("eq").textContent = "Corrected CD:   θ(λ) = θprotein(λ) − θbuffer(λ)    (mdeg)\n" +
+      "Mean residue ellipticity:   [θ] = θ / (10 · l · C · (N − 1))    (deg cm² dmol⁻¹)\n" +
+      "   l = path length (cm), C = protein concentration (mol/L; mg/mL ÷ MW), N = number of residues\n" +
+      "Δε (per residue) = [θ] / 3298    (M⁻¹ cm⁻¹)\n" +
+      "Helix (Chen et al. 1974):          fH = ([θ]222 + 2340) / −30300\n" +
+      "Helix (Greenfield & Fasman 1969):  fH = (−[θ]208 − 4000) / (33000 − 4000)";
+    $("csvBtn").disabled = !ready.length; $("bestBtn").disabled = !ready.length;
+  }
+
+  // ---------- export ----------
+  function download(name, text) { var url = URL.createObjectURL(new Blob([text], { type: "text/plain" })); var a = document.createElement("a"); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(url); }, 2000); }
+  function safe(s) { return String(s).replace(/[^A-Za-z0-9_.-]+/g, "_"); }
+  $("csvBtn").addEventListener("click", function () {
+    var rows = [["protein", "wavelength_nm", "CD_protein_mdeg", "CD_buffer_mdeg", "CD_corrected_mdeg", "MRE_deg_cm2_dmol", "delta_epsilon", "HT_V", "usable"]];
+    lastA.forEach(function (a) { if (!(a.C > 0)) return; var sp = a.s.sp; sp.wl.forEach(function (x, k) { rows.push([a.s.label, x, sp.cd[k], buffer ? interp(buffer.wl, buffer.cd, x) : "", a.corr[k], a.mre[k], a.mre[k] / 3298, sp.ht ? sp.ht[k] : "", a.ok[k] ? "yes" : "no"]); }); });
+    download("cd_processed_spectra.csv", rows.map(function (r) { return r.map(function (v) { return /[",\n]/.test(String(v)) ? '"' + String(v).replace(/"/g, '""') + '"' : v; }).join(","); }).join("\n"));
+  });
+  $("bestBtn").addEventListener("click", function () {
+    lastA.forEach(function (a, n) {
+      if (!(a.C > 0)) return; var sp = a.s.sp, out = [];
+      sp.wl.forEach(function (x, k) { if (a.ok[k] && x <= 250 + 1e-9) out.push(x + "\t" + (a.mre[k] / 3298).toFixed(4)); });
+      setTimeout(function () { download("BeStSel_" + safe(a.s.label) + "_delta_epsilon.txt", out.join("\n") + "\n"); }, n * 400);
+    });
+  });
+
+  // ---------- example (simulated) ----------
+  function mulberry(a) { return function () { a |= 0; a = a + 0x6D2B79F5 | 0; var t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+  function gauss(r) { var u = 0; while (u === 0) u = r(); return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * r()); }
+  function bands(x, list) { return list.reduce(function (s, b) { return s + b[0] * Math.exp(-Math.pow((x - b[1]) / b[2], 2)); }, 0); }
+  function example() {
+    var rnd = mulberry(7), wl = []; for (var x = 260; x >= 185; x -= 1) wl.push(x); wl.reverse();
+    var htOf = function (x, extra) { return 230 + extra + 520 * Math.exp(-(x - 185) / 6.5); };
+    var bufCd = wl.map(function (x) { return 0.4 + 0.02 * (260 - x) / 75 + 0.15 * gauss(rnd) * (1 + 3 * Math.exp(-(x - 185) / 6)); });
+    buffer = { name: "buffer (simulated)", wl: wl.slice(), cd: bufCd, ht: wl.map(function (x) { return htOf(x, 0); }) };
+    // simulated α/β protein spectra (MRE), converted to mdeg for 0.20 mg/mL, 0.1 cm, 272 residues, 28,900 Da
+    function prot(name, hel, conc) {
+      var g = 10 * 0.1 * (conc / 28900) * 271;
+      var cd = wl.map(function (x, k) {
+        var mre = hel * bands(x, [[-1, 222, 8], [-1.0, 208, 5.5], [2.2, 192, 7]]) * 33000 + (1 - hel) * bands(x, [[-0.35, 217, 9], [0.5, 197, 6]]) * 18000;
+        return mre * g + bufCd[k] + 0.12 * gauss(rnd) * (1 + 3 * Math.exp(-(x - 185) / 6));
+      });
+      return { sp: { name: name, wl: wl.slice(), cd: cd, ht: wl.map(function (x) { return htOf(x, 25); }) }, label: name, conc: conc, nres: 272, mw: 28900 };
+    }
+    samples = [prot("WT (simulated)", 0.38, 0.20), prot("mutant (simulated)", 0.28, 0.20)];
+    $("bufName").textContent = "buffer (simulated)"; $("cUnit").value = "mgml"; $("pathCm").value = 0.1;
+    status("Simulated example: an α/β protein (WT) and a mutant with less helix, 0.20 mg/mL in a 0.1 cm cell.");
+    buildSamples(); render();
+  }
+
+  // ---------- events ----------
+  $("bufIn").addEventListener("change", function (e) { readFiles(e.target.files, true); e.target.value = ""; });
+  $("protIn").addEventListener("change", function (e) { readFiles(e.target.files, false); e.target.value = ""; });
+  [["dropBuf", true], ["dropProt", false]].forEach(function (p) {
+    var el = $(p[0]);
+    ["dragenter", "dragover"].forEach(function (ev) { el.addEventListener(ev, function (e) { e.preventDefault(); el.classList.add("over"); }); });
+    ["dragleave", "drop"].forEach(function (ev) { el.addEventListener(ev, function (e) { e.preventDefault(); el.classList.remove("over"); }); });
+    el.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files, p[1]); });
+  });
+  $("sampleList").addEventListener("input", function (e) {
+    var el = e.target, i = +el.dataset.i, k = el.dataset.k; if (!k || !samples[i]) return;
+    samples[i][k] = k === "label" ? el.value : (el.value.trim() === "" ? NaN : Number(el.value)); render();
+  });
+  $("sampleList").addEventListener("click", function (e) { var b = e.target.closest("button[data-del]"); if (!b) return; samples.splice(+b.dataset.del, 1); buildSamples(); render(); });
+  ["pathCm", "cUnit", "htMax", "wlMin"].forEach(function (id) { $(id).addEventListener("input", render); $(id).addEventListener("change", render); });
+  $("exampleBtn").addEventListener("click", example);
+  $("clearBtn").addEventListener("click", function () { buffer = null; samples = []; $("bufName").textContent = "Drop or choose the buffer file (same cuvette, same settings)"; status(""); buildSamples(); render(); });
+  $("theme").addEventListener("change", function () { if ($("theme").value === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = $("theme").value; });
+  render();
+})();
+</script>
+</body>
+</html>
