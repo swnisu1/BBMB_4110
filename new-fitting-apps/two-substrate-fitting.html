@@ -150,7 +150,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     <div class="field" id="enzRow" hidden style="margin-top:10px"><label for="enzSel">Enzyme to fit</label><select id="enzSel"></select></div>
     <div class="btns"><button class="btn" id="exampleBtn">Load example</button><button class="btn" id="swapBtn">Swap [S] and [S₂]</button><button class="btn" id="clearBtn">Clear</button></div>
     <p class="hint" id="status" role="status" aria-live="polite"></p>
-    <p class="hint">Practice: <a href="../examples/practice_two_substrate_rates.csv" download>a simulated rates file</a> (2-propanol and NADP⁺).</p>
+    <p class="hint">Practice: the plate <a href="../examples/practice_two_substrate_infinite.xlsx" download>practice_two_substrate_infinite.xlsx</a> (find its slopes in <a href="plate-reader-slopes.html">Plate Reader Slopes</a> using the <a href="../examples/plate_map_two_substrate_practice.png" target="_blank">plate map</a>), or <a href="../examples/practice_two_substrate_rates.csv" download>a ready-made rates file</a>.</p>
   </section>
   <section class="panel">
     <h2><span class="step">2</span> Fit</h2>
@@ -273,7 +273,8 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     ks.forEach(function (_, j) { var t2 = best.th.slice(); t2[j] += 1e-6; var r2 = res(t2); r2.forEach(function (x, i) { J[i][j] = (x - r[i]) / 1e-6; }); });
     var JtJ = ks.map(function (_, a) { return ks.map(function (__, b) { var t = 0; for (var i = 0; i < n; i++) t += J[i][a] * J[i][b]; return t; }); }), C = inv(JtJ);
     var se = {}; ks.forEach(function (kk, i) { se[kk] = C && C[i][i] > 0 ? p[kk] * Math.sqrt(s2 * C[i][i]) : NaN; });
-    var bound = ks.filter(function (kk, i) { return Math.abs(best.th[i]) > 25; });
+    // a constant that ran 10^5-fold away from the data's scale is not determined by the data
+    var bound = ks.filter(function (kk, i) { return Math.abs(best.th[i] - Math.log(base[kk])) > 11.5; });
     return { key: key, p: p, se: se, sse: best.s, rmse: Math.sqrt(best.s / n), bic: n * Math.log(best.s / n) + (k + 1) * Math.log(n), n: n, bound: bound };
   }
   function median(a) { if (!a.length) return 1; var s = a.slice().sort(function (x, y) { return x - y; }), m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
