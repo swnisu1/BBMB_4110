@@ -543,6 +543,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var vu0 = ix.v >= 0 ? head[ix.v].replace(/^rate_/, "") : "";
     return { wells: out, skipped: skipped, units: { S: un(ix.S), S2: un(ix.S2), I: un(ix.I), v: vu0 === "uM_per_min" ? "µM/min" : vu0 === "A340_per_min" ? "ΔA340/min" : vu0 } };
   }
+  function isPlateExport(text) { var h = text.slice(0, 20000); return /(Cycle Nr\.|Time \[s\]|Kinetic)/i.test(h) && /(^|[,;\t])\s*A1\s*([,;\t]|$)/m.test(h); }
   var rateFiles = [];   // rates files loaded (pooled as replicate plates)
   function ratesSeries() {
     var all = [], units = null, skipped = 0;
@@ -573,6 +574,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var r = new FileReader();
       r.onload = function () {
         var t = String(r.result);
+        if (isPlateExport(t)) { document.getElementById("msgs").innerHTML = '<p class="msg warn">That is a plate reader file (absorbance time courses), not a rates file. Find the slopes in <a href="plate-reader-slopes.html">Plate Reader Slopes</a>, save the rates file, and load that here.</p>'; done(); return; }
         if (isRatesFile(t)) { rateFiles.push(readRates(t)); setSeries(ratesSeries(), true); }
         else { var got = parseTable(t, f.name.replace(/\.[^.]+$/, "")); if (got.length) { rateFiles = []; setSeries(got); } }
         done();

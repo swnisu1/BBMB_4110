@@ -207,7 +207,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <h2>Your data</h2>
         <label class="drop" id="drop" for="fileIn">
           <b>Drop a file here</b> or click to choose
-          <span><b>Plate reader .xlsx:</b> the A<sub>340</sub> time courses as exported by the infinite 200Pro (i-control) or the Spark (SparkControl); the format is detected automatically. A slope is taken from each well, and [S] and [I] come from the plate layout. <b>Replicate plates:</b> add each plate's file (several at once, or one after another); every well from every plate goes into one fit. <b>Or a table:</b> first column [S], one column of velocities per inhibitor concentration, [I] values in the header row (CSV, TSV or text).</span>
+          <span><b>Plate reader file</b> (.xlsx, or the reader's CSV export): the A<sub>340</sub> time courses as exported by the infinite 200Pro (i-control) or the Spark (SparkControl); the format is detected automatically. A slope is taken from each well, and [S] and [I] come from the plate layout. <b>Replicate plates:</b> add each plate's file (several at once, or one after another); every well from every plate goes into one fit. <b>Or a table:</b> first column [S], one column of velocities per inhibitor concentration, [I] values in the header row (CSV, TSV or text).</span>
           <input type="file" id="fileIn" accept=".xlsx,.xlsm,.csv,.tsv,.txt,.dat,text/*" multiple hidden>
         </label>
         <details id="pasteBox">
@@ -734,7 +734,12 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var w = a.order[0]; for (q = 0; q < a.t.length; q++) if (!(Math.abs(a.wells[w][q] - b.wells[w][q]) < 1e-9) && !(isNaN(a.wells[w][q]) && isNaN(b.wells[w][q]))) return false;
       return true;
     }
-    return { readXlsx: readXlsx, findRuns: findRuns };
+    // plate reader export saved as CSV or text (Spark "Save as CSV", or copied cells): same rows as the .xlsx
+    function readText(text) {
+      var delim = text.indexOf("\t") >= 0 ? "\t" : (text.indexOf(";") >= 0 && text.indexOf(",") < 0 ? ";" : ",");
+      return text.replace(/^\uFEFF/, "").split(/\r?\n/).map(function (ln) { return ln.split(delim).map(function (c) { c = c.trim().replace(/^"|"$/g, ""); var x = num(c); return c === "" ? null : isFinite(x) ? x : c; }); });
+    }
+    return { readXlsx: readXlsx, findRuns: findRuns, readText: readText };
   })();
   var CV = { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm", eUnit: "nM", sUnit: "mM" }, CVKEY = "bbmb_inhib_plate_conv_v1";
   try { var cvs = JSON.parse(localStorage.getItem(CVKEY) || "null"); if (cvs) Object.keys(CV).forEach(function (k) { if (cvs[k] !== undefined) CV[k] = cvs[k]; }); } catch (e) {}
@@ -1157,7 +1162,11 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (/\.xls$/i.test(f.name)) { plateMsg("Old .xls files cannot be read here. Save as .xlsx in Excel."); return Promise.resolve(); }
     return new Promise(function (done) {
       var r = new FileReader();
-      r.onload = function () { var got = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); done(); };
+      r.onload = function () {
+        var text = String(r.result), runs = PR.findRuns(PR.readText(text), f.name);
+        if (runs.length) { loadPlate(runs, f.name.replace(/\.[^.]+$/, "")); done(); return; }   // a plate reader export saved as CSV
+        var got = parseTable(text, f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); done();
+      };
       r.onerror = function () { done(); };
       r.readAsText(f);
     });

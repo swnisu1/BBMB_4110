@@ -292,6 +292,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     if (f !== "" || row.length) { row.push(f); rows.push(row); }
     return rows.filter(function (r) { return r.some(function (x) { return x.trim() !== ""; }); });
   }
+  function isPlateExport(text) { var h = text.slice(0, 20000); return /(Cycle Nr\.|Time \[s\]|Kinetic)/i.test(h) && /(^|[,;\t])\s*A1\s*([,;\t]|$)/m.test(h); }
   function isRatesFile(text) { var h = text.replace(/^﻿/, "").split(/\r?\n/)[0].toLowerCase(); return h.indexOf("well") >= 0 && h.indexOf("window_start_min") >= 0 && /(^|,)rate_/.test(h); }
   function readRates(text) {
     var R = parseCSV(text), head = R[0].map(function (h) { return h.trim(); });
@@ -460,7 +461,9 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     Array.prototype.slice.call(list).forEach(function (f) {
       var r = new FileReader();
       r.onload = function () {
-        var t = String(r.result), R = isRatesFile(t) ? readRates(t) : readTable(t);
+        var t = String(r.result);
+        if (isPlateExport(t)) { $("status").textContent = "That is a plate reader file (absorbance time courses). Find the slopes in Plate Reader Slopes, save the rates file, and load that here."; return; }
+        var R = isRatesFile(t) ? readRates(t) : readTable(t);
         if (!R) { $("status").textContent = "Could not read " + f.name + ": expected a rates file from Plate Reader Slopes or three columns [S], [S₂], rate."; return; }
         if (rateFiles.length && rateFiles[0].example) rateFiles = [];
         rateFiles.push(R); state.sel = null;

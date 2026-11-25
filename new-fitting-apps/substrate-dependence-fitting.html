@@ -316,7 +316,9 @@ ul.try li { margin-bottom: 4px; }
     out.units = RF.units; out.skipped = RF.skipped;
     return out;
   }
+  function isPlateExport(text) { var h = text.slice(0, 20000); return /(Cycle Nr\.|Time \[s\]|Kinetic)/i.test(h) && /(^|[,;\t])\s*A1\s*([,;\t]|$)/m.test(h); }
   function parseTable(text, fname) {
+    if (isPlateExport(text)) { var mm = document.getElementById("msgs"); if (mm) mm.innerHTML = '<p class="msg warn">That is a plate reader file (absorbance time courses), not a rates file. Find the slopes in <a href="plate-reader-slopes.html">Plate Reader Slopes</a>, save the rates file, and load that here.</p>'; return []; }
     if (isRatesFile(text)) return ratesToSets(text);
     var delim = null, header = null, rows = [];
     text.split(/\r?\n/).forEach(function (ln) {
