@@ -1,0 +1,1043 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Plate Reader Slopes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: sticky control column left (data, slope window, conversion, enzyme, fit options);
+   right: plate overview, one-well detail, plate layout, rates table, then the MM / Hill / SI fit.
+   Each series (WT, mutant...) gets its own colour (c1..c6). */
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb; --pin: #c8640a; --ref: #8693a5; --grid: #e6eaf0; --warn: #a14a00; --warn-bg: #fdf0e3;
+  --q1: rgba(27, 138, 90, 0.13); --q2: rgba(214, 160, 0, 0.22); --q3: rgba(200, 40, 40, 0.16);
+  --win: rgba(51, 71, 201, 0.08);
+  --c1: #3347c9; --c2: #c8640a; --c3: #1b8a5a; --c4: #b23a8a; --c5: #0a8fa6; --c6: #7a6a1a;
+  --m1: #1b2330; --m2: #3347c9; --m3: #c8640a;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+    --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+    --win: rgba(141, 155, 255, 0.10);
+    --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+    --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52; --pin: #f0a04b; --ref: #7b889b; --grid: #262f3d; --warn: #f0b070; --warn-bg: #3a2a18;
+  --q1: rgba(79, 197, 143, 0.16); --q2: rgba(230, 190, 60, 0.22); --q3: rgba(240, 90, 90, 0.24);
+  --win: rgba(141, 155, 255, 0.10);
+  --c1: #8d9bff; --c2: #f0a04b; --c3: #4fc58f; --c4: #e07fc0; --c5: #4cc3d9; --c6: #d6c35a;
+  --m1: #e4e9f1; --m2: #8d9bff; --m3: #f0a04b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 32px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1240px; margin: 0 auto; }
+header { margin-bottom: 16px; }
+h1 { font-size: 22px; font-weight: 600; margin: 0 0 2px; letter-spacing: -0.01em; text-wrap: balance; }
+header p { margin: 0; color: var(--muted); max-width: 80ch; }
+header a { color: var(--accent); }
+.grid { display: grid; grid-template-columns: 330px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: minmax(0, 1fr); } }
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; min-width: 0; }
+.controls { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+h2 { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 10px; }
+h2 .step { color: var(--accent); margin-right: 4px; }
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 6px; background: transparent; color: var(--fg); border: 0; border-right: 1px solid var(--line); cursor: pointer; min-width: 0; }
+.seg button:last-child { border-right: 0; }
+.gridshow { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; font-size: 12.5px; color: var(--muted); }
+.gridshow .seg { width: 380px; }
+.gridshow input { padding: 4px 6px; }
+.gridshow .btn { padding: 4px 10px; }
+.sgrid .nr { display: block; min-width: 44px; height: 26px; box-sizing: border-box; border: 1px dashed var(--line); border-radius: 5px; background: repeating-linear-gradient(135deg, transparent 0 4px, var(--line) 4px 5px); opacity: 0.6; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .seg button[aria-pressed="true"] { color: #0e1320; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button[aria-pressed="true"] { color: #0e1320; } }
+.seg.small button { padding: 4px 10px; font-size: 12.5px; }
+.seg.small { display: inline-grid; grid-auto-columns: auto; }
+button:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.field { display: grid; grid-template-columns: 1fr 150px; gap: 8px; align-items: center; margin-bottom: 8px; }
+.field label { font-size: 13px; }
+.field.two { grid-template-columns: 1fr 71px 71px; }
+input[type=number], input[type=text], select, textarea {
+  font: inherit; font-family: var(--mono); font-size: 12.5px; padding: 5px 7px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); min-width: 0; width: 100%;
+}
+select { font-family: var(--font); }
+textarea { height: 90px; resize: vertical; white-space: pre; }
+.check { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; margin: 6px 0; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.btn { font: inherit; font-weight: 500; font-size: 13px; padding: 6px 12px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.drop { display: block; border: 1.5px dashed var(--line); border-radius: 8px; padding: 14px; text-align: center; cursor: pointer; color: var(--fg); }
+.drop span { display: block; margin-top: 4px; font-size: 12px; color: var(--muted); }
+.drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+details { margin-top: 10px; }
+summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+details textarea { margin-top: 8px; }
+.out { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.main { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.card.hot { border-color: var(--accent); background: var(--accent-soft); }
+.card .k { font-size: 11.5px; color: var(--muted); }
+.card .v { font-family: var(--mono); font-size: 18px; font-weight: 500; margin-top: 2px; overflow-wrap: anywhere; }
+.card .s { font-size: 11.5px; color: var(--muted); font-family: var(--mono); overflow-wrap: anywhere; }
+.msgs { display: flex; flex-direction: column; gap: 8px; }
+.msg { margin: 0; padding: 9px 12px; border-radius: 6px; background: var(--accent-soft); font-size: 13.5px; }
+.msg.warn { background: var(--warn-bg); color: var(--warn); }
+svg { display: block; width: 100%; height: auto; }
+svg text { font-family: var(--font); font-size: 11px; fill: var(--muted); }
+svg .ttl { font-size: 11.5px; fill: var(--fg); }
+.plot h3, .panel h3 { margin: 0; font-size: 13px; font-weight: 600; }
+.plothead { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 6px; font-size: 12px; color: var(--muted); }
+.legend i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; }
+.legend i.ln { width: 16px; height: 0; border-radius: 0; border-top: 2.5px solid; vertical-align: middle; }
+.tablewrap { overflow-x: auto; }
+table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+table.data th, table.data td { text-align: right; padding: 5px 9px; border-bottom: 1px solid var(--line); white-space: nowrap; font-family: var(--mono); }
+table.data th { font-family: var(--font); font-weight: 600; color: var(--muted); font-size: 11.5px; }
+table.data th:first-child, table.data td:first-child { text-align: left; font-family: var(--font); }
+table.data td.l { text-align: left; font-family: var(--font); }
+table.data tbody tr[data-k], table.data tbody tr[data-d], table.data tbody tr[data-w] { cursor: pointer; }
+table.data tbody tr[data-k]:hover, table.data tbody tr[data-d]:hover, table.data tbody tr[data-w]:hover, table.data tbody tr.sel { background: var(--accent-soft); }
+table.data tbody tr.best td:first-child { font-weight: 600; }
+table.data tr.off td { color: var(--muted); text-decoration: line-through; }
+td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
+.eq { font-family: var(--mono); font-size: 12.5px; overflow-x: auto; white-space: pre; margin: 0; }
+
+/* plate overview */
+.plate { border-collapse: separate; border-spacing: 3px; margin: 0 auto; }
+.plate th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
+.plate td { padding: 0; }
+.wl { display: block; width: 66px; padding: 2px 3px 1px; border: 1px solid var(--line); border-radius: 5px; background: var(--bg); color: var(--fg); cursor: pointer; font: inherit; position: relative; }
+.wl:hover { border-color: var(--accent); }
+.wl svg { height: 30px; }
+.wl .num { display: block; font-family: var(--mono); font-size: 10.5px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; }
+.wl .sx { display: block; font-size: 9.5px; line-height: 1.2; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.wl.sel { border: 2px solid var(--accent); padding: 1px 2px 0; }
+.wl.off { opacity: 0.35; }
+.wl.unchk { border-style: dashed; }
+.wl.unchk .num { color: var(--muted); }
+.wl.off .num { text-decoration: line-through; }
+.wl.blank { border-style: dashed; border-color: var(--muted); }
+.qkey { display: inline-block; width: 11px; height: 11px; border-radius: 3px; vertical-align: -1px; margin: 0 3px 0 6px; border: 1px solid var(--line); }
+.wl.empty { cursor: default; opacity: 0.25; height: 52px; }
+.dctl { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; margin-top: 8px; font-size: 13px; }
+.dctl label { display: inline-flex; gap: 6px; align-items: center; }
+.dctl input[type=number] { width: 76px; }
+.dctl select { width: auto; }
+#plotW { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+.offnote { border: 1.5px dashed var(--line); border-radius: 8px; padding: 28px 16px; text-align: center; color: var(--muted); }
+.offnote p { margin: 0 0 10px; }
+.stats { font-family: var(--mono); font-size: 12.5px; margin-top: 6px; overflow-wrap: anywhere; }
+.stats b { font-weight: 500; color: var(--fg); }
+
+/* layout editor */
+.sgrid { border-collapse: separate; border-spacing: 3px; }
+.sgrid th { font-size: 11px; color: var(--muted); font-weight: 600; text-align: center; padding: 0 2px; }
+.sgrid td { padding: 0; }
+.sgrid input.na { opacity: 0.4; }
+.sgrid input { width: 44px; padding: 4px 5px; text-align: right; }
+.sgrid input.econc { width: 54px; }
+.sgrid input.ser { width: 76px; text-align: left; font-family: var(--font); }
+.sgrid input[data-txt] { width: 60px; text-align: left; font-family: var(--font); }
+.sgrid select { width: 126px; padding: 4px 4px; font-size: 12px; }
+.serlist .srow { display: grid; grid-template-columns: 12px 1fr 92px; gap: 8px; align-items: center; margin-bottom: 6px; font-size: 13px; }
+.serlist .srow span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.serlist i { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.runrow { display: flex; gap: 6px; align-items: center; margin-top: 10px; }
+.runrow select { flex: 1; }
+[hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Plate Reader Slopes</h1>
+    <p>Load the absorbance time courses from the plate reader (the Tecan .xlsx as exported). Look at each well and pick the straight early part for the slope, describe what is in each well, and convert ΔA<sub>340</sub>/min to µM NADPH/min. Save the result as a <b>rates file</b>: the fitting tools (substrate dependence, inhibition, two-substrate) read it directly, and loading it back here with the plate file restores all of your work. <a href="index.html">All tools</a></p>
+  </header>
+
+  <div class="grid">
+    <div class="controls">
+      <section class="panel">
+        <h2><span class="step">1</span>Plate reader file</h2>
+        <label class="drop" id="drop" for="fileIn">
+          <b>Drop the .xlsx here</b> (and your saved rates file, to continue) or click to choose
+          <span>Either plate reader’s export works as saved: the infinite 200Pro (i-control, wells in rows) or the Spark (SparkControl, wells in columns). The format is detected automatically. A CSV or text file with a Time column and one column per well also works. Every kinetic run in the workbook is found.</span>
+          <input type="file" id="fileIn" multiple accept=".xlsx,.csv,.tsv,.txt" hidden>
+          <span>To pick up where you left off, load the plate file together with the rates file you saved: every slope window, checked well and layout value comes back.</span>
+        </label>
+        <details>
+          <summary>Or paste from Excel</summary>
+          <textarea id="pasteText" aria-label="Pasted plate reader table" spellcheck="false" placeholder="Copy the block from “Time [s]” down to the last well and paste here"></textarea>
+          <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
+        </details>
+        <div class="runrow" id="runRow" hidden>
+          <select id="runSel" aria-label="Kinetic run to view"></select>
+          <button type="button" class="btn" id="runDel" title="Remove this run">Remove</button>
+        </div>
+        <p class="hint" id="runInfo"></p>
+        <div class="btns"><button type="button" class="btn" id="clearBtn">Clear all</button></div>
+        <p class="hint" style="margin-top:12px">Practice plates (simulated), in either reader's format:</p>
+        <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="../examples/practice_plate_infinite.xlsx" download>⤓ infinite 200Pro .xlsx</a><a class="btn" style="text-decoration:none;display:inline-block" href="../examples/practice_plate_sparks.xlsx" download>⤓ Spark .xlsx</a></div>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">2</span>Slopes</h2>
+        <div class="field two"><label>Shared window (min)</label><input type="number" id="winA" step="any" min="0" aria-label="Window start, min"><input type="number" id="winB" step="any" min="0" aria-label="Window end, min"></div>
+        <div class="field"><label for="dirSel">A<sub>340</sub> during the assay</label>
+          <select id="dirSel"><option value="up">rises (NADPH made)</option><option value="down">falls (NADPH used)</option></select></div>
+        <label class="check"><input type="checkbox" id="subBlank" checked><span>Subtract the mean slope of the blank wells (<b>[E] = 0</b> in the plate layout; same run)</span></label>
+        <div class="btns"><button type="button" class="btn" id="resetWin">Clear per-well windows</button></div>
+        <p class="hint">Use the early part of each trace, where it is still straight. This is the shared window for every well. To change one well only, drag across its plot on the right.</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">3</span>ΔA<sub>340</sub> → µM NADPH</h2>
+        <div class="seg" id="convSeg">
+          <button type="button" data-c="vol" aria-pressed="true">Volume</button>
+          <button type="button" data-c="pf" aria-pressed="false">Plate factor</button>
+          <button type="button" data-c="path" aria-pressed="false">Path</button>
+          <button type="button" data-c="none" aria-pressed="false">None</button>
+        </div>
+        <div style="margin-top:10px">
+          <div class="field"><label for="eps">ε<sub>340</sub> NADPH (M⁻¹cm⁻¹)</label><input type="number" id="eps" step="any" min="0"></div>
+          <div id="cVol">
+            <div class="field"><label for="vol">Assay volume per well (µL)</label><input type="number" id="vol" step="any" min="0"></div>
+            <div class="field"><label for="diam">Well diameter (mm)</label><input type="number" id="diam" step="any" min="0"></div>
+          </div>
+          <div id="cPf" hidden>
+            <div class="field"><label for="pf">Plate factor</label><input type="number" id="pf" step="any" min="0"></div>
+            <div class="field"><label for="pfUnit">Plate factor units</label>
+              <select id="pfUnit"><option value="Apm">A₃₄₀ per µM</option><option value="AmM">A₃₄₀ per mM</option><option value="umA">µM per A₃₄₀</option></select></div>
+          </div>
+          <div id="cPath" hidden>
+            <div class="field"><label for="path">Path length (cm)</label><input type="number" id="path" step="any" min="0"></div>
+          </div>
+        </div>
+        <div class="out" id="convOut"></div>
+        <p class="hint">Concentration = A / (ε·l). In a plate the light passes vertically, so the path length l is the liquid depth: volume ÷ well area. Meniscus shape makes this approximate. A plate factor from an NADPH standard curve in the same plate and volume is better.</p>
+      </section>
+
+      <section class="panel">
+        <h2><span class="step">4</span>Save the rates</h2>
+        <div class="btns" style="margin-top:0"><button type="button" class="btn primary" id="saveRates">Save rates file (CSV)</button></div>
+        <p class="hint" id="saveNote">One row per well: plate, well, enzyme, [S], [S₂], [I], [E], slope ± SE, rate and the slope window. Open it in the fitting tools to fit Michaelis–Menten, Hill or substrate inhibition, inhibition mechanisms, or two-substrate mechanisms. Only checked wells are used there.</p>
+      </section>
+    </div>
+
+    <div class="main">
+      <div class="msgs" id="topMsgs"></div>
+      <div class="msgs" id="msgs"></div>
+
+      <section class="panel" id="platePanel" hidden>
+        <div class="plothead">
+          <h3 id="plateTitle">Plate</h3>
+          <div class="toggles"><span style="font-size:12.5px;color:var(--muted)">Click a well to</span>
+            <div class="seg small" id="clickSeg"><button type="button" data-a="inspect" aria-pressed="true">inspect</button><button type="button" data-a="off" aria-pressed="false">leave out</button></div>
+          </div>
+        </div>
+        <div class="tablewrap" id="plateGrid"></div>
+        <p class="hint">Each well shows its trace (whole run; shaded part = slope window), the slope in mA<sub>340</sub>/min, and its [S] once entered. A <b>no-enzyme blank</b> is a well with substrate, NADP⁺ and buffer but no enzyme; the mean slope of these wells is subtracted from every sample as background. A well with [S] = 0 is not a blank; leave it as a sample, since it is a point on the curve.</p>
+      </section>
+
+      <section class="panel plot" id="wellPanel" hidden>
+        <div class="plothead">
+          <h3 id="wellTitle">Well</h3>
+          <div class="toggles"><button type="button" class="btn" id="prevW" aria-label="Previous well">‹</button><button type="button" class="btn" id="nextW" aria-label="Next well">›</button></div>
+        </div>
+        <div class="offnote" id="wellOff" hidden>
+          <p>This well is left out, so it has no slope and is not used in the rates or the fit.</p>
+          <button type="button" class="btn" id="wBack">Use this well again</button>
+        </div>
+        <div id="wellOn">
+        <svg id="plotW" viewBox="0 0 640 250" role="img" aria-label="Absorbance against time for the selected well"></svg>
+        <div class="stats" id="wellStats"></div>
+        <div class="dctl"><button type="button" class="btn primary" id="wUse">Use this slope</button><span id="wUseNote" class="hint" style="margin:0"></span></div>
+        <div class="dctl">
+          <label>This well is <select id="wRole"><option value="sample">a sample</option><option value="off">left out (bad well)</option></select></label>
+          <label>Window <input type="number" id="wA" step="any" aria-label="Well window start, min"> to <input type="number" id="wB" step="any" aria-label="Well window end, min"> min</label>
+          <button type="button" class="btn" id="wReset">Back to the shared window</button>
+          <button type="button" class="btn" id="wClearPts">Restore dropped points</button>
+        </div>
+        </div>
+      </section>
+
+      <section class="panel" id="layoutPanel" hidden>
+        <div class="plothead">
+          <h3>Plate layout: what is in each well?</h3>
+          <div class="toggles"><label style="font-size:12.5px;color:var(--muted)" for="sUnit">[S] units</label><select id="sUnit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select><label style="font-size:12.5px;color:var(--muted);margin-left:8px" for="s2Unit">[S₂]</label><select id="s2Unit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select><label style="font-size:12.5px;color:var(--muted);margin-left:8px" for="iUnit">[I]</label><select id="iUnit" style="width:auto"><option value="uM">µM</option><option value="mM">mM</option></select><label style="font-size:12.5px;color:var(--muted);margin-left:8px" for="eUnit">[E] units</label><select id="eUnit" style="width:auto"><option value="nM">nM</option><option value="uM">µM</option></select></div>
+        </div>
+        <div class="gridshow"><span>Grid shows</span><div class="seg small" id="gridSeg"><button type="button" data-g="S" aria-pressed="true">[S]</button><button type="button" data-g="S2" aria-pressed="false">[S₂]</button><button type="button" data-g="I" aria-pressed="false">[I]</button><button type="button" data-g="series" aria-pressed="false">Enzyme</button><button type="button" data-g="E" aria-pressed="false">[E]</button></div><label for="fillAll" style="margin-left:10px">Fill every well with</label><input id="fillAll" type="text" style="width:80px"><button type="button" class="btn" id="fillBtn">Fill</button></div>
+        <div class="tablewrap" id="layoutGrid"></div>
+        <div class="btns"><button type="button" class="btn" id="copyTop">Copy the top row to every row</button><button type="button" class="btn" id="copyLeft">Copy the left column to every column</button><button type="button" class="btn" id="copyPlates" hidden>Copy this layout to every plate</button></div>
+        <p class="hint">Use <b>Grid shows</b> to pick what you are typing into the wells: the varied substrate <b>[S]</b>; the second substrate <b>[S₂]</b> (for example NADP⁺, needed only for two-substrate experiments); the inhibitor <b>[I]</b> (0 for no inhibitor; only for inhibition experiments); the <b>enzyme</b> (WT, mutantA…); and its final <b>[E]</b> in the well. Leave [S₂] and [I] empty if you did not vary them. Every well has its own values, so the plate can be laid out any way you like. Wells with <b>[E] = 0</b> are no-enzyme blanks: their mean slope is the background, and they need no [S]. <b>Fill every well with</b> puts one value in every well (except wells you left out); <b>Copy the top row to every row</b> and <b>Copy the left column to every column</b> copy whatever the grid is showing. You can also paste a row or block of numbers copied from Excel. Leave [S] empty for wells that should not be used.</p>
+      </section>
+
+      <section class="panel" id="ratePanel" hidden>
+        <div class="plothead">
+          <h3>Rates</h3>
+          <div class="seg small" id="rateSeg"><button type="button" data-r="well" aria-pressed="true">every well</button><button type="button" data-r="mean" aria-pressed="false">replicate means</button></div>
+        </div>
+        <div class="tablewrap" id="rateTbl"></div>
+        <p class="hint" id="rateHint"></p>
+      </section>
+
+      <section class="panel" id="exportPanel" hidden>
+        <h2>Export</h2>
+        <p class="hint" style="margin:0 0 6px">Figure (PNG, light background)</p>
+        <div class="btns" id="exportPng" style="margin-top:0"></div>
+        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel)</p>
+        <div class="btns" id="exportCsv" style="margin-top:0"></div>
+        <p class="hint" id="exportMsg"></p>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var LOG = Math.log10, COLORS = ["var(--c1)", "var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)"];
+  var MN = { mm: "Michaelis-Menten", hill: "Hill", si: "Substrate inhibition" }, MCOL = { mm: "var(--m1)", hill: "var(--m2)", si: "var(--m3)" };
+  var KEYS = ["mm", "hill", "si"], WELL_RE = /^([A-P])0?(\d{1,2})$/;
+  function $(id) { return document.getElementById(id); }
+  function sig(x, p) { return isFinite(x) ? String(Number(x.toPrecision(p || 3))) : "—"; }
+  function big(x) { if (!isFinite(x)) return "—"; if (Math.abs(x) < 1e5) return Math.round(x).toLocaleString("en-US"); var e = Math.floor(LOG(Math.abs(x))); return sig(x / Math.pow(10, e)) + " × 10" + String(e).split("").map(function (c) { return "⁰¹²³⁴⁵⁶⁷⁸⁹"[+c]; }).join(""); }
+  function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function num(v) { if (typeof v === "number") return v; if (typeof v !== "string" || !v.trim()) return NaN; var x = Number(v.trim()); return x; }
+
+  // ---------- settings ----------
+  var G = { gk: "S", win: [0, 5], dir: "up", sub: true, conv: { mode: "vol", eps: 6220, vol: 200, diam: 6.6, path: 0.58, pf: 0.0036, pfUnit: "Apm" }, sUnit: "uM", s2Unit: "uM", iUnit: "uM", eUnit: "nM", click: "inspect", rateView: "well" };
+  var STORE = "bbmb_plate_kinetics_v1";
+  try { var sv = JSON.parse(localStorage.getItem(STORE) || "null"); if (sv) { ["win", "dir", "sub", "sUnit", "s2Unit", "iUnit", "eUnit"].forEach(function (k) { if (sv[k] !== undefined) G[k] = sv[k]; }); if (sv.conv) Object.keys(G.conv).forEach(function (k) { if (sv.conv[k] !== undefined) G.conv[k] = sv.conv[k]; }); } } catch (e) {}
+  function saveSettings() { try { localStorage.setItem(STORE, JSON.stringify({ win: G.win, dir: G.dir, sub: G.sub, sUnit: G.sUnit, s2Unit: G.s2Unit, iUnit: G.iUnit, eUnit: G.eUnit, conv: G.conv })); } catch (e) {} }
+
+  var runs = [], cur = -1, selWell = null;
+
+  // ---------- reading .xlsx (a zip of XML files) without a library ----------
+  function u16(d, o) { return d[o] | d[o + 1] << 8; }
+  function u32(d, o) { return (d[o] | d[o + 1] << 8 | d[o + 2] << 16 | d[o + 3] << 24) >>> 0; }
+  function unzip(buf) {
+    var d = new Uint8Array(buf), e = -1, files = {}, td = new TextDecoder();
+    for (var i = d.length - 22; i >= Math.max(0, d.length - 65600); i--) if (u32(d, i) === 0x06054b50) { e = i; break; }
+    if (e < 0) throw new Error("This does not look like an .xlsx file.");
+    var n = u16(d, e + 10), p = u32(d, e + 16);
+    for (var k = 0; k < n && u32(d, p) === 0x02014b50; k++) {
+      var method = u16(d, p + 10), csize = u32(d, p + 20), nl = u16(d, p + 28), xl = u16(d, p + 30), cl = u16(d, p + 32), lo = u32(d, p + 42);
+      var name = td.decode(d.subarray(p + 46, p + 46 + nl)), start = lo + 30 + u16(d, lo + 26) + u16(d, lo + 28);
+      files[name] = { method: method, raw: d.subarray(start, start + csize) };
+      p += 46 + nl + xl + cl;
+    }
+    return files;
+  }
+  function inflate(f) {
+    if (!f) return Promise.resolve(null);
+    if (f.method === 0) return Promise.resolve(new TextDecoder().decode(f.raw));
+    if (typeof DecompressionStream === "undefined") return Promise.reject(new Error("This browser cannot open .xlsx files. Update it, or copy the cells from Excel and paste them instead."));
+    return new Response(new Blob([f.raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text();
+  }
+  function tags(doc, name) { return Array.prototype.slice.call(doc.getElementsByTagNameNS("*", name)); }
+  function colIndex(ref) { var m = /^([A-Z]+)(\d+)$/.exec(ref), c = 0; if (!m) return null; for (var i = 0; i < m[1].length; i++) c = c * 26 + m[1].charCodeAt(i) - 64; return { c: c - 1, r: +m[2] - 1 }; }
+  function readXlsx(buf) {
+    var files = unzip(buf), P = new DOMParser();
+    function xml(t) { return t ? P.parseFromString(t, "application/xml") : null; }
+    return Promise.all([inflate(files["xl/workbook.xml"]), inflate(files["xl/_rels/workbook.xml.rels"]), inflate(files["xl/sharedStrings.xml"])]).then(function (r) {
+      if (!r[0]) throw new Error("No workbook found in this file.");
+      var wb = xml(r[0]), rel = {}, ss = [];
+      if (r[1]) tags(xml(r[1]), "Relationship").forEach(function (el) { rel[el.getAttribute("Id")] = el.getAttribute("Target"); });
+      if (r[2]) tags(xml(r[2]), "si").forEach(function (si) { ss.push(tags(si, "t").filter(function (t) { return t.parentNode.localName !== "rPh"; }).map(function (t) { return t.textContent; }).join("")); });
+      var sheets = tags(wb, "sheet").map(function (el, i) {
+        var id = el.getAttribute("r:id") || el.getAttributeNS("http://schemas.openxmlformats.org/officeDocument/2006/relationships", "id"), tgt = rel[id] || ("worksheets/sheet" + (i + 1) + ".xml");
+        return { name: el.getAttribute("name"), path: tgt.charAt(0) === "/" ? tgt.slice(1) : "xl/" + tgt.replace(/^\.\//, "") };
+      });
+      return Promise.all(sheets.map(function (s) { return inflate(files[s.path]); })).then(function (texts) {
+        return sheets.map(function (s, i) {
+          var rows = [];
+          if (!texts[i]) return { name: s.name, rows: rows };
+          tags(xml(texts[i]), "row").forEach(function (rowEl, ri) {
+            var rn = (+rowEl.getAttribute("r") || ri + 1) - 1, out = rows[rn] = rows[rn] || [], pos = 0;
+            tags(rowEl, "c").forEach(function (c) {
+              var ref = c.getAttribute("r"), at = ref ? colIndex(ref) : null, ci = at ? at.c : pos, t = c.getAttribute("t"), v = tags(c, "v")[0], val;
+              pos = ci + 1;
+              if (t === "s") val = v ? ss[+v.textContent] : "";
+              else if (t === "inlineStr") val = tags(c, "t").map(function (x) { return x.textContent; }).join("");
+              else if (t === "str" || t === "e") val = v ? v.textContent : "";
+              else if (t === "b") val = v ? v.textContent === "1" : "";
+              else val = v ? parseFloat(v.textContent) : null;
+              out[ci] = val;
+            });
+          });
+          for (var k = 0; k < rows.length; k++) if (!rows[k]) rows[k] = [];
+          return { name: s.name, rows: rows };
+        });
+      });
+    });
+  }
+  function readText(text) {
+    var lines = text.split(/\r?\n/), delim = text.indexOf("\t") >= 0 ? "\t" : (text.indexOf(";") >= 0 && text.indexOf(",") < 0 ? ";" : ",");
+    return lines.map(function (ln) { return ln.split(delim).map(function (c) { c = c.trim().replace(/^"|"$/g, ""); var x = num(c); return c === "" ? null : isFinite(x) ? x : c; }); });
+  }
+
+  // ---------- finding kinetic runs in a sheet ----------
+  function parseTime(v) {
+    if (typeof v === "number") return v;
+    if (typeof v !== "string") return NaN;
+    var m = /^(\d+):(\d{1,2}):(\d{1,2}(?:\.\d+)?)$/.exec(v.trim()); if (m) return +m[1] * 3600 + +m[2] * 60 + +m[3];
+    m = /^(\d+):(\d{1,2}(?:\.\d+)?)$/.exec(v.trim()); if (m) return +m[1] * 60 + +m[2];
+    return num(v);
+  }
+  function timeScale(label) { var l = String(label).toLowerCase(); return /\bh(ou)?r|\[h\]|\(h\)/.test(l) ? 3600 : /min/.test(l) ? 60 : 1; }
+  function firstCell(r) { for (var i = 0; i < r.length; i++) if (r[i] !== null && r[i] !== undefined && r[i] !== "") return i; return -1; }
+  function str(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+  function metaBefore(rows, i, key) {
+    for (var k = i; k >= 0; k--) { var r = rows[k] || [], c = firstCell(r); if (c < 0 || str(r[c]).toLowerCase().indexOf(key) !== 0) continue; for (var j = c + 1; j < r.length; j++) if (str(r[j])) return str(r[j]); }
+    return "";
+  }
+  function findRuns(rows, sheet) {
+    var out = [];
+    for (var i = 0; i < rows.length; i++) {
+      var r = rows[i] || [], c = firstCell(r); if (c < 0) continue;
+      // wells in rows: a "Time" row, then one row per well (Tecan default)
+      if (/^time\b/i.test(str(r[c]))) {
+        var sc = timeScale(r[c]), t = [];
+        for (var j = c + 1; j < r.length; j++) { var tv = parseTime(r[j]); if (!isFinite(tv)) break; t.push(tv * sc); }
+        if (t.length >= 3) {
+          var wells = {}, order = [], k = i + 1, gaps = 0;
+          for (; k < rows.length; k++) {
+            var rr = rows[k] || [], lab = str(rr[c]);
+            if (!lab && firstCell(rr) < 0) { if (order.length || ++gaps > 1) break; continue; }
+            if (/^(temp|cycle)/i.test(lab) || (!lab && !order.length)) continue;
+            var m = WELL_RE.exec(lab); if (!m) break;
+            var w = m[1] + (+m[2]); if (wells[w]) continue;
+            wells[w] = t.map(function (_, q) { var x = num(rr[c + 1 + q]); return isFinite(x) ? x : NaN; }); order.push(w);
+          }
+          if (order.length) { out.push(mkRun(sheet, rows, i, t, wells, order)); i = k - 1; continue; }
+        }
+      }
+      // wells in columns: a header row with a Time cell and well names
+      var tc = -1, wcols = [];
+      r.forEach(function (v, j) { var s = str(v); if (tc < 0 && /^time\b/i.test(s)) tc = j; else { var m = WELL_RE.exec(s); if (m) wcols.push([j, m[1] + (+m[2])]); } });
+      if (tc >= 0 && wcols.length) {
+        var sc2 = timeScale(r[tc]), t2 = [], w2 = {}, k2 = i + 1;
+        wcols.forEach(function (x) { w2[x[1]] = []; });
+        for (; k2 < rows.length; k2++) { var r2 = rows[k2] || [], tt = parseTime(r2[tc]); if (!isFinite(tt)) break; t2.push(tt * sc2); wcols.forEach(function (x) { var v = num(r2[x[0]]); w2[x[1]].push(isFinite(v) ? v : NaN); }); }
+        if (t2.length >= 3) { out.push(mkRun(sheet, rows, i, t2, w2, wcols.map(function (x) { return x[1]; }))); i = k2 - 1; }
+      }
+    }
+    return out;
+  }
+  function mkRun(sheet, rows, i, t, wells, order) {
+    // the Spark lists all 96 wells even when only part of the plate was read: keep wells that have readings
+    order = order.filter(function (w) { return wells[w].filter(isFinite).length >= 3; });
+    order.sort(function (a, b) { return a.charCodeAt(0) - b.charCodeAt(0) || +a.slice(1) - +b.slice(1); });
+    var st = metaBefore(rows, i, "start time"), part = metaBefore(rows, i, "part of plate"), wl = metaBefore(rows, i, "measurement wavelength");
+    var tm = /(\d{1,2}:\d{2}(:\d{2})?\s*[AP]M)/i.exec(st) || /\b(\d{1,2}:\d{2})(:\d{2})?\s*$/.exec(st);
+    var dev = ""; rows.slice(0, i).forEach(function (r) { (r || []).forEach(function (c) { var m = /^Device:\s*(\S.*)$/i.exec(str(c)); if (m && !dev) dev = m[1]; }); });
+    return { sheet: sheet, t: t, wells: wells, order: order, start: tm ? tm[1] : st, part: part, wl: wl, device: dev };
+  }
+  function sameRun(a, b) {
+    if (a.t.length !== b.t.length || a.order.join() !== b.order.join()) return false;
+    for (var q = 0; q < a.t.length; q++) if (Math.abs(a.t[q] - b.t[q]) > 1e-6) return false;
+    var w = a.order[0]; for (q = 0; q < a.t.length; q++) if (!(Math.abs(a.wells[w][q] - b.wells[w][q]) < 1e-9) && !(isNaN(a.wells[w][q]) && isNaN(b.wells[w][q]))) return false;
+    return true;
+  }
+  function initCfg(run, series) {
+    var wells = {}, rows = {}, ncol = 12;
+    run.order.forEach(function (w) { wells[w] = { role: "sample", S: NaN, S2: NaN, I: NaN, series: series, E: NaN, win: null, excl: {}, ok: false }; rows[w.charAt(0)] = 1; ncol = Math.max(ncol, +w.slice(1)); });
+    run.ncol = ncol; run.rowsUsed = Object.keys(rows).sort();
+    run.colsUsed = []; for (var c = 1; c <= ncol; c++) if (run.order.some(function (w) { return +w.slice(1) === c; })) run.colsUsed.push(c);
+    run.cfg = { wells: wells, rows: rows };
+  }
+  function addRuns(found, base) {
+    var fresh = found.filter(function (r) { return !runs.some(function (o) { return sameRun(o, r); }) && !found.some(function (o) { return o !== r && found.indexOf(o) < found.indexOf(r) && sameRun(o, r); }); });
+    if (!fresh.length) { topMsg(found.length ? "That run is already loaded." : "No kinetic data found in " + esc(base) + ". Expected a “Time [s]” row followed by rows named A1, A2…, or a Time column with well names as headers.", "warn"); return; }
+    fresh.forEach(function (r, i) {
+      r.file = base;
+      r.label = base + (fresh.length > 1 ? " · " + r.sheet : "") + (r.start ? " · " + r.start : "");
+      initCfg(r, "WT");
+      runs.push(r);
+    });
+    cur = runs.length - fresh.length; selWell = runs[cur].order[0];
+    var tmax = runs[cur].t[runs[cur].t.length - 1] / 60;
+    if (G.win[0] >= tmax) G.win = [0, Math.min(5, tmax)];
+    topMsg("");
+    syncInputs(); buildRunSel(); buildLayout(); render();
+    tryRestores();
+  }
+  function readFiles(list) {
+    Array.prototype.forEach.call(list, function (f) {
+      var base = f.name.replace(/\.[^.]+$/, "");
+      if (/\.xlsx$/i.test(f.name) || /\.xlsm$/i.test(f.name)) {
+        f.arrayBuffer().then(readXlsx).then(function (sheets) { var all = []; sheets.forEach(function (s) { all = all.concat(findRuns(s.rows, s.name)); }); addRuns(all, base); })
+          .catch(function (e) { topMsg("Could not read " + esc(f.name) + ": " + esc(e.message), "warn"); });
+      } else if (/\.xls$/i.test(f.name)) topMsg("Old .xls files cannot be read here. Save as .xlsx in Excel, or copy the cells and paste them.", "warn");
+      else f.text().then(function (t) {
+        if (isRatesFile(t)) { pendingRestore.push({ name: f.name, rows: parseCSV(t) }); tryRestores(); if (pendingRestore.length) topMsg("Rates file " + esc(f.name) + " read. Now load the plate file it came from; its wells will be restored."); return; }
+        addRuns(findRuns(readText(t), "text"), base);
+      });
+    });
+  }
+
+  // ---------- slopes and rates ----------
+  function winOf(run, w) { var v = run.cfg.wells[w].win || G.win; return v[0] <= v[1] ? v : [v[1], v[0]]; }
+  function linreg(x, y) {
+    var n = x.length, mx = 0, my = 0, i; for (i = 0; i < n; i++) { mx += x[i]; my += y[i]; } mx /= n; my /= n;
+    var sxx = 0, sxy = 0, syy = 0; for (i = 0; i < n; i++) { sxx += (x[i] - mx) * (x[i] - mx); sxy += (x[i] - mx) * (y[i] - my); syy += (y[i] - my) * (y[i] - my); }
+    var b = sxy / sxx, a = my - b * mx, rss = Math.max(syy - b * sxy, 0);
+    return { b: b, a: a, se: n > 2 ? Math.sqrt(rss / (n - 2) / sxx) : NaN, r2: syy > 0 ? 1 - rss / syy : 1 };
+  }
+  function slopeOf(run, w) {
+    var cfg = run.cfg.wells[w], y = run.wells[w], win = winOf(run, w), x = [], yy = [];
+    for (var k = 0; k < run.t.length; k++) { var m = run.t[k] / 60; if (m < win[0] - 1e-9 || m > win[1] + 1e-9 || cfg.excl[k] || !isFinite(y[k])) continue; x.push(m); yy.push(y[k]); }
+    if (x.length < 3) return { ok: false, n: x.length };
+    var L = linreg(x, yy), out = { ok: true, n: x.length, slope: L.b, a: L.a, se: L.se, r2: L.r2, amax: Math.max.apply(null, yy), flags: [], q: 1 };
+    // trace quality: 1 green (fine), 2 yellow (worth a look), 3 red (problem)
+    function flag() {}   // slope-quality warnings switched off: students judge each time course themselves
+    if (x.length >= 8) {
+      var h = Math.floor(x.length / 2), b1 = linreg(x.slice(0, h), yy.slice(0, h)).b, b2 = linreg(x.slice(x.length - h), yy.slice(yy.length - h)).b;
+      out.curv = (b2 - b1) / Math.abs(L.b || 1e-12);
+      if (Math.abs(L.b) > 4 * L.se && Math.abs(out.curv) > 0.2) flag((out.curv < 0 ? "slows down" : "speeds up") + " in window (" + Math.round(100 * Math.abs(out.curv)) + "%)", Math.abs(out.curv) > 0.45 ? 3 : 2);
+    }
+    if (out.amax > 2) flag("A > 2 (detector limit)", 3);
+    if (Math.abs(L.b) > 5 * L.se && L.r2 < 0.98) flag("R² " + L.r2.toFixed(3), L.r2 < 0.95 ? 3 : 2);
+    return out;
+  }
+  // absorbance per µM NADPH in the well (null = no conversion)
+  function aPerUM() {
+    var c = G.conv;
+    if (c.mode === "none") return null;
+    if (c.mode === "pf") { if (!(c.pf > 0)) return NaN; return c.pfUnit === "Apm" ? c.pf : c.pfUnit === "AmM" ? c.pf / 1000 : 1 / c.pf; }
+    var l = c.mode === "path" ? c.path : pathFromVol();
+    return c.eps * l * 1e-6;
+  }
+  function pathFromVol() { var r = G.conv.diam / 20; return G.conv.vol * 1e-3 / (Math.PI * r * r); }
+  function vUnit() { return aPerUM() === null ? "ΔA₃₄₀/min" : "µM/min"; }
+  function sLabel() { return G.sUnit === "mM" ? "mM" : "µM"; }
+  function sOf(run, w) { return run.cfg.wells[w].S; }
+
+  // a well with [E] = 0 is a no-enzyme blank; any other well not left out is a sample
+  function syncBlank(cfgWells) { Object.keys(cfgWells).forEach(function (w) { var c = cfgWells[w]; if (c.role !== "off") c.role = c.E === 0 ? "blank" : "sample"; }); }
+  var calc = [];   // per run: { w: {fit, signed, corr, v, S, series, role} , blank }
+  function computeAll() {
+    var A = aPerUM();
+    calc = runs.map(function (run) {
+      syncBlank(run.cfg.wells);
+      var out = { w: {}, blankN: 0, blank: 0 }, bl = [];
+      run.order.forEach(function (w) {
+        var f = slopeOf(run, w), cfg = run.cfg.wells[w], sgn = G.dir === "down" ? -1 : 1;
+        out.w[w] = { fit: f, role: cfg.role, ok: !!cfg.ok, signed: f.ok ? sgn * f.slope : NaN, S: sOf(run, w), S2: cfg.S2, I: cfg.I, series: (cfg.series || "").trim() || "Enzyme", E: cfg.E };
+        if (cfg.role === "blank" && f.ok && cfg.ok) bl.push(out.w[w].signed);
+      });
+      out.blankN = bl.length; out.blank = bl.length ? bl.reduce(function (s, x) { return s + x; }, 0) / bl.length : 0;
+      run.order.forEach(function (w) {
+        var o = out.w[w]; o.corr = o.signed - (G.sub && o.role === "sample" ? out.blank : 0);
+        o.v = A === null ? o.corr : o.corr / A;
+      });
+      return out;
+    });
+  }
+  // ---------- plotting ----------
+  function niceStep(raw) { var e = Math.pow(10, Math.floor(LOG(raw))), f = raw / e; return (f <= 1 ? 1 : f <= 2 ? 2 : f <= 5 ? 5 : 10) * e; }
+  function ticksFor(lo, hi, n) { if (!(hi > lo)) return [lo]; var st = niceStep((hi - lo) / n), a = Math.ceil(lo / st - 1e-9) * st, out = []; for (var v = a; v <= hi + st * 1e-6; v += st) out.push(Math.abs(v) < st * 1e-9 ? 0 : v); return out; }
+  function fmtT(v) { return String(Number(v.toPrecision(3))); }
+  function polyline(pts, color, dash, w) { return '<polyline fill="none" stroke="' + color + '" stroke-width="' + (w || 2.2) + '"' + (dash ? ' stroke-dasharray="' + dash + '"' : '') + ' stroke-linejoin="round" points="' + pts.map(function (p) { return p[0].toFixed(1) + "," + p[1].toFixed(1); }).join(" ") + '"/>'; }
+  var M = { l: 58, r: 14, t: 12, b: 42 };
+  function frame(W, H, xr, yr, xl, yl, xlog) {
+    var sx = function (x) { return xlog ? M.l + (LOG(x) - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r) : M.l + (x - xr[0]) / (xr[1] - xr[0]) * (W - M.l - M.r); };
+    var sy = function (y) { return H - M.b - (y - yr[0]) / (yr[1] - yr[0]) * (H - M.b - M.t); }, s = "";
+    ticksFor(yr[0], yr[1], 5).forEach(function (t) { s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + sy(t) + '" y2="' + sy(t) + '" stroke="var(--grid)"/><text x="' + (M.l - 6) + '" y="' + (sy(t) + 3.5) + '" text-anchor="end">' + fmtT(t) + '</text>'; });
+    if (xlog) { for (var d = Math.ceil(xr[0]); d <= Math.floor(xr[1]); d++) { var px = sx(Math.pow(10, d)); s += '<line x1="' + px + '" x2="' + px + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--grid)"/><text x="' + px + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(Math.pow(10, d)) + '</text>'; } }
+    else ticksFor(xr[0], xr[1], 6).forEach(function (t) { s += '<text x="' + sx(t) + '" y="' + (H - M.b + 15) + '" text-anchor="middle">' + fmtT(t) + '</text>'; });
+    var zy = yr[0] < 0 && yr[1] > 0 ? sy(0) : H - M.b;
+    s += '<line x1="' + M.l + '" x2="' + (W - M.r) + '" y1="' + zy + '" y2="' + zy + '" stroke="var(--muted)"/><line x1="' + M.l + '" x2="' + M.l + '" y1="' + M.t + '" y2="' + (H - M.b) + '" stroke="var(--muted)"/>';
+    s += '<text class="ttl" x="' + ((M.l + W - M.r) / 2) + '" y="' + (H - 5) + '" text-anchor="middle">' + xl + '</text>';
+    s += '<text class="ttl" transform="translate(12 ' + ((M.t + H - M.b) / 2) + ') rotate(-90)" text-anchor="middle">' + yl + '</text>';
+    return { svg: s, sx: sx, sy: sy };
+  }
+
+  // ---------- UI: inputs ----------
+  function topMsg(t, kind) { $("topMsgs").innerHTML = t ? '<p class="msg ' + (kind || "") + '">' + t + '</p>' : ""; }
+  function pressed(id, attr, val) { Array.prototype.forEach.call(document.querySelectorAll("#" + id + " button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset[attr] === val)); }); }
+  function syncInputs() {
+    $("winA").value = G.win[0]; $("winB").value = G.win[1]; $("dirSel").value = G.dir; $("subBlank").checked = G.sub;
+    $("eps").value = G.conv.eps; $("vol").value = G.conv.vol; $("diam").value = G.conv.diam; $("path").value = G.conv.path; $("pf").value = G.conv.pf; $("pfUnit").value = G.conv.pfUnit;
+    $("sUnit").value = G.sUnit; $("s2Unit").value = G.s2Unit; $("iUnit").value = G.iUnit; $("eUnit").value = G.eUnit;
+    pressed("convSeg", "c", G.conv.mode); $("cVol").hidden = G.conv.mode !== "vol"; $("cPf").hidden = G.conv.mode !== "pf"; $("cPath").hidden = G.conv.mode !== "path";
+    $("eps").closest(".field").hidden = G.conv.mode === "pf" || G.conv.mode === "none";
+  }
+  function buildRunSel() {
+    $("runRow").hidden = !runs.length;
+    $("runSel").innerHTML = runs.map(function (r, i) { return '<option value="' + i + '">' + esc((i + 1) + ". " + r.label) + '</option>'; }).join("");
+    if (cur >= 0) $("runSel").value = String(cur);
+  }
+  function runInfo() {
+    if (cur < 0) { $("runInfo").textContent = runs.length ? "" : "No data loaded yet."; return; }
+    var r = runs[cur], tmax = r.t[r.t.length - 1] / 60, dt = (r.t[r.t.length - 1] - r.t[0]) / (r.t.length - 1);
+    $("runInfo").innerHTML = esc((r.device ? "Tecan " + r.device.replace(/^tecan\s*/i, "") + ": " : "") + r.order.length + " wells, " + r.t.length + " reads, about every " + sig(dt) + " s over " + sig(tmax) + " min" + (r.part ? " (" + r.part + ")" : "") + (r.wl ? ", " + r.wl + " nm" : "")) + (r.wl && Math.abs(+r.wl - 340) > 5 ? ' <b style="color:var(--warn)">Not read at 340 nm, so the NADPH conversion does not apply.</b>' : "");
+  }
+
+  // layout editor: one box per well for the property chosen in "Grid shows" ([S], enzyme or [E]); rebuilt only when
+  // the run, the property or a role changes, so typing keeps focus
+  function cellVal(cfgw, k) { var x = cfgw[k]; return k === "series" ? (x || "") : isFinite(x) ? String(x) : ""; }
+  function buildLayout() {
+    var host = $("layoutGrid");
+    if (cur < 0) { host.innerHTML = ""; return; }
+    var r = runs[cur], cfg = r.cfg, h = "", k = G.gk, L = "ABCDEFGHIJKLMNOP";
+    var cols = []; for (var c0 = 1; c0 <= Math.max(12, r.ncol); c0++) cols.push(c0);
+    var rowsU = L.slice(0, Math.max(7, L.indexOf(r.rowsUsed[r.rowsUsed.length - 1])) + 1).split("");
+    Array.prototype.forEach.call($("gridSeg").querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.dataset.g === k)); });
+    var what = k === "S" ? "[S]" : k === "S2" ? "[S2]" : k === "I" ? "[I]" : k === "series" ? "Enzyme" : "[E]";
+    h += '<table class="sgrid"><thead><tr><th></th>' + cols.map(function (c) { return '<th>' + c + '</th>'; }).join("") + '</tr></thead><tbody>';
+    rowsU.forEach(function (R, ri) {
+      h += '<tr><th>' + R + '</th>';
+      cols.forEach(function (c, ci) { var w = R + c; h += '<td>' + (cfg.wells[w] ? '<input type="text"' + (k === "series" ? ' data-txt="1"' : ' inputmode="decimal"') + ' data-ws="' + w + '" data-r="' + ri + '" data-c="' + ci + '" value="' + esc(cellVal(cfg.wells[w], k)) + '" aria-label="' + what + ' in well ' + w + '"' + (cfg.wells[w].role === "off" ? ' class="na" title="left out"' : "") + '>' : '<span class="nr" title="not read"></span>') + '</td>'; });
+      h += '</tr>';
+    });
+    h += '</tbody></table>';
+    host.innerHTML = h;
+  }
+  function parseKey(k, v) { return k === "series" ? String(v) : String(v).trim() === "" ? NaN : num(String(v).trim().replace(",", ".")); }
+  function setS(el, v) {
+    var r = runs[cur], cfg = r.cfg;
+    if (el.dataset.ws !== undefined) { cfg.wells[el.dataset.ws][G.gk] = parseKey(G.gk, v); }
+  }
+
+
+  // ---------- render ----------
+  var pending = false;
+  function render() { if (pending) return; pending = true; requestAnimationFrame(function () { pending = false; draw(); }); }
+  function draw() {
+    runInfo(); $("copyPlates").hidden = runs.length < 2;
+    var has = cur >= 0;
+    ["platePanel", "wellPanel", "layoutPanel", "ratePanel"].forEach(function (id) { $(id).hidden = !has; });
+    if (!has) { $("msgs").innerHTML = ""; $("exportPanel").hidden = true; if (!$("topMsgs").innerHTML) topMsg("Load the plate reader .xlsx (step 1). To practise, download one of the practice plates in step 1 and load it."); return; }
+    computeAll();
+    convOut();
+    drawPlate(); drawWell(); drawRates(); drawStatus();
+  }
+  function convOut() {
+    var A = aPerUM(), c = G.conv, t = "";
+    if (A === null) t = "Rates stay in ΔA₃₄₀/min; k꜀ₐₜ needs µM, so it is not computed.";
+    else if (!(A > 0)) t = "Enter a positive value.";
+    else {
+      var l = A / (c.eps * 1e-6);
+      t = (c.mode === "vol" ? "path ≈ " + sig(l) + " cm, " : "") + "1 µM NADPH = " + sig(A * 1000) + " mA₃₄₀" + (c.mode === "pf" ? " (implies path " + sig(l) + " cm at ε = " + c.eps + ")" : "") + "; 1 mA₃₄₀/min = " + sig(0.001 / A) + " µM/min";
+      if (l > 1.2 || l < 0.05) t += ". That path length looks unusual for a 96-well plate; check the value and its units.";
+    }
+    $("convOut").textContent = t;
+  }
+  function wellFlag(o) { return o.fit.ok ? o.fit.flags : ["too few points in window"]; }
+  function wellQ(o) { return o.fit.ok ? o.fit.q : 3; }
+  function drawPlate() {
+    var r = runs[cur], C = calc[cur], tmax = r.t[r.t.length - 1] / 60, h = '<table class="plate"><thead><tr><th></th>';
+    r.colsUsed.forEach(function (c) { h += '<th>' + c + '</th>'; });
+    h += '</tr></thead><tbody>';
+    r.rowsUsed.forEach(function (R) {
+      h += '<tr><th>' + R + '</th>';
+      r.colsUsed.forEach(function (c) {
+        var w = R + c, o = C.w[w];
+        if (!o) { h += '<td><div class="wl empty"></div></td>'; return; }
+        var y = r.wells[w], fin = y.filter(isFinite), lo = Math.min.apply(null, fin), hi = Math.max.apply(null, fin), rg = (hi - lo) || 1e-3, win = winOf(r, w);
+        var X = function (m) { return 1 + m / tmax * 58; }, Y = function (a) { return 28 - (a - lo) / rg * 26; };
+        var s = '<svg viewBox="0 0 60 30" preserveAspectRatio="none" aria-hidden="true"><rect x="' + X(win[0]).toFixed(1) + '" y="0" width="' + Math.max(0, X(Math.min(win[1], tmax)) - X(win[0])).toFixed(1) + '" height="30" fill="var(--win)"/>';
+        s += polyline(r.t.map(function (t, k) { return [X(t / 60), Y(y[k])]; }).filter(function (p) { return isFinite(p[1]); }), "var(--muted)", null, 1);
+        if (o.fit.ok) s += polyline([[X(win[0]), Y(o.fit.a + o.fit.slope * win[0])], [X(Math.min(win[1], tmax)), Y(o.fit.a + o.fit.slope * Math.min(win[1], tmax))]], "var(--accent)", null, 1.6);
+        s += '</svg>';
+        var unk = o.role !== "off" && !o.ok, cls = "wl" + (w === selWell ? " sel" : "") + (o.role === "off" ? " off" : o.role === "blank" ? " blank" : "") + (unk ? " unchk" : "");
+        h += '<td><button type="button" class="' + cls + '" data-w="' + w + '" title="' + esc(w + (unk ? ": not checked yet" : o.fit.ok ? ": " + sig(o.fit.slope * 1000) + " mA/min, R² " + o.fit.r2.toFixed(3) : "")) + '">' + s +
+          '<span class="num">' + (unk ? "?" : o.fit.ok ? sig(o.fit.slope * 1000) + " ✓" : "—") + '</span><span class="sx">' + (o.role === "blank" ? "no enzyme" : isFinite(o.S) ? "[S] " + sig(o.S) : "&nbsp;") + '</span></button></td>';
+      });
+      h += '</tr>';
+    });
+    $("plateGrid").innerHTML = h + '</tbody></table>';
+    $("plateTitle").textContent = "Plate: " + r.label;
+  }
+  function drawWell() {
+    var r = runs[cur], C = calc[cur];
+    if (!selWell || !C.w[selWell]) selWell = r.order[0];
+    var w = selWell, o = C.w[w], cfg = r.cfg.wells[w], y = r.wells[w], win = winOf(r, w), tmax = r.t[r.t.length - 1] / 60;
+    $("wellOff").hidden = cfg.role !== "off"; $("wellOn").hidden = cfg.role === "off";
+    if (cfg.role === "off") { $("wellTitle").textContent = "Well " + w + " (left out)"; $("plotW").innerHTML = ""; return; }
+    var fin = y.filter(isFinite), lo = Math.min.apply(null, fin), hi = Math.max.apply(null, fin), pad = (hi - lo) * 0.08 || 0.01;
+    // x axis runs a little past the first and last reads so both window edges can always be grabbed
+    wellXR = [-0.04 * tmax, tmax * 1.04];
+    var f = frame(640, 250, wellXR, [lo - pad, hi + pad], "time (min)", "A₃₄₀", false), s = f.svg;
+    var wa = Math.max(win[0], 0), wb = Math.min(win[1], tmax), xa = f.sx(wa), xb = f.sx(wb), yt = M.t, yb = 250 - M.b, ym = (yt + yb) / 2;
+    s += '<rect x="' + xa + '" y="' + yt + '" width="' + Math.max(0, xb - xa) + '" height="' + (yb - yt) + '" fill="var(--win)"/>';
+    [xa, xb].forEach(function (x) { s += '<line x1="' + x + '" x2="' + x + '" y1="' + yt + '" y2="' + yb + '" stroke="var(--accent)" stroke-width="1.5" opacity="0.6"/><rect x="' + (x - 4) + '" y="' + (ym - 14) + '" width="8" height="28" rx="3" fill="var(--panel)" stroke="var(--accent)" stroke-width="1.5"/><line x1="' + (x - 1) + '" x2="' + (x - 1) + '" y1="' + (ym - 7) + '" y2="' + (ym + 7) + '" stroke="var(--accent)"/><line x1="' + (x + 1) + '" x2="' + (x + 1) + '" y1="' + (ym - 7) + '" y2="' + (ym + 7) + '" stroke="var(--accent)"/>'; });
+    if (o.fit.ok) s += polyline([[f.sx(win[0]), f.sy(o.fit.a + o.fit.slope * win[0])], [f.sx(Math.min(win[1], tmax)), f.sy(o.fit.a + o.fit.slope * Math.min(win[1], tmax))]], "var(--accent)", null, 2.4);
+    r.t.forEach(function (t, k) {
+      if (!isFinite(y[k])) return;
+      var m = t / 60, inW = m >= win[0] - 1e-9 && m <= win[1] + 1e-9, ex = cfg.excl[k], cx = f.sx(m).toFixed(1), cy = f.sy(y[k]).toFixed(1);
+      s += ex ? '<g data-k="' + k + '" style="cursor:pointer"><circle cx="' + cx + '" cy="' + cy + '" r="7" fill="transparent"/><circle cx="' + cx + '" cy="' + cy + '" r="3.6" fill="none" stroke="var(--warn)" stroke-width="1.5"/><path d="M' + (cx - 3) + ' ' + (cy - 3) + 'l6 6m0 -6l-6 6" stroke="var(--warn)" stroke-width="1.2"/></g>'
+        : '<g data-k="' + k + '" style="cursor:pointer"><circle cx="' + cx + '" cy="' + cy + '" r="7" fill="transparent"/><circle cx="' + cx + '" cy="' + cy + '" r="3.2" fill="' + (inW ? "var(--fg)" : "var(--ref)") + '" opacity="' + (inW ? 0.9 : 0.5) + '"/></g>';
+    });
+    $("plotW").innerHTML = s;
+    $("wellTitle").textContent = "Well " + w + (o.role === "blank" ? " (blank)" : o.role === "off" ? " (left out)" : "") + (isFinite(o.S) ? " · [S] = " + sig(o.S) + " " + sLabel() : "") + " · " + o.series;
+    var A = aPerUM(), st = "";
+    if (o.fit.ok) {
+      st = "slope <b>" + sig(o.fit.slope * 1000, 4) + " ± " + sig(o.fit.se * 1000, 2) + "</b> mA₃₄₀/min · R² " + o.fit.r2.toFixed(4) + " · " + o.fit.n + " points";
+      if (o.role === "sample") st += " · rate <b>" + sig(o.v, 4) + "</b> " + vUnit() + (G.sub && C.blankN ? " (blank " + sig(C.blank * 1000) + " mA/min subtracted)" : "");
+      var fl = o.fit.flags; if (fl.length && o.role !== "off") st += '<br><span style="color:var(--warn)">Check: ' + esc(fl.join("; ")) + (o.fit.curv < -0.2 ? ". Try a shorter or earlier window." : o.fit.curv > 0.2 ? ". Try starting the window later." : "") + '</span>';
+    } else st = '<span style="color:var(--warn)">Fewer than 3 points in the window; widen it.</span>';
+    $("wellStats").innerHTML = st;
+    $("wRole").value = cfg.role; if (document.activeElement !== $("wA")) $("wA").value = sig(win[0], 4); if (document.activeElement !== $("wB")) $("wB").value = sig(win[1], 4); $("wReset").disabled = !cfg.win;
+    $("wellStats").innerHTML += '<br><span style="color:var(--muted)">' + (cfg.win ? "This well has its own window (the shared window is " + sig(G.win[0]) + "–" + sig(G.win[1]) + " min)." : "Shared window, used by every well without its own.") + '</span>';
+    $("wClearPts").disabled = !Object.keys(cfg.excl).length;
+    var use = $("wUse"), left = uncheckedCount(r);
+    use.hidden = cfg.role === "off"; use.disabled = !o.fit.ok && !cfg.ok;
+    use.textContent = cfg.ok ? "✓ Slope accepted (click to undo)" : "Use this slope";
+    use.classList.toggle("primary", !cfg.ok);
+    $("wUseNote").textContent = left ? left + " well" + (left > 1 ? "s" : "") + " on this plate still to check." : "Every well on this plate is checked.";
+  }
+  function drawRates() {
+    var A = aPerUM(), vu = vUnit(), h, rows = [], showE = A !== null;
+    $("rateSeg").querySelectorAll("button").forEach(function (b) { b.setAttribute("aria-pressed", String(b.dataset.r === G.rateView)); });
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) { rows.push({ ri: ri, w: w, o: calc[ri].w[w] }); }); });
+    if (G.rateView === "well") {
+      var list = rows.filter(function (x) { return x.ri === cur; });
+      h = '<table class="data"><thead><tr><th>Well</th><th style="text-align:left">Enzyme</th><th>[E] (' + (G.eUnit === "nM" ? "nM" : "µM") + ')</th><th>[S] (' + sLabel() + ')</th><th>slope (mA/min)</th><th>± SE</th><th>R²</th><th>rate (' + vu + ')</th>' + (showE ? '<th>v/[E] (s⁻¹)</th>' : '') + '</tr></thead><tbody>';
+      h += list.map(function (x) {
+        var o = x.o, E = o.E, ve = showE && E > 0 && o.role === "sample" ? o.v / 60 / (G.eUnit === "nM" ? E / 1000 : E) : NaN, hid = o.role !== "off" && !o.ok;
+        return '<tr data-w="' + x.w + '" class="' + (x.w === selWell ? "sel " : "") + (o.role === "off" ? "off" : "") + '"><td>' + x.w + '</td><td class="l">' + (o.role === "blank" ? "blank (no enzyme)" : esc(o.series)) + '</td><td>' + (o.role === "sample" ? sig(o.E) : "") + '</td><td>' + (o.role === "sample" ? sig(o.S) : "") + '</td><td>' + (o.role !== "off" && !o.ok ? "not checked" : o.fit.ok ? sig(o.fit.slope * 1000, 4) : "—") + '</td><td>' + (!hid && o.fit.ok ? sig(o.fit.se * 1000, 2) : "") + '</td><td>' + (!hid && o.fit.ok ? o.fit.r2.toFixed(3) : "") + '</td><td>' + (o.role === "sample" && !hid ? sig(o.v, 4) : "") + '</td>' + (showE ? '<td>' + (hid ? "" : sig(ve)) + '</td>' : '') + '</tr>';
+      }).join("") + '</tbody></table>';
+      var C = calc[cur];
+      $("rateHint").innerHTML = (C.blankN ? "Mean blank slope " + sig(C.blank * 1000) + " mA₃₄₀/min from " + C.blankN + " well" + (C.blankN > 1 ? "s" : "") + (G.sub ? ", subtracted from every sample well." : " (not subtracted).") : "No wells have [E] = 0 (no-enzyme blanks), so no background slope is subtracted.") + " Click a row to inspect that well.";
+    } else {
+      var groups = meanTable();
+      var hasS2 = groups.some(function (g) { return isFinite(g.S2); }), hasI = groups.some(function (g) { return isFinite(g.I); });
+      h = '<table class="data"><thead><tr><th>Enzyme</th>' + (hasI ? '<th>[I] (' + uLab(G.iUnit) + ')</th>' : '') + (hasS2 ? '<th>[S₂] (' + uLab(G.s2Unit) + ')</th>' : '') + '<th>[S] (' + sLabel() + ')</th><th>n</th><th>mean rate (' + vu + ')</th><th>SD</th><th>CV</th><th style="text-align:left">wells</th></tr></thead><tbody>' + groups.map(function (g) {
+        return '<tr><td>' + esc(g.series) + '</td>' + (hasI ? '<td>' + sig(g.I) + '</td>' : '') + (hasS2 ? '<td>' + sig(g.S2) + '</td>' : '') + '<td>' + sig(g.S) + '</td><td>' + g.n + '</td><td>' + sig(g.mean, 4) + '</td><td>' + (g.n > 1 ? sig(g.sd, 2) : "") + '</td><td>' + (g.n > 1 && g.mean ? Math.round(100 * Math.abs(g.sd / g.mean)) + "%" : "") + '</td><td class="l">' + esc(g.wells.join(" ")) + '</td></tr>';
+      }).join("") + '</tbody></table>';
+      $("rateHint").textContent = groups.length ? "Wells with the same enzyme, [E], [I], [S₂] and [S] are averaged here (all runs). The fitting tools use every well, not the means." : "";
+      if (!groups.length) h = '<p class="hint" style="margin:0">Enter [S] values in the plate layout to group the replicates.</p>';
+    }
+    $("rateTbl").innerHTML = h;
+  }
+  function uLab(u) { return u === "mM" ? "mM" : u === "nM" ? "nM" : "µM"; }
+  function meanTable() {
+    var out = [], key = {};
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) {
+      var o = calc[ri].w[w]; if (o.role !== "sample" || !o.ok || !o.fit.ok || !isFinite(o.S) || !isFinite(o.v)) return;
+      var k = [o.series, o.E, o.S, o.S2, o.I].join("|");
+      if (!key[k]) { key[k] = { series: o.series, E: o.E, S: o.S, S2: o.S2, I: o.I, vals: [], wells: [] }; out.push(key[k]); }
+      key[k].vals.push(o.v); key[k].wells.push((runs.length > 1 ? (ri + 1) + ":" : "") + w);
+    }); });
+    out.forEach(function (g) { g.n = g.vals.length; g.mean = g.vals.reduce(function (a, b) { return a + b; }, 0) / g.n; g.sd = g.n > 1 ? Math.sqrt(g.vals.reduce(function (a, b) { return a + (b - g.mean) * (b - g.mean); }, 0) / (g.n - 1)) : NaN; });
+    function c(a, b) { return (isFinite(a) ? a : -1) - (isFinite(b) ? b : -1); }
+    out.sort(function (a, b) { return a.series < b.series ? -1 : a.series > b.series ? 1 : c(a.E, b.E) || c(a.I, b.I) || c(a.S2, b.S2) || c(a.S, b.S); });
+    return out;
+  }
+
+  var exportTables = {};
+
+  // no fit until every row in use has its [S] values and its [E]
+  function uncheckedCount(run) { return run.order.filter(function (w) { var c = run.cfg.wells[w]; return c.role !== "off" && !c.ok; }).length; }
+  function missingInputs() {
+    var noS = [], noE = [], unchk = runs.reduce(function (a, r) { return a + uncheckedCount(r); }, 0);
+    runs.forEach(function (run, ri) {
+      run.rowsUsed.forEach(function (R) {
+        var ws = run.order.filter(function (w) { return w.charAt(0) === R && run.cfg.wells[w].role === "sample"; });
+        if (!ws.length) return;
+        var lab = (runs.length > 1 ? "run " + (ri + 1) + " " : "") + R;
+        if (!ws.some(function (w) { return isFinite(run.cfg.wells[w].S); })) noS.push(lab);
+        else if (ws.some(function (w) { return isFinite(run.cfg.wells[w].S) && !(run.cfg.wells[w].E > 0); })) noE.push(lab);
+      });
+    });
+    var m = [];
+    if (unchk) m.push("<b>" + unchk + " well" + (unchk > 1 ? "s have" : " has") + " not been checked yet.</b> Open each well, look at its time course, set its slope window and click <b>Use this slope</b> (or leave the well out). Only checked wells go into the fitting tools.");
+    if (noS.length) m.push("<b>No [S] entered</b> for row" + (noS.length > 1 ? "s " : " ") + noS.join(", ") + ". Type [S] for each well in the plate layout, or set rows you are not using to <b>left out</b>.");
+    if (noE.length) m.push("<b>Missing enzyme concentration</b> for row" + (noE.length > 1 ? "s " : " ") + noE.join(", ") + ". Enter the final [E] in the well for every well that has an [S] (Grid shows [E]).");
+    return m;
+  }
+  // what is still missing before the rates file is complete (shown above the plate; saving is always possible)
+  function drawStatus() {
+    var miss = missingInputs();
+    $("msgs").innerHTML = miss.map(function (t) { return '<p class="msg warn">' + t + '</p>'; }).join("") || (runs.length ? '<p class="msg">Every well is checked and described. Save the rates file (step 4) and open it in a fitting tool.</p>' : "");
+    exportTables = { wells: wellRows(), means: meanRows() };
+    $("exportPanel").hidden = cur < 0;
+  }
+
+  // ---------- the rates file: one row per well; read by the fitting tools and reloaded here to restore the work ----------
+  function uKey(u) { return u === "mM" ? "mM" : u === "nM" ? "nM" : "uM"; }
+  function ratesRows() {
+    var A = aPerUM(), ru = A === null ? "A340_per_min" : "uM_per_min";
+    var out = [["plate", "sheet", "run_start", "well", "use", "checked", "enzyme", "E_" + uKey(G.eUnit), "S_" + uKey(G.sUnit), "S2_" + uKey(G.s2Unit), "I_" + uKey(G.iUnit), "slope_A340_per_min", "slope_SE", "R2", "slope_minus_blank_A340_per_min", "rate_" + ru, "window_start_min", "window_end_min", "dropped_points"]];
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) {
+      var o = calc[ri].w[w], c = run.cfg.wells[w], win = winOf(run, w);
+      out.push([run.file, run.sheet || "", run.start || "", w, o.role === "off" ? "left out" : o.role, c.ok ? "yes" : "no", c.series || "", c.E, c.S, c.S2, c.I,
+        o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" && o.fit.ok ? o.corr : "", o.role === "sample" && o.fit.ok ? o.v : "",
+        win[0], win[1], Object.keys(c.excl || {}).join(";")]);
+    }); });
+    return out;
+  }
+  var pendingRestore = [];   // rates files whose plates are not loaded yet
+  function isRatesFile(text) { var h = text.replace(/^\uFEFF/, "").split(/\r?\n/)[0].toLowerCase(); return h.indexOf("well") >= 0 && h.indexOf("window_start_min") >= 0 && h.indexOf("plate") >= 0; }
+  function parseCSV(text) {
+    var rows = [], row = [], f = "", q = false; text = text.replace(/^\uFEFF/, "");
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
+      else if (ch === '"') q = true; else if (ch === ",") { row.push(f); f = ""; } else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; } else f += ch;
+    }
+    if (f !== "" || row.length) { row.push(f); rows.push(row); }
+    return rows.filter(function (r) { return r.some(function (x) { return x !== ""; }); });
+  }
+  function applyRestore(R) {
+    var head = R.rows[0].map(function (h) { return h.trim(); }), col = function (re) { for (var i = 0; i < head.length; i++) if (re.test(head[i])) return i; return -1; };
+    var ix = { plate: col(/^plate$/), sheet: col(/^sheet$/), start: col(/^run_start$/), well: col(/^well$/), use: col(/^use$/), ok: col(/^checked$/), enz: col(/^enzyme$/), E: col(/^E_/), S: col(/^S_/), S2: col(/^S2_/), I: col(/^I_/), w0: col(/^window_start_min$/), w1: col(/^window_end_min$/), drop: col(/^dropped_points$/) };
+    var unit = function (i) { return i < 0 ? null : head[i].split("_")[1]; }, un = { S: unit(ix.S), S2: unit(ix.S2), I: unit(ix.I), E: unit(ix.E) };
+    var n = 0, matched = {};
+    R.rows.slice(1).forEach(function (r) {
+      var run = runs.filter(function (x) { return x.file === r[ix.plate] && (ix.sheet < 0 || (x.sheet || "") === r[ix.sheet]) && (ix.start < 0 || (x.start || "") === r[ix.start]); })[0];
+      if (!run || !run.cfg.wells[r[ix.well]]) return;
+      var c = run.cfg.wells[r[ix.well]], nv = function (i) { return i < 0 || r[i] === "" ? NaN : Number(r[i]); };
+      c.S = nv(ix.S); c.S2 = nv(ix.S2); c.I = nv(ix.I); c.E = nv(ix.E); if (ix.enz >= 0) c.series = r[ix.enz];
+      c.role = r[ix.use] === "left out" ? "off" : "sample";
+      var a = nv(ix.w0), b = nv(ix.w1); c.win = isFinite(a) && isFinite(b) ? [a, b] : null;
+      c.excl = {}; if (ix.drop >= 0 && r[ix.drop]) r[ix.drop].split(";").forEach(function (k) { if (k !== "") c.excl[k] = true; });
+      c.ok = r[ix.ok] === "yes"; n++; matched[runs.indexOf(run)] = 1;
+    });
+    if (n) {
+      if (un.S) G.sUnit = un.S === "mM" ? "mM" : "uM"; if (un.S2) G.s2Unit = un.S2 === "mM" ? "mM" : "uM"; if (un.I) G.iUnit = un.I === "mM" ? "mM" : "uM"; if (un.E) G.eUnit = un.E === "uM" ? "uM" : "nM";
+      saveSettings(); syncInputs(); buildLayout(); render();
+      topMsg("Restored " + n + " wells from " + esc(R.name) + " (" + Object.keys(matched).length + " plate" + (Object.keys(matched).length > 1 ? "s" : "") + ").");
+    }
+    return n;
+  }
+  function tryRestores() { pendingRestore = pendingRestore.filter(function (R) { return !applyRestore(R); }); }
+  function wellRows() {
+    var out = [["run", "well", "use", "enzyme", "E (" + (G.eUnit === "nM" ? "nM" : "uM") + ")", "S (" + sLabel() + ")", "window_start_min", "window_end_min", "points", "slope (A340/min)", "SE_slope", "R2", "rate_minus_blank (A340/min)", "rate (" + vUnit() + ")"]];
+    runs.forEach(function (run, ri) { run.order.forEach(function (w) { var o = calc[ri].w[w], win = winOf(run, w); out.push([run.label, w, o.role === "off" ? "left out" : o.role, o.series, o.E, o.S, win[0], win[1], o.fit.n, o.fit.ok ? o.fit.slope : "", o.fit.ok ? o.fit.se : "", o.fit.ok ? o.fit.r2 : "", o.role === "sample" ? o.corr : "", o.role === "sample" ? o.v : ""]); }); });
+    return out;
+  }
+  function meanRows() { var out = [["enzyme", "E (" + uLab(G.eUnit) + ")", "I (" + uLab(G.iUnit) + ")", "S2 (" + uLab(G.s2Unit) + ")", "S (" + sLabel() + ")", "n", "mean rate (" + vUnit() + ")", "SD", "wells"]]; meanTable().forEach(function (g) { out.push([g.series, g.E, g.I, g.S2, g.S, g.n, g.mean, g.sd, g.wells.join(" ")]); }); return out; }
+
+  // ---------- export: PNG figures and CSV tables ----------
+  var LIGHT_VARS = ["fg", "muted", "grid", "panel", "line", "accent", "pin", "ref", "warn", "win", "c1", "c2", "c3", "c4", "c5", "c6", "m1", "m2", "m3"];
+  function withLight(fn) {
+    var root = document.documentElement, prev = root.getAttribute("data-theme"), out;
+    root.setAttribute("data-theme", "light");
+    try { out = fn(getComputedStyle(root)); } finally { if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev); }
+    return out;
+  }
+  function legendOf(id) {
+    var host = id && $(id); if (!host) return [];
+    return [].map.call(host.children, function (sp) {
+      var i = sp.querySelector("i"), item = { text: sp.textContent.trim() };
+      if (i) { var cs = getComputedStyle(i); if (i.classList.contains("ln")) { item.kind = "line"; item.color = cs.borderTopColor; item.dash = cs.borderTopStyle === "dashed"; } else { item.kind = "dot"; item.color = cs.backgroundColor; } }
+      return item;
+    }).filter(function (it) { return it.text || it.kind; });
+  }
+  function svgToPng(svgId, legendId, scale) {
+    var svg = $(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
+    var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
+    var items = info.legend, y = H + 14, cx = 54, lg = "";
+    items.forEach(function (it) {
+      var w = (it.kind ? 22 : 0) + it.text.length * 6.2 + 14;
+      if (cx + w > W - 10) { cx = 54; y += 18; }
+      if (it.kind === "dot") lg += '<circle cx="' + (cx + 5) + '" cy="' + (y - 4) + '" r="4" fill="' + it.color + '"/>';
+      else if (it.kind === "line") lg += '<line x1="' + cx + '" x2="' + (cx + 16) + '" y1="' + (y - 4) + '" y2="' + (y - 4) + '" stroke="' + it.color + '" stroke-width="2.5"' + (it.dash ? ' stroke-dasharray="5 3"' : "") + '/>';
+      lg += '<text x="' + (cx + (it.kind ? 22 : 0)) + '" y="' + y + '">' + it.text.replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>';
+      cx += w;
+    });
+    var H2 = items.length ? y + 10 : H;
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var c = document.createElement("canvas"); c.width = Math.round(W * scale); c.height = Math.round(H2 * scale);
+        var ctx = c.getContext("2d"); ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height); ctx.drawImage(img, 0, 0, c.width, c.height);
+        c.toBlob(function (b) { b ? resolve(b) : reject(new Error("could not encode the image")); }, "image/png");
+      };
+      img.onerror = function () { reject(new Error("could not draw the figure")); };
+      img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(markup);
+    });
+  }
+  function csvText(rows) {
+    return "﻿" + rows.map(function (r) {
+      return r.map(function (v) {
+        if (v === null || v === undefined || (typeof v === "number" && !isFinite(v))) return "";
+        if (typeof v === "number") return String(Number(v.toPrecision(8)));
+        var t = String(v); return /[",\r\n]/.test(t) ? '"' + t.replace(/"/g, '""') + '"' : t;
+      }).join(",");
+    }).join("\r\n") + "\r\n";
+  }
+  function exportNote(t) { $("exportMsg").textContent = t; }
+  function saveFile(filename, data) {
+    var getDl = window.claude && window.claude.use ? window.claude.use("downloads") : Promise.resolve(null);
+    return getDl.catch(function () { return null; }).then(function (dl) {
+      if (dl) return dl.save({ filename: filename, data: data }).then(function () { exportNote("Saved " + filename + "."); }, function (e) { exportNote(e && e.code === "declined" ? "Save cancelled." : "Could not save " + filename + "."); });
+      try {
+        var blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv;charset=utf-8" }), a = document.createElement("a");
+        a.href = URL.createObjectURL(blob); a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000); exportNote("Downloaded " + filename + ".");
+      } catch (e) { exportNote("Saving files is not available in this view."); }
+    });
+  }
+  var EXP = { plots: [{ svg: "plotW", legend: null, label: "Selected well trace (PNG)", file: "well" }],
+    tables: [{ key: "means", label: "Replicate means (CSV)", file: "replicate_means" }] };
+  $("exportPng").innerHTML = EXP.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
+  $("exportCsv").innerHTML = EXP.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+  function prefix() { return cur >= 0 ? runs[cur].file.replace(/[^\w.-]+/g, "_") : "plate"; }
+  $("exportPng").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-png]"); if (!b) return; var p = EXP.plots[+b.dataset.png], el = $(p.svg);
+    if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
+    exportNote("Preparing the figure...");
+    svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(prefix() + "_" + (p.file === "well" ? selWell : p.file) + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
+  });
+  $("exportCsv").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-csv]"); if (!b) return; var t = EXP.tables[+b.dataset.csv], rows = exportTables[t.key];
+    if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
+    saveFile(prefix() + "_" + t.file + ".csv", csvText(rows));
+  });
+
+  // ---------- events ----------
+  $("saveRates").addEventListener("click", function () {
+    if (!runs.length) { $("saveNote").textContent = "Load a plate first."; return; }
+    var unchk = runs.reduce(function (a, r) { return a + uncheckedCount(r); }, 0), name = (runs.length > 1 ? runs[0].file + "_and_" + (runs.length - 1) + "_more" : runs[0].file).replace(/[^\w.-]+/g, "_") + "_rates.csv";
+    saveFile(name, csvText(ratesRows())).then(function () { $("saveNote").textContent = "Saved " + name + (unchk ? ". " + unchk + " well" + (unchk > 1 ? "s are" : " is") + " not checked yet: the fitting tools ignore them until you check them here, reload, and save again." : "."); });
+  });
+  $("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
+  var dropEl = $("drop");
+  ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });
+  ["dragleave", "drop"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.remove("over"); }); });
+  dropEl.addEventListener("drop", function (e) { if (e.dataTransfer && e.dataTransfer.files) readFiles(e.dataTransfer.files); });
+  $("pasteBtn").addEventListener("click", function () { var box = $("pasteText"), found = findRuns(readText(box.value), "pasted"); if (found.length) box.value = ""; addRuns(found, "Pasted"); });
+  $("clearBtn").addEventListener("click", function () { runs = []; cur = -1; selWell = null; topMsg(""); buildRunSel(); buildLayout(); render(); });
+  $("runSel").addEventListener("change", function (e) { cur = +e.target.value; selWell = runs[cur].order[0]; buildLayout(); render(); });
+  $("runDel").addEventListener("click", function () { if (cur < 0) return; runs.splice(cur, 1); cur = runs.length ? Math.min(cur, runs.length - 1) : -1; selWell = cur >= 0 ? runs[cur].order[0] : null; buildRunSel(); buildLayout(); render(); });
+
+  function numIn(id, fn) { $(id).addEventListener("input", function (e) { var v = parseFloat(e.target.value); if (isFinite(v)) { fn(v); saveSettings(); render(); } }); }
+  numIn("winA", function (v) { G.win = [v, G.win[1]]; });
+  numIn("winB", function (v) { G.win = [G.win[0], v]; });
+  numIn("eps", function (v) { G.conv.eps = v; }); numIn("vol", function (v) { G.conv.vol = v; }); numIn("diam", function (v) { G.conv.diam = v; });
+  numIn("path", function (v) { G.conv.path = v; }); numIn("pf", function (v) { G.conv.pf = v; });
+  $("pfUnit").addEventListener("change", function (e) { G.conv.pfUnit = e.target.value; saveSettings(); render(); });
+  $("dirSel").addEventListener("change", function (e) { G.dir = e.target.value; saveSettings(); render(); });
+  $("subBlank").addEventListener("change", function (e) { G.sub = e.target.checked; saveSettings(); render(); });
+  $("resetWin").addEventListener("click", function () { runs.forEach(function (r) { r.order.forEach(function (w) { if (!r.cfg.wells[w].ok) r.cfg.wells[w].win = null; }); }); render(); });
+  $("convSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-c]"); if (!b) return; G.conv.mode = b.dataset.c; syncInputs(); saveSettings(); render(); });
+  $("sUnit").addEventListener("change", function (e) { G.sUnit = e.target.value; saveSettings(); render(); });
+  $("s2Unit").addEventListener("change", function (e) { G.s2Unit = e.target.value; saveSettings(); render(); });
+  $("iUnit").addEventListener("change", function (e) { G.iUnit = e.target.value; saveSettings(); render(); });
+  $("eUnit").addEventListener("change", function (e) { G.eUnit = e.target.value; saveSettings(); buildLayout(); render(); });
+
+  $("clickSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-a]"); if (!b) return; G.click = b.dataset.a; pressed("clickSeg", "a", G.click); });
+  $("plateGrid").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-w]"); if (!b) return; var w = b.dataset.w, cfg = runs[cur].cfg.wells[w];
+    selWell = w;
+    if (G.click === "off") cfg.role = cfg.role === "off" ? "sample" : "off";
+    if (G.click !== "inspect") { cfg.ok = false; buildLayout(); }
+    render();
+  });
+  $("rateTbl").addEventListener("click", function (e) { var tr = e.target.closest("tr[data-w]"); if (!tr) return; selWell = tr.dataset.w; render(); var p = $("wellPanel"); if (p.scrollIntoView) p.scrollIntoView({ behavior: "smooth", block: "nearest" }); });
+  // drag on the well plot to set the slope window (or drag an edge of the shaded band); a plain click drops a point
+  var drag = null, plotW = $("plotW"), wellXR = [0, 1];
+  function plotTime(e) { var r = runs[cur], rc = plotW.getBoundingClientRect(), x = (e.clientX - rc.left) * 640 / rc.width, tmax = r.t[r.t.length - 1] / 60; return { x: x, t: Math.max(0, Math.min(tmax, wellXR[0] + (x - M.l) / (640 - M.l - M.r) * (wellXR[1] - wellXR[0]))), px: 640 / rc.width }; }
+  // which window edge (0 left, 1 right) is under the pointer, comparing on screen against the drawn (clamped) edges
+  function edgeAt(e) {
+    if (cur < 0) return -1;
+    var p = plotTime(e), win = winOf(runs[cur], selWell), tmax = runs[cur].t[runs[cur].t.length - 1] / 60, k = (640 - M.l - M.r) / (wellXR[1] - wellXR[0]), tol = 9 * p.px;
+    var xa = M.l + (Math.max(win[0], 0) - wellXR[0]) * k, xb = M.l + (Math.min(win[1], tmax) - wellXR[0]) * k, da = Math.abs(p.x - xa), db = Math.abs(p.x - xb);
+    if (da > tol && db > tol) return -1;
+    return db <= da ? 1 : 0;
+  }
+  function setWin(a, b) {
+    var tmax = runs[cur].t[runs[cur].t.length - 1] / 60, lo = Math.max(0, Math.round(Math.min(a, b) * 100) / 100), hi = Math.min(Math.round(tmax * 100) / 100, Math.round(Math.max(a, b) * 100) / 100), c = runs[cur].cfg.wells[selWell];
+    c.win = [lo, hi]; c.ok = false;
+    render();
+  }
+  plotW.addEventListener("pointerdown", function (e) {
+    if (cur < 0 || e.button !== 0) return;
+    var p = plotTime(e), ed = edgeAt(e), win = winOf(runs[cur], selWell);
+    drag = { x0: p.x, t0: p.t, edge: ed, fixed: ed === 0 ? win[1] : ed === 1 ? win[0] : null, moved: false, id: e.pointerId };
+  });
+  plotW.addEventListener("pointermove", function (e) {
+    if (!drag) { plotW.style.cursor = edgeAt(e) >= 0 ? "ew-resize" : "crosshair"; return; }
+    var p = plotTime(e);
+    if (!drag.moved && Math.abs(p.x - drag.x0) < 5) return;
+    if (!drag.moved) { drag.moved = true; try { plotW.setPointerCapture(drag.id); } catch (er) {} }
+    setWin(drag.fixed !== null ? drag.fixed : drag.t0, p.t);
+  });
+  function endDrag() { if (drag && drag.moved) { saveSettings(); drag.justDragged = true; setTimeout(function () { drag = null; }, 0); } else drag = null; }
+  plotW.addEventListener("pointerup", endDrag); plotW.addEventListener("pointercancel", endDrag);
+  plotW.addEventListener("click", function (e) { if (drag && drag.justDragged) return; var g = e.target.closest("g[data-k]"); if (!g) return; var ex = runs[cur].cfg.wells[selWell].excl, k = g.dataset.k; if (ex[k]) delete ex[k]; else ex[k] = true; runs[cur].cfg.wells[selWell].ok = false; render(); });
+  function step(d) { var o = runs[cur].order, i = o.indexOf(selWell); selWell = o[(i + d + o.length) % o.length]; render(); }
+  $("prevW").addEventListener("click", function () { step(-1); }); $("nextW").addEventListener("click", function () { step(1); });
+  $("wRole").addEventListener("change", function (e) { runs[cur].cfg.wells[selWell].role = e.target.value; runs[cur].cfg.wells[selWell].ok = false; buildLayout(); render(); });
+  $("wReset").addEventListener("click", function () { runs[cur].cfg.wells[selWell].win = null; runs[cur].cfg.wells[selWell].ok = false; render(); });
+  ["wA", "wB"].forEach(function (id, i) { $(id).addEventListener("input", function (e) { var c = runs[cur].cfg.wells[selWell], v = parseFloat(e.target.value); if (!isFinite(v)) return; if (!c.win) c.win = G.win.slice(); c.win[i] = v; c.ok = false; render(); }); $(id).addEventListener("change", render); });
+  $("wBack").addEventListener("click", function () { runs[cur].cfg.wells[selWell].role = "sample"; runs[cur].cfg.wells[selWell].ok = false; buildLayout(); render(); });
+  $("wClearPts").addEventListener("click", function () { runs[cur].cfg.wells[selWell].excl = {}; runs[cur].cfg.wells[selWell].ok = false; render(); });
+  // accept this well's slope (its window is frozen), then move on to the next well still to check
+  $("wUse").addEventListener("click", function () {
+    var r = runs[cur], c = r.cfg.wells[selWell];
+    if (c.ok) { c.ok = false; render(); return; }
+    c.win = winOf(r, selWell).slice(); c.ok = true;
+    var o = r.order, i = o.indexOf(selWell);
+    for (var d = 1; d < o.length; d++) { var w = o[(i + d) % o.length], cw = r.cfg.wells[w]; if (cw.role !== "off" && !cw.ok) { selWell = w; break; } }
+    render();
+  });
+
+  function copyAcross(byRow) {
+    if (cur < 0) return; var r = runs[cur], k = G.gk, top = r.rowsUsed[0], left = r.colsUsed[0];
+    r.order.forEach(function (w) { var src = r.cfg.wells[byRow ? top + w.slice(1) : w.charAt(0) + left]; if ((byRow ? w.charAt(0) !== top : +w.slice(1) !== left) && src && r.cfg.wells[w].role !== "off") r.cfg.wells[w][k] = src[k]; });
+    buildLayout(); render();
+  }
+  $("copyTop").addEventListener("click", function () { copyAcross(true); });
+  $("copyLeft").addEventListener("click", function () { copyAcross(false); });
+  // replicate plates: give every other loaded plate this plate's [S], [S2], [I], enzyme and [E] (well by well)
+  $("copyPlates").addEventListener("click", function () {
+    if (cur < 0) return; var src = runs[cur].cfg.wells, n = 0;
+    runs.forEach(function (r, i) { if (i === cur) return; r.order.forEach(function (w) { var a = src[w], c = r.cfg.wells[w]; if (!a) return; ["S", "S2", "I", "series", "E"].forEach(function (k) { c[k] = a[k]; }); n++; }); });
+    topMsg("Layout copied to " + n + " wells on " + (runs.length - 1) + " other plate" + (runs.length > 2 ? "s" : "") + ". Wells left out and slope checks stay plate by plate.");
+    render();
+  });
+  $("fillBtn").addEventListener("click", function () { if (cur < 0) return; var r = runs[cur], x = parseKey(G.gk, $("fillAll").value); r.order.forEach(function (w) { if (r.cfg.wells[w].role !== "off") r.cfg.wells[w][G.gk] = x; }); buildLayout(); render(); });
+  $("gridSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-g]"); if (!b) return; G.gk = b.dataset.g; buildLayout(); });
+  var lg = $("layoutGrid");
+  lg.addEventListener("input", function (e) {
+    var el = e.target, cfg = runs[cur].cfg;
+    setS(el, el.value); render();
+  });
+  // paste a row or block from Excel across the [S] boxes
+  lg.addEventListener("paste", function (e) {
+    var el = e.target; if (el.tagName !== "INPUT" || el.dataset.ws === undefined) return;
+    var t = (e.clipboardData || window.clipboardData).getData("text"); if (!/[\t\n,; ]/.test(t.trim())) return;
+    e.preventDefault();
+    var grid = t.replace(/\r/g, "").replace(/\n$/, "").split("\n").map(function (l) { return l.indexOf("\t") >= 0 ? l.split("\t") : l.trim().split(/\s*[,;]\s*|\s+/); });
+    var r0 = +el.dataset.r, c0 = +el.dataset.c;
+    grid.forEach(function (line, dr) { line.forEach(function (v, dc) { var x = lg.querySelector('input[data-r="' + (r0 + dr) + '"][data-c="' + (c0 + dc) + '"]'); if (x) { x.value = v.trim(); setS(x, v.trim()); } }); });
+    render();
+  });
+  $("rateSeg").addEventListener("click", function (e) { var b = e.target.closest("button[data-r]"); if (!b) return; G.rateView = b.dataset.r; render(); });
+
+  syncInputs(); buildRunSel(); render();
+})();
+</script>
+</body>
+</html>

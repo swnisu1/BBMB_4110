@@ -155,7 +155,7 @@ ul.try li { margin-bottom: 4px; }
         <h2>Your data</h2>
         <label class="drop" id="drop" for="fileIn">
           <b>Drop one or more files here</b> or click to choose
-          <span>The <b>rates file</b> saved by Plate Reader Slopes: every checked well is used, grouped by enzyme (and by [E], [I] or [S₂] if those vary), with the units and [E] for k<sub>cat</sub> read from the file. Or one file per dataset (for example wt.csv and mutant.csv: [S] in the first column, velocity in the second), or one file with a column per dataset and the names in the header row. Rows may repeat for replicates. Each load adds to the datasets already listed; use Clear to start over.</span>
+          <span>One file per dataset (for example wt.csv and mutant.csv: [S] in the first column, velocity in the second), or one file with a column per dataset and the names in the header row. Rows may repeat for replicates. Each load adds to the datasets already listed; use Clear to start over.</span>
           <input type="file" id="fileIn" multiple accept=".csv,.tsv,.txt,.dat,text/*" hidden>
         </label>
         <details id="pasteBox">
@@ -248,9 +248,6 @@ ul.try li { margin-bottom: 4px; }
   function esc(t) { return String(t).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
   function cu() { return document.getElementById("cunit").value || "conc."; }
   function vu() { return document.getElementById("vunit").value || "rate"; }
-  // rate per second (for kcat) and concentration in mol/L (for kcat/Km), read from the unit labels
-  function perSec() { var u = vu().toLowerCase(); return /\/\s*min/.test(u) ? 1 / 60 : /\/\s*h/.test(u) ? 1 / 3600 : 1; }
-  function toMolar(x) { var u = cu().toLowerCase(); return x * (/^mm/.test(u) ? 1e-3 : /^nm/.test(u) ? 1e-9 : /^m$/.test(u) ? 1 : 1e-6); }
 
   var sim = { V: 2, K: LOG(15), n: 1.8, Ksi: LOG(450), noise: 5, floor: 0.01, reps: 2, seed: 1 };
   var state = { mode: "data", d: 0, choice: {}, show: "all", x: "lin", fitted: false };
@@ -276,48 +273,7 @@ ul.try li { margin-bottom: 4px; }
     Ss.forEach(function (s) { for (var r = 0; r < sim.reps; r++) { var t = rate(key, p, s); S.push(s); v.push(t + (sim.noise / 100 * t + sim.floor) * gauss(rnd)); } });
     return { sets: [{ name: "simulated", E: NaN, S: S, v: v }], truth: { key: key, p: p } };
   }
-  // ---------- rates file from Plate Reader Slopes: one row per well ----------
-  function parseCSV(text) {
-    var rows = [], row = [], f = "", q = false; text = text.replace(/^﻿/, "");
-    for (var i = 0; i < text.length; i++) {
-      var ch = text[i];
-      if (q) { if (ch === '"') { if (text[i + 1] === '"') { f += '"'; i++; } else q = false; } else f += ch; }
-      else if (ch === '"') q = true; else if (ch === ",") { row.push(f); f = ""; } else if (ch === "\n" || ch === "\r") { if (ch === "\r" && text[i + 1] === "\n") i++; row.push(f); rows.push(row); row = []; f = ""; } else f += ch;
-    }
-    if (f !== "" || row.length) { row.push(f); rows.push(row); }
-    return rows.filter(function (r) { return r.some(function (x) { return x !== ""; }); });
-  }
-  function isRatesFile(text) { var h = text.replace(/^﻿/, "").split(/\r?\n/)[0].toLowerCase(); return h.indexOf("well") >= 0 && h.indexOf("window_start_min") >= 0 && /(^|,)rate_/.test(h); }
-  // checked sample wells: { wells: [{enzyme, E (nM), S, S2, I, v, well}], units: {S, S2, I, v}, skipped: unchecked wells }
-  function readRates(text) {
-    var R = parseCSV(text), head = R[0].map(function (h) { return h.trim(); });
-    function col(re) { for (var i = 0; i < head.length; i++) if (re.test(head[i])) return i; return -1; }
-    var ix = { use: col(/^use$/), ok: col(/^checked$/), enz: col(/^enzyme$/), E: col(/^E_/), S: col(/^S_/), S2: col(/^S2_/), I: col(/^I_/), v: col(/^rate_/), plate: col(/^plate$/), well: col(/^well$/) };
-    function un(i) { var u = i < 0 ? "" : head[i].slice(head[i].indexOf("_") + 1); return u === "uM" ? "µM" : u; }
-    var eFac = ix.E >= 0 && /_uM$/.test(head[ix.E]) ? 1000 : 1, out = [], skipped = 0;
-    R.slice(1).forEach(function (r) {
-      var nv = function (i) { return i < 0 || r[i] === "" || r[i] === undefined ? NaN : Number(r[i]); };
-      if (r[ix.use] !== "sample") return;
-      if (ix.ok >= 0 && r[ix.ok] !== "yes") { skipped++; return; }
-      var w = { enzyme: (r[ix.enz] || "").trim() || "Enzyme", E: nv(ix.E) * eFac, S: nv(ix.S), S2: nv(ix.S2), I: nv(ix.I), v: nv(ix.v), well: (r[ix.plate] || "") + ":" + (r[ix.well] || "") };
-      if (isFinite(w.v)) out.push(w);
-    });
-    var vu0 = ix.v >= 0 ? head[ix.v].replace(/^rate_/, "") : "";
-    return { wells: out, skipped: skipped, units: { S: un(ix.S), S2: un(ix.S2), I: un(ix.I), v: vu0 === "uM_per_min" ? "µM/min" : vu0 === "A340_per_min" ? "ΔA340/min" : vu0 } };
-  }
-  function ratesToSets(text) {
-    var RF = readRates(text), groups = {}, list = [];
-    RF.wells.forEach(function (w) { if (!isFinite(w.S)) return; var k = [w.enzyme, w.E, w.S2, w.I].join("|"); if (!groups[k]) { groups[k] = { enzyme: w.enzyme, E: w.E, S2: w.S2, I: w.I, S: [], v: [] }; list.push(groups[k]); } groups[k].S.push(w.S); groups[k].v.push(w.v); });
-    function multi(key) { var e = {}; list.forEach(function (g) { (e[g.enzyme] = e[g.enzyme] || {})[String(g[key])] = 1; }); return Object.keys(e).some(function (k) { return Object.keys(e[k]).length > 1; }); }
-    var mE = multi("E"), mS2 = multi("S2"), mI = multi("I");
-    var out = list.map(function (g) { return { name: g.enzyme + (mE && isFinite(g.E) ? " · " + g.E + " nM" : "") + (mI && isFinite(g.I) ? " · [I] " + g.I + " " + RF.units.I : "") + (mS2 && isFinite(g.S2) ? " · [S₂] " + g.S2 + " " + RF.units.S2 : ""), E: g.E, S: g.S, v: g.v }; });
-    // a series needs at least three different [S] to be fit
-    out = out.filter(function (s) { var u = {}; s.S.forEach(function (x) { if (x > 0) u[x] = 1; }); return Object.keys(u).length >= 3; });
-    out.units = RF.units; out.skipped = RF.skipped;
-    return out;
-  }
   function parseTable(text, fname) {
-    if (isRatesFile(text)) return ratesToSets(text);
     var delim = null, header = null, rows = [];
     text.split(/\r?\n/).forEach(function (ln) {
       if (!ln.trim()) return;
@@ -480,13 +436,7 @@ ul.try li { margin-bottom: 4px; }
   function readFiles(files) {
     var list = Array.prototype.slice.call(files || []); if (!list.length) return;
     var got = [], pending = list.length;
-    function done() {
-      if (--pending !== 0) return;
-      var rf = got.filter(function (g) { return g && g.units; }), skipped = rf.reduce(function (a, g) { return a + (g.skipped || 0); }, 0);
-      if (rf.length) { if (rf[0].units.S) document.getElementById("cunit").value = rf[0].units.S; if (rf[0].units.v) document.getElementById("vunit").value = rf[0].units.v; }
-      var all = [].concat.apply([], got.filter(Boolean).map(function (g) { return g.slice(); })); if (all.length) addSets(all);
-      if (skipped) { var m = document.getElementById("msgs"); if (m) m.insertAdjacentHTML("afterbegin", '<p class="msg warn">' + skipped + ' well' + (skipped > 1 ? "s were" : " was") + ' not checked in Plate Reader Slopes and ' + (skipped > 1 ? "are" : "is") + ' not used. Check ' + (skipped > 1 ? "them" : "it") + ' there, save the rates file again and reload it here.</p>'); }
-    }
+    function done() { if (--pending === 0) { var all = [].concat.apply([], got.filter(Boolean)); if (all.length) addSets(all); } }
     list.forEach(function (f, k) { var r = new FileReader(); r.onload = function () { got[k] = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); done(); }; r.onerror = done; r.readAsText(f); });
   }
   document.getElementById("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
@@ -680,10 +630,10 @@ ul.try li { margin-bottom: 4px; }
     document.getElementById("dsName").textContent = d.name;
 
     // ---- cards
-    var E = d.E, kcat = F && E > 0 ? F.V * perSec() / (E / 1000) : NaN;
+    var E = d.E, kcat = F && E > 0 ? F.V / (E / 1000) : NaN;
     var third = !F ? "" : selKey === "hill" ? '<div class="card"><div class="k">Hill coefficient n</div><div class="v">' + sig(F.n) + '</div><div class="s">± ' + sig(F.seN) + ' SE' + (truth && truth.key === "hill" ? " | true " + sig(truth.p.n) : "") + '</div></div>'
       : selKey === "si" ? '<div class="card"><div class="k">K<sub>si</sub> (' + esc(cu()) + ')</div><div class="v">' + (F.noSI ? "not detected" : sig(F.Ksi)) + '</div><div class="s">' + (F.noSI ? "beyond the [S] range" : "± " + sig(F.seKsi) + " SE | Sₒₚₜ " + sig(Math.sqrt(F.K * F.Ksi))) + (truth && truth.key === "si" ? " | true " + sig(truth.p.Ksi) : "") + '</div></div>'
-      : '<div class="card"><div class="k">V<sub>max</sub>/K<sub>m</sub></div><div class="v">' + sig(F.V / F.K) + '</div><div class="s">' + (isFinite(F.seSpec) ? "± " + sig(F.seSpec) + " SE" : "") + (isFinite(kcat) ? " | kᶜᵃᵗ/Kₘ " + Math.round(kcat / toMolar(F.K)).toLocaleString("en-US") + " M⁻¹s⁻¹" : "") + '</div></div>';
+      : '<div class="card"><div class="k">V<sub>max</sub>/K<sub>m</sub></div><div class="v">' + sig(F.V / F.K) + '</div><div class="s">' + (isFinite(F.seSpec) ? "± " + sig(F.seSpec) + " SE" : "") + (isFinite(kcat) ? " | kᶜᵃᵗ/Kₘ " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹" : "") + '</div></div>';
     cards.innerHTML = !F ? '<div class="card hot"><div class="k">Model' + (all.length > 1 ? " · " + esc(d.name) : "") + '</div><div class="v" style="font-size:15px">Not chosen yet</div><div class="s">Compare the models in the table below and click the one the data support. The fit, residuals and constants appear for the model you choose.</div></div>' :
       '<div class="card hot"><div class="k">Model you chose' + (all.length > 1 ? " · " + esc(d.name) : "") + '</div><div class="v" style="font-size:15px">' + MN[selKey] + '</div><div class="s">click its row again to clear</div></div>' +
       '<div class="card"><div class="k">V<sub>max</sub> (' + esc(vu()) + ')</div><div class="v">' + sig(F.V) + '</div><div class="s">± ' + sig(F.seV) + ' SE' + (isFinite(kcat) ? ' | kᶜᵃᵗ ' + sig(kcat) + ' s⁻¹' : '') + (truth ? " | true " + sig(truth.p.V) : "") + '</div></div>' +
@@ -759,7 +709,7 @@ ul.try li { margin-bottom: 4px; }
 
     // ---- interpretation
     var tx = [];
-    if (selKey === "mm") tx.push("<b>Michaelis-Menten.</b> A single hyperbola describes the data: one kind of binding site, no detectable cooperativity or substrate inhibition over this [S] range. K<sub>m</sub> = " + sig(F.K) + " " + esc(cu()) + (isFinite(kcat) ? ", k<sub>cat</sub> = " + sig(kcat) + " s⁻¹, k<sub>cat</sub>/K<sub>m</sub> = " + Math.round(kcat / toMolar(F.K)).toLocaleString("en-US") + " M⁻¹s⁻¹." : "."));
+    if (selKey === "mm") tx.push("<b>Michaelis-Menten.</b> A single hyperbola describes the data: one kind of binding site, no detectable cooperativity or substrate inhibition over this [S] range. K<sub>m</sub> = " + sig(F.K) + " " + esc(cu()) + (isFinite(kcat) ? ", k<sub>cat</sub> = " + sig(kcat) + " s⁻¹, k<sub>cat</sub>/K<sub>m</sub> = " + Math.round(kcat / F.K * 1e6).toLocaleString("en-US") + " M⁻¹s⁻¹." : "."));
     else if (selKey === "hill") tx.push("<b>Hill.</b> The curve is " + (F.n > 1 ? "sigmoidal" : "more gradual than a hyperbola") + " (n = " + sig(F.n) + " ± " + sig(F.seN) + "). " + (F.n > 1.2 ? "A Hill coefficient above 1 means substrate binding to one site raises affinity at another, which requires an oligomer. The Hill coefficient is a lower bound on the number of interacting sites, so n near 2 fits a dimer and n up to 4 a tetramer. If the enzyme exists as a mixture of oligomeric states, the apparent cooperativity can partly reflect that mixture, so it is worth knowing the oligomeric state under assay conditions." : F.n < 0.85 ? "A Hill coefficient below 1 suggests negative cooperativity or two classes of site (or two enzyme forms), so check whether a mixture of oligomers could contribute." : "A value near 1 means the Hill model has little to add over Michaelis-Menten."));
     else tx.push("<b>Substrate inhibition.</b> The rate rises, peaks near [S] = " + (F.noSI ? "—" : sig(Math.sqrt(F.K * F.Ksi)) + " " + esc(cu())) + " and then falls (K<sub>si</sub> = " + (F.noSI ? "beyond the data" : sig(F.Ksi) + " " + esc(cu())) + "). The usual explanation is a second substrate molecule binding the enzyme-substrate complex to make an unproductive ESS. Check for artifacts before reading mechanism into it: co-solvent or ionic strength rising with [S], a contaminant in the stock, depletion of cofactor, or substrate absorbance at the detection wavelength.");
     tx.push("BIC only compares these three equations; it does not prove a mechanism. For poorly soluble substrates the highest [S] may be limited, so a model that needs data beyond the solubility limit (substrate inhibition, or saturation itself) cannot be tested and the widget will say so.");
