@@ -309,10 +309,8 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
         <h2>Export</h2>
         <p class="hint" style="margin:0 0 6px"><b>For the fitting tools</b> (substrate dependence, inhibition, two-substrate):</p>
         <div class="btns" style="margin-top:0"><button type="button" class="btn primary" id="saveRates2">Save rates file (CSV)</button></div>
-        <p class="hint" style="margin:12px 0 6px">For your own figures and tables:</p><p class="hint" style="margin:0 0 6px">Figure (PNG, light background)</p>
+        <p class="hint" style="margin:12px 0 6px">Pictures of the time courses (PNG, light background), with each well's slope window and fitted line:</p>
         <div class="btns" id="exportPng" style="margin-top:0"></div>
-        <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel)</p>
-        <div class="btns" id="exportCsv" style="margin-top:0"></div>
         <p class="hint" id="exportMsg"></p>
       </section>
     </div>
@@ -779,7 +777,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   function drawStatus() {
     var miss = missingInputs();
     $("msgs").innerHTML = miss.map(function (t) { return '<p class="msg warn">' + t + '</p>'; }).join("") || (runs.length ? '<p class="msg">Every well is checked and described. Click <b>Save rates file</b> (step 4 on the left, or in Export below) and open that file in a fitting tool.</p>' : "");
-    exportTables = { wells: wellRows(), means: meanRows() };
+    exportTables = { wells: wellRows() };
     $("exportPanel").hidden = cur < 0;
   }
 
@@ -854,7 +852,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       return item;
     }).filter(function (it) { return it.text || it.kind; });
   }
-  function svgToPng(svgId, legendId, scale) {
+  function svgToPng(svgId, legendId, scale, title) {
     var svg = $(svgId), vb = svg.getAttribute("viewBox").split(/\s+/).map(Number), W = vb[2], H = vb[3];
     var info = withLight(function (cs) { var tok = {}; LIGHT_VARS.forEach(function (n) { tok[n] = cs.getPropertyValue("--" + n).trim(); }); return { tok: tok, legend: legendOf(legendId) }; });
     var items = info.legend, y = H + 14, cx = 54, lg = "";
@@ -867,7 +865,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       cx += w;
     });
     var H2 = items.length ? y + 10 : H;
-    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + svg.innerHTML + lg + '</svg>';
+    var markup = '<svg xmlns="http://www.w3.org/2000/svg" width="' + W + '" height="' + H2 + '" viewBox="0 0 ' + W + ' ' + H2 + '"><style>text{font-family:Arial,Helvetica,sans-serif;font-size:11px;fill:' + info.tok.muted + '}.ttl{font-size:11.5px;fill:' + info.tok.fg + '}</style><rect width="100%" height="100%" fill="#ffffff"/>' + (title ? '<text x="' + (W - 10) + '" y="12" text-anchor="end" style="font-size:12px;font-weight:bold;fill:' + info.tok.fg + '">' + String(title).replace(/&/g, "&amp;").replace(/</g, "&lt;") + '</text>' : "") + svg.innerHTML + lg + '</svg>';
     markup = markup.replace(/var\(--([a-z0-9]+)\)/g, function (m, n) { return info.tok[n] || "#000000"; });
     return new Promise(function (resolve, reject) {
       var img = new Image();
@@ -901,21 +899,60 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       } catch (e) { exportNote("Saving files is not available in this view."); }
     });
   }
-  var EXP = { plots: [{ svg: "plotW", legend: null, label: "Selected well trace (PNG)", file: "well" }],
-    tables: [{ key: "means", label: "Replicate means table (CSV, for Excel)", file: "replicate_means" }] };
+  var EXP = { plots: [{ svg: "plotW", legend: null, label: "Selected well (PNG)", file: "well" }, { all: true, label: "All wells (ZIP of PNGs)" }], tables: [] };
   $("exportPng").innerHTML = EXP.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
-  $("exportCsv").innerHTML = EXP.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
+  // ---------- every well's trace as a PNG, in one ZIP (stored, no compression; PNGs are already compressed) ----------
+  var CRC = (function () { var t = []; for (var n = 0; n < 256; n++) { var c = n; for (var k = 0; k < 8; k++) c = c & 1 ? 0xEDB88320 ^ (c >>> 1) : c >>> 1; t[n] = c >>> 0; } return t; })();
+  function crc32(u8) { var c = 0xFFFFFFFF; for (var i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 255] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  function makeZip(files) {   // files: [{ name, data: Uint8Array }]
+    var enc = new TextEncoder(), parts = [], central = [], off = 0;
+    function u16(v) { return [v & 255, (v >>> 8) & 255]; } function u32(v) { return [v & 255, (v >>> 8) & 255, (v >>> 16) & 255, (v >>> 24) & 255]; }
+    files.forEach(function (f) {
+      var nm = enc.encode(f.name), crc = crc32(f.data), sz = f.data.length;
+      var loc = [].concat(u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(sz), u32(sz), u16(nm.length), u16(0));
+      parts.push(new Uint8Array(loc), nm, f.data);
+      central.push(new Uint8Array([].concat(u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0x21), u32(crc), u32(sz), u32(sz), u16(nm.length), u16(0), u16(0), u16(0), u16(0), u32(0), u32(off))), nm);
+      off += loc.length + nm.length + sz;
+    });
+    var csize = central.reduce(function (a, p) { return a + p.length; }, 0);
+    var end = new Uint8Array([].concat(u32(0x06054b50), u16(0), u16(0), u16(files.length), u16(files.length), u32(csize), u32(off), u16(0)));
+    return new Blob(parts.concat(central, [end]), { type: "application/zip" });
+  }
+  function wellCaption(ri, w) {
+    var c = runs[ri].cfg.wells[w], o = calc[ri] && calc[ri].w[w], bits = [];
+    if (c.role === "off") bits.push("left out"); else if (c.role === "blank") bits.push("blank");
+    if (isFinite(c.S)) bits.push("[S] " + sig(c.S) + " " + sLabel()); if (isFinite(c.S2)) bits.push("[S₂] " + sig(c.S2)); if (isFinite(c.I)) bits.push("[I] " + sig(c.I));
+    if (o && o.fit.ok && c.role !== "off") bits.push("slope " + sig(o.fit.slope * 1000) + " mA/min" + (c.ok ? "" : " (not checked)"));
+    return bits.length ? " · " + bits.join(" · ") : "";
+  }
+  function allWellsZip() {
+    if (cur < 0) return;
+    var keepCur = cur, keepWell = selWell, list = [];
+    runs.forEach(function (r, ri) { r.order.forEach(function (w) { list.push([ri, w]); }); });
+    var files = [], i = 0;
+    exportNote("Drawing " + list.length + " wells...");
+    function next() {
+      if (i >= list.length) {
+        cur = keepCur; selWell = keepWell; render();
+        saveFile((runs.length > 1 ? "plates" : prefix()) + "_well_traces.zip", makeZip(files)); return;
+      }
+      var it = list[i++]; cur = it[0]; selWell = it[1]; drawWell();
+      svgToPng("plotW", null, 2, runs[cur].file + " · " + selWell + wellCaption(cur, selWell)).then(function (blob) { return blob.arrayBuffer(); }).then(function (buf) {
+        files.push({ name: (runs.length > 1 ? runs[cur].file.replace(/[^\w.-]+/g, "_") + "_" : "") + selWell + ".png", data: new Uint8Array(buf) });
+        if (i % 12 === 0) exportNote("Drawing wells: " + i + " of " + list.length + "...");
+        next();
+      }, function (err) { cur = keepCur; selWell = keepWell; render(); exportNote("Could not draw well " + selWell + ": " + err.message); });
+    }
+    next();
+  }
   function prefix() { return cur >= 0 ? runs[cur].file.replace(/[^\w.-]+/g, "_") : "plate"; }
   $("exportPng").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-png]"); if (!b) return; var p = EXP.plots[+b.dataset.png], el = $(p.svg);
+    var b = e.target.closest("button[data-png]"); if (!b) return; var p = EXP.plots[+b.dataset.png];
+    if (p.all) { allWellsZip(); return; }
+    var el = $(p.svg);
     if (!el || el.closest("[hidden]") || !el.firstChild) { exportNote("That plot is not showing right now."); return; }
     exportNote("Preparing the figure...");
-    svgToPng(p.svg, p.legend, 3).then(function (blob) { return saveFile(prefix() + "_" + (p.file === "well" ? selWell : p.file) + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
-  });
-  $("exportCsv").addEventListener("click", function (e) {
-    var b = e.target.closest("button[data-csv]"); if (!b) return; var t = EXP.tables[+b.dataset.csv], rows = exportTables[t.key];
-    if (!rows || rows.length < 2) { exportNote("Nothing to export for this table yet."); return; }
-    saveFile(prefix() + "_" + t.file + ".csv", csvText(rows));
+    svgToPng(p.svg, p.legend, 3, runs[cur].file + " · " + selWell + wellCaption(cur, selWell)).then(function (blob) { return saveFile(prefix() + "_" + (p.file === "well" ? selWell : p.file) + ".png", blob); }, function (err) { exportNote("Could not make the figure: " + err.message); });
   });
 
   // ---------- events ----------
