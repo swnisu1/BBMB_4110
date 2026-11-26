@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How to Use the New Fitting Apps · BBMB 4110</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #f3f5f8; --panel: #ffffff; --fg: #1b2330; --muted: #5d6b7e; --line: #d9dfe8;
+  --accent: #3347c9; --accent-soft: #e6e9fb;
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+    --accent: #8d9bff; --accent-soft: #252d52;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #11161f; --panel: #1a212d; --fg: #e4e9f1; --muted: #98a5b8; --line: #2e3949;
+  --accent: #8d9bff; --accent-soft: #252d52;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font-family: var(--font); line-height: 1.5; }
+main { max-width: 880px; margin: 0 auto; padding: 48px 16px 64px; }
+.eyebrow { font-family: var(--mono); font-size: 13px; color: var(--accent); letter-spacing: .04em; margin: 0 0 8px; }
+h1 { font-size: 30px; font-weight: 600; margin: 0 0 8px; letter-spacing: -.01em; }
+.lede { color: var(--muted); margin: 0 0 32px; max-width: 60ch; }
+h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 32px 0 12px; }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+a.card { display: block; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; text-decoration: none; color: inherit; transition: border-color .15s, transform .15s; }
+a.card:hover, a.card:focus-visible { border-color: var(--accent); transform: translateY(-1px); outline: none; }
+.card .t { font-weight: 600; margin: 0 0 4px; color: var(--fg); }
+.card .d { font-size: 14px; color: var(--muted); margin: 0; }
+.card.intro { background: var(--accent-soft); border-color: transparent; }
+.grid.one { grid-template-columns: 1fr; margin-bottom: 12px; }
+a.card.big { padding: 22px 24px; border-color: var(--accent); }
+.card.big .t { font-size: 24px; letter-spacing: -.01em; }
+.card.big .d { font-size: 15px; }
+footer { margin-top: 48px; font-size: 13px; color: var(--muted); }
+footer a { color: var(--accent); }
+
+article { max-width: 760px; }
+article h2 { font-size: 20px; text-transform: none; letter-spacing: -.005em; color: var(--fg); margin: 36px 0 10px; }
+article h3 { font-size: 16px; margin: 22px 0 6px; }
+article p, article li { font-size: 15.5px; }
+article ol, article ul { padding-left: 22px; }
+article li { margin: 4px 0; }
+article a { color: var(--accent); }
+.box { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+.box.tip { background: var(--accent-soft); border-color: transparent; }
+details.faq { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; margin: 8px 0; }
+details.faq summary { cursor: pointer; font-weight: 600; font-size: 15.5px; }
+details.faq[open] summary { margin-bottom: 6px; }
+table.t { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 8px 0; }
+table.t th, table.t td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.t th { color: var(--muted); font-weight: 600; font-size: 13px; }
+kbd, .k { font-family: var(--mono); font-size: 13.5px; background: var(--accent-soft); padding: 1px 5px; border-radius: 4px; }
+</style>
+</head>
+<body>
+<main>
+  <p class="eyebrow"><a href="../index.html" style="color:inherit">BBMB 4110</a> · <a href="index.html" style="color:inherit">New Fitting Apps</a></p>
+  <h1>How to use the new fitting apps</h1>
+  <article>
+  <p class="lede">Two steps: find the slopes once, then fit them as often as you like.</p>
+
+  <div class="box tip">
+    <b>The whole workflow</b>
+    <ol>
+      <li>Open <a href="plate-reader-slopes.html">Plate Reader Slopes</a> and load your plate reader file.</li>
+      <li>Enter the concentrations in each well.</li>
+      <li>Check every well's slope.</li>
+      <li>Click <b>Save rates file</b>.</li>
+      <li>Open the rates file in the fitting app for your experiment, fit, and choose a model.</li>
+    </ol>
+  </div>
+
+  <h2>Step 1: Plate Reader Slopes</h2>
+
+  <h3>1. Load the plate</h3>
+  <p>Drag the plate reader file onto the box in step 1 (or click it to choose). Either reader works as saved: the infinite 200Pro or the Spark, as .xlsx or as CSV. If the workbook has more than one run, pick it from the menu below the box.</p>
+
+  <h3>2. Enter what is in each well</h3>
+  <p>In the <b>Plate layout</b> panel, <b>Grid shows</b> picks what you are typing into the wells:</p>
+  <table class="t">
+    <tr><th>Tab</th><th>What to type</th><th>When</th></tr>
+    <tr><td><b>[S]</b></td><td>the substrate you varied (for example 2-propanol)</td><td>always</td></tr>
+    <tr><td><b>[S₂]</b></td><td>the second substrate (for example NADP⁺)</td><td>only for two-substrate experiments</td></tr>
+    <tr><td><b>[I]</b></td><td>the inhibitor (0 for no inhibitor)</td><td>only for inhibition experiments</td></tr>
+    <tr><td><b>Enzyme</b></td><td>a name: WT, mutant…</td><td>if the plate has more than one enzyme</td></tr>
+    <tr><td><b>[E]</b></td><td>the final enzyme concentration in the well; <b>0 for a no-enzyme blank</b></td><td>always</td></tr>
+  </table>
+  <p>Shortcuts: type one row and click <b>Copy the top row to every row</b>, or one column and click <b>Copy the left column to every column</b>. <b>Fill every well with</b> puts one value everywhere (handy for [E]). You can also paste a block straight from Excel. Set the <b>units</b> at the top right of the panel (µM or mM for each).</p>
+
+  <h3>3. Check every well</h3>
+  <ol>
+    <li>Click a well on the plate. Its time course appears below.</li>
+    <li>Make the shaded window cover the early, straight part: drag across the plot, drag its edges, or type the start and end times. Click a point to drop it if it is clearly bad (a bubble, a spike).</li>
+    <li>Click <b>Use this slope</b>. The app moves to the next well that still needs checking.</li>
+    <li>If a well is unusable, choose <b>leave out</b> instead.</li>
+  </ol>
+  <p>The message at the top counts the wells still to check. Wells marked “?” on the plate are not checked yet.</p>
+
+  <h3>4. Check the conversion (step 3 on the left)</h3>
+  <p>This turns ΔA<sub>340</sub>/min into µM NADPH/min. The default assumes 200 µL per well. If you used another volume, change it. If you made an NADPH standard curve in the same plate and volume, choose <b>Plate factor</b> and enter its slope instead; that is more accurate. If A<sub>340</sub> falls during your assay, set <b>A<sub>340</sub> during the assay</b> to “falls”.</p>
+
+  <h3>5. Save the rates file</h3>
+  <p>Click <b>Save rates file</b> (step 4 on the left, or at the top of Export). Keep this file: the fitting apps read it, and it also saves all of your slope work.</p>
+
+  <h2>Step 2: Fit the rates file</h2>
+  <table class="t">
+    <tr><th>Your experiment</th><th>Open</th></tr>
+    <tr><td>Rate vs. one substrate (Michaelis–Menten, Hill, substrate inhibition)</td><td><a href="substrate-dependence-fitting.html">Substrate Dependence Fitting</a></td></tr>
+    <tr><td>Rate vs. substrate at several inhibitor concentrations</td><td><a href="inhibition-mechanism-fitting.html">Inhibition Mechanism Fitting</a></td></tr>
+    <tr><td>Rate vs. both substrates</td><td><a href="two-substrate-fitting.html">Two-Substrate Fitting</a></td></tr>
+  </table>
+  <ol>
+    <li>Drop the rates file onto the app. Units and [E] are filled in from the file.</li>
+    <li>Click <b>Fit data</b> (Substrate Dependence and Inhibition Mechanism).</li>
+    <li>Compare the models in the table: the fit (RMSE and residuals), BIC, ΔBIC and the weights, and whether the constants are well determined.</li>
+    <li><b>Click the model you think the data support.</b> The app does not choose for you. Its curves, residuals and constants then appear.</li>
+    <li>Export what you need for your report (figures and tables).</li>
+  </ol>
+
+  <h2>FAQ</h2>
+
+  <details class="faq"><summary>What do I do if my replicates are on different plates?</summary>
+    <p>Either way works, and every well from every plate goes into one fit:</p>
+    <ul>
+      <li><b>One rates file:</b> load all the plate files in Plate Reader Slopes at once. Enter the layout on the first plate and click <b>Copy this layout to every plate</b>. Pick each plate from the menu and check its wells. Save one rates file.</li>
+      <li><b>Separate rates files:</b> save a rates file for each plate, then load all of them in the fitting app. It lists them as “files pooled”.</li>
+    </ul>
+    <p>Different readers (infinite and Spark) can be pooled, but check that their rates agree.</p>
+  </details>
+
+  <details class="faq"><summary>I already saved a rates file and need to fix one well.</summary>
+    <p>Load the plate file <b>and</b> the rates file together in Plate Reader Slopes. Every window, checked well and concentration comes back. Fix the well, check it, and save the rates file again.</p>
+  </details>
+
+  <details class="faq"><summary>I used the same plate layout as last time. Do I have to type it again?</summary>
+    <p>No. Load your new plate together with the rates file from the earlier plate. The concentrations are copied over; the slope windows and checks are not, because they belong to the other plate's data, so check each well again.</p>
+  </details>
+
+  <details class="faq"><summary>What is a blank, and how do I mark one?</summary>
+    <p>A no-enzyme blank has everything except enzyme. Give it <b>[E] = 0</b>. The average slope of the blank wells is the background, and it is subtracted from every other well. A well with [S] = 0 but with enzyme is not a blank; it is a point on your curve.</p>
+  </details>
+
+  <details class="faq"><summary>How do I choose the slope window?</summary>
+    <p>Use the early part of the trace, where it is still a straight line. Avoid the curved part later on (substrate or cofactor running out) and any lag at the very start. The window does not have to be the same for every well.</p>
+  </details>
+
+  <details class="faq"><summary>When should I leave a well out?</summary>
+    <p>When there is no straight part you can trust: a big jump or bubble, a trace that is already flat or already finished at the first read, an absorbance above about 2, or a well you know was pipetted wrong. Note which wells you left out and why in your report.</p>
+  </details>
+
+  <details class="faq"><summary>The slopes are in mA/min but the fit is in µM/min. Which is right?</summary>
+    <p>Both: they are the same numbers in different units. The slope is the raw change in absorbance; the rate is that slope converted to µM NADPH/min (step 3). Report the rates and the fitted constants in µM/min. In a 200 µL well, 1 µM NADPH ≈ 3.6 mA<sub>340</sub>.</p>
+  </details>
+
+  <details class="faq"><summary>My wells were not 200 µL.</summary>
+    <p>Change the volume in step 3, or better, use a plate factor from an NADPH standard curve made at your volume. With 100 µL wells and the default left at 200 µL, every rate, V<sub>max</sub> and k<sub>cat</sub> comes out half what it should be (K<sub>m</sub> is unaffected).</p>
+  </details>
+
+  <details class="faq"><summary>My plate has more than one enzyme (for example WT and a mutant).</summary>
+    <p>Name them in the <b>Enzyme</b> tab. Substrate Dependence fits each enzyme separately; Inhibition Mechanism and Two-Substrate let you pick which enzyme to fit.</p>
+  </details>
+
+  <details class="faq"><summary>Why doesn't the app tell me which model is best?</summary>
+    <p>Choosing is the point of the exercise. Look at the residuals (random scatter is good; a curve or funnel is not), ΔBIC (above about 6 is strong evidence, below 2 is no real difference), the weights, and whether every constant is determined (an error larger than about half the value, or “→ limit”, means it is not). Then decide.</p>
+  </details>
+
+  <details class="faq"><summary>The fitting app says I loaded a plate reader file.</summary>
+    <p>The fitting apps need the <b>rates file</b>, not the raw plate file. Find the slopes in Plate Reader Slopes first and save the rates file.</p>
+  </details>
+
+  <details class="faq"><summary>The fit looks strange: two clouds of points, or curves that miss the data.</summary>
+    <p>Almost always the concentrations do not match the plate: the wrong plate map, a row or column shifted, or the wrong practice plate. Check the layout against your notebook. Also check that no unrelated rates file is pooled (the fitting app lists the files in use; remove extras with ✕).</p>
+  </details>
+
+  <details class="faq"><summary>My concentrations are in mM but the axis says µM.</summary>
+    <p>Set the units in the Plate Reader Slopes layout panel before saving the rates file. The shape of the fit is the same either way, but the unit labels and k<sub>cat</sub>/K<sub>m</sub> depend on them.</p>
+  </details>
+
+  <details class="faq"><summary>Can I fit rates I already have in Excel?</summary>
+    <p>Yes. The fitting apps also take a pasted or saved table: Substrate Dependence takes [S] in the first column and rates in the next; Inhibition Mechanism takes [S] in the first column and one column of rates per inhibitor concentration, with the [I] values in the header row; Two-Substrate takes three columns: [S], [S₂], rate.</p>
+  </details>
+
+  <details class="faq"><summary>How can I practise?</summary>
+    <p>The <a href="index.html">New Fitting Apps</a> page has practice plates, plate maps and layout files for Michaelis–Menten, inhibition and two-substrate experiments.</p>
+  </details>
+
+  <details class="faq"><summary>Where are the original apps?</summary>
+    <p>Still on the <a href="../data-fitting-apps.html">Data Fitting Apps</a> page, unchanged. They find slopes and fit in one page, so the slope work has to be redone each time.</p>
+  </details>
+  </article>
+
+  <footer>BBMB 4110 · <a href="https://github.com/swnisu1/BBMB_4110">Source on GitHub</a></footer>
+</main>
+</body>
+</html>
