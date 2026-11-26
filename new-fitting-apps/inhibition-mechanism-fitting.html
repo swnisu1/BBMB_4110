@@ -215,6 +215,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
           <textarea id="pasteText" aria-label="Pasted velocity table" spellcheck="false" placeholder="Copy the cells from Excel, including the header row of [I] values, and paste here"></textarea>
           <div class="btns"><button type="button" class="btn" id="pasteBtn">Use pasted data</button></div>
         </details>
+        <div id="fileList" class="hint" style="margin-top:8px"></div>
         <div class="field" id="enzRow" hidden style="margin-top:10px"><label for="enzSel">Enzyme to fit</label><select id="enzSel"></select></div>
         <h2 style="margin-top:14px">Inhibitor series</h2>
         <div id="curveList"></div>
@@ -374,7 +375,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         '<div class="crvin"><label>[I] for this series<input type="number" min="0" step="any" data-i="' + i + '" value="' + (isFinite(c.I) ? c.I : "") + '"></label></div></div>';
     }).join("");
   }
-  function setSeries(list, fromRates) { if (!fromRates) { rateFiles = []; rateNotes = []; } series = list.slice(0, 12); state.sel = "none"; state.fitted = false; rebuildList(); render(); }
+  function setSeries(list, fromRates) { if (!fromRates) { rateFiles = []; rateNotes = []; var fl = document.getElementById("fileList"); if (fl) fl.innerHTML = ""; } series = list.slice(0, 12); state.sel = "none"; state.fitted = false; rebuildList(); render(); }
 
   // ---------- Levenberg-Marquardt (generic, log-parameter space) ----------
   function solve(A, b) {
@@ -563,6 +564,13 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
   }
   var MEANS_NOTE = "These are replicate means, so each point is a mean and the fit cannot use the scatter between wells. For the full fit, use <b>Save rates file</b> (step 4) in Plate Reader Slopes and load that file instead.";
   var rateFiles = [];   // rates files loaded (pooled as replicate plates)
+  // the rates files in use: each listed with a remove button, so pooling (replicate plates) is visible
+  function showFiles(onChange) {
+    var host = document.getElementById("fileList"); if (!host) return;
+    if (!rateFiles.length) { host.innerHTML = ""; return; }
+    host.innerHTML = '<b>' + (rateFiles.length > 1 ? rateFiles.length + " files pooled" : "File in use") + ':</b>' + rateFiles.map(function (R, i) { return '<div style="display:flex;justify-content:space-between;gap:6px;align-items:center;margin-top:3px"><span style="overflow-wrap:anywhere">' + esc(R.name || "file " + (i + 1)) + ' (' + R.wells.length + (R.means ? " means" : " wells") + ')</span><button type="button" class="btn" data-rf="' + i + '" style="padding:2px 8px" aria-label="Remove this file">✕</button></div>'; }).join("") + (rateFiles.length > 1 ? '<div style="margin-top:4px">Every well from these files is fit together. Remove any file that is not a replicate of the same experiment.</div>' : "");
+    host.onclick = function (e) { var b = e.target.closest("button[data-rf]"); if (!b) return; rateFiles.splice(+b.dataset.rf, 1); onChange(); };
+  }
   function ratesSeries() {
     var all = [], units = null, skipped = 0;
     rateFiles.forEach(function (R) { all = all.concat(R.wells); skipped += R.skipped; if (!units) units = R.units; });
@@ -583,6 +591,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     if (eList.length > 1) notes.push(esc(pick) + " has more than one [E] in these files (" + eList.join(", ") + " nM); use one [E] for an inhibition fit. k<sub>cat</sub> is not calculated.");
     if (Object.keys(S2s).length > 1) notes.push("[S₂] is not the same in every well; it should be held constant in an inhibition experiment.");
     rateNotes = notes;
+    showFiles(function () { if (rateFiles.length) setSeries(ratesSeries(), true); else { document.getElementById("enzRow").hidden = true; setSeries([], false); } });
     return out.sort(function (a, b) { return a.I - b.I; });
   }
   var rateNotes = [];
@@ -594,7 +603,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       r.onload = function () {
         var t = String(r.result);
         if (isPlateExport(t)) { document.getElementById("msgs").innerHTML = '<p class="msg warn">That is a plate reader file (absorbance time courses), not a rates file. Find the slopes in <a href="plate-reader-slopes.html">Plate Reader Slopes</a>, save the rates file, and load that here.</p>'; done(); return; }
-        if (isRatesFile(t) || isMeansFile(t)) { rateFiles.push(isMeansFile(t) ? readMeans(t) : readRates(t)); setSeries(ratesSeries(), true); }
+        if (isRatesFile(t) || isMeansFile(t)) { var R = isMeansFile(t) ? readMeans(t) : readRates(t); R.name = f.name; rateFiles.push(R); setSeries(ratesSeries(), true); }
         else { var got = parseTable(t, f.name.replace(/\.[^.]+$/, "")); if (got.length) { rateFiles = []; setSeries(got); } }
         done();
       };
