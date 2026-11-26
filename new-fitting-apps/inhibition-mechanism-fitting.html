@@ -221,8 +221,6 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
         <div id="curveList"></div>
         <div class="btns"><button type="button" class="btn" id="templateBtn">Download template</button><button type="button" class="btn" id="clearBtn">Clear</button></div>
         <p class="hint" id="tmplMsg">The template is a filled-in CSV in the layout this page expects: replace the velocities with your own.</p>
-        <p class="hint" style="margin-top:12px">Practice (simulated competitive inhibitor): a rates file ready to fit, or the plate itself to find the slopes first in Plate Reader Slopes ([S] = 2, 5, 10, 20, 40, 80 mM in columns 1–6 and again in 7–12; [I] = 0, 1.5, 3, 9 mM in rows A–D; [E] = 10 nM).</p>
-        <div class="btns"><a class="btn" style="text-decoration:none;display:inline-block" href="../examples/practice_inhibition_rates.csv" download>⤓ Practice rates file</a><a class="btn" style="text-decoration:none;display:inline-block" href="../examples/practice_inhibition_competitive_infinite.xlsx" download>⤓ Practice plate .xlsx</a></div>
       </section>
 
       <section class="panel">
@@ -811,7 +809,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
     var D = simOn ? simulate() : { series: series, truth: null };
     var cards = document.getElementById("cards"), msgs = document.getElementById("msgs");
     function empty(txt) { showPanels(false); cards.innerHTML = ""; msgs.innerHTML = '<p class="msg">' + txt + '</p>'; ["tbl", "plotA", "plotB", "plotC1", "plotC2", "plotD", "legendA", "interp", "eq"].forEach(function (id) { document.getElementById(id).innerHTML = ""; }); }
-    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop the rates file from Plate Reader Slopes, or a table, or paste from Excel, in the panel on the left. To practise, download the practice rates file there and load it."); return; }
+    if (!D || !D.series || !D.series.length) { empty("No data loaded yet. Drop the rates file from Plate Reader Slopes, or a table, or paste from Excel, in the panel on the left."); return; }
     var ok = D.series.filter(function (s) { return isFinite(s.I) && s.I >= 0 && s.S.length >= 3; }), skipped = D.series.length - ok.length;
     var P = { S: [], I: [], v: [] };
     ok.forEach(function (s) { s.S.forEach(function (x, j) { if (x > 0 && isFinite(s.v[j])) { P.S.push(x); P.I.push(s.I); P.v.push(s.v[j]); } }); });
