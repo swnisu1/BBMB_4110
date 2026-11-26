@@ -187,7 +187,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           <b>Drop the .xlsx here</b> (and your saved rates file, to continue) or click to choose
           <span>Either plate reader’s export works as saved: the infinite 200Pro (i-control, wells in rows) or the Spark (SparkControl, wells in columns). The format is detected automatically. A CSV or text file with a Time column and one column per well also works. Every kinetic run in the workbook is found.</span>
           <input type="file" id="fileIn" multiple accept=".xlsx,.csv,.tsv,.txt" hidden>
-          <span>To pick up where you left off, load the plate file together with the rates file you saved: every slope window, checked well and layout value comes back.</span>
+          <span>To pick up where you left off, load the plate file together with the rates file you saved: every slope window, checked well and layout value comes back. A rates (or layout) file from a different plate fills in just the layout, so a layout used again on another day does not have to be retyped.</span>
         </label>
         <details>
           <summary>Or paste from Excel</summary>
@@ -821,10 +821,23 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
       c.excl = {}; if (ix.drop >= 0 && r[ix.drop]) r[ix.drop].split(";").forEach(function (k) { if (k !== "") c.excl[k] = true; });
       c.ok = r[ix.ok] === "yes"; n++; matched[runs.indexOf(run)] = 1;
     });
+    // no plate of that name loaded: use the file as a layout for the plate on screen ([S], [S2], [I], enzyme, [E] by well;
+    // slope windows and checks are not copied, since they belong to the other plate's data)
+    var layoutOnly = false;
+    if (!n && cur >= 0) {
+      var run0 = runs[cur], firstPlate = R.rows.length > 1 ? R.rows[1][ix.plate] : null, seen = {};
+      R.rows.slice(1).forEach(function (r) {
+        if (ix.plate >= 0 && r[ix.plate] !== firstPlate) return;
+        var w = r[ix.well], c = run0.cfg.wells[w]; if (!c || seen[w]) return; seen[w] = 1;
+        var nv = function (i) { return i < 0 || r[i] === "" ? NaN : Number(r[i]); };
+        c.S = nv(ix.S); c.S2 = nv(ix.S2); c.I = nv(ix.I); c.E = nv(ix.E); if (ix.enz >= 0) c.series = r[ix.enz]; c.ok = false; n++;
+      });
+      layoutOnly = n > 0;
+    }
     if (n) {
       if (un.S) G.sUnit = un.S === "mM" ? "mM" : "uM"; if (un.S2) G.s2Unit = un.S2 === "mM" ? "mM" : "uM"; if (un.I) G.iUnit = un.I === "mM" ? "mM" : "uM"; if (un.E) G.eUnit = un.E === "uM" ? "uM" : "nM";
       saveSettings(); syncInputs(); buildLayout(); render();
-      topMsg("Restored " + n + " wells from " + esc(R.name) + " (" + Object.keys(matched).length + " plate" + (Object.keys(matched).length > 1 ? "s" : "") + ").");
+      topMsg(layoutOnly ? "Layout copied from " + esc(R.name) + " to " + n + " wells of this plate ([S], [S₂], [I], enzyme, [E]). It came from a different plate, so the slope windows and checks were not copied: check each well here." : "Restored " + n + " wells from " + esc(R.name) + " (" + Object.keys(matched).length + " plate" + (Object.keys(matched).length > 1 ? "s" : "") + ").");
     }
     return n;
   }
