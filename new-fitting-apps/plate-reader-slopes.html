@@ -307,7 +307,9 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
 
       <section class="panel" id="exportPanel" hidden>
         <h2>Export</h2>
-        <p class="hint" style="margin:0 0 6px">Figure (PNG, light background)</p>
+        <p class="hint" style="margin:0 0 6px"><b>For the fitting tools</b> (substrate dependence, inhibition, two-substrate):</p>
+        <div class="btns" style="margin-top:0"><button type="button" class="btn primary" id="saveRates2">Save rates file (CSV)</button></div>
+        <p class="hint" style="margin:12px 0 6px">For your own figures and tables:</p><p class="hint" style="margin:0 0 6px">Figure (PNG, light background)</p>
         <div class="btns" id="exportPng" style="margin-top:0"></div>
         <p class="hint" style="margin:12px 0 6px">Tables (CSV, open in Excel)</p>
         <div class="btns" id="exportCsv" style="margin-top:0"></div>
@@ -494,6 +496,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
           .catch(function (e) { topMsg("Could not read " + esc(f.name) + ": " + esc(e.message), "warn"); });
       } else if (/\.xls$/i.test(f.name)) topMsg("Old .xls files cannot be read here. Save as .xlsx in Excel, or copy the cells and paste them.", "warn");
       else f.text().then(function (t) {
+        if (/mean rate/i.test(t.split(/\r?\n/)[0])) { topMsg("That is the replicate-means table, which this page writes for Excel. To continue your slope work here, load the plate file with the <b>rates file</b> (saved with <b>Save rates file</b>, step 4). To fit, open the rates file in a fitting tool.", "warn"); return; }
         if (isRatesFile(t)) { pendingRestore.push({ name: f.name, rows: parseCSV(t) }); tryRestores(); if (pendingRestore.length) topMsg("Rates file " + esc(f.name) + " read. Now load the plate file it came from; its wells will be restored."); return; }
         addRuns(findRuns(readText(t), "text"), base);
       });
@@ -775,7 +778,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
   // what is still missing before the rates file is complete (shown above the plate; saving is always possible)
   function drawStatus() {
     var miss = missingInputs();
-    $("msgs").innerHTML = miss.map(function (t) { return '<p class="msg warn">' + t + '</p>'; }).join("") || (runs.length ? '<p class="msg">Every well is checked and described. Save the rates file (step 4) and open it in a fitting tool.</p>' : "");
+    $("msgs").innerHTML = miss.map(function (t) { return '<p class="msg warn">' + t + '</p>'; }).join("") || (runs.length ? '<p class="msg">Every well is checked and described. Click <b>Save rates file</b> (step 4 on the left, or in Export below) and open that file in a fitting tool.</p>' : "");
     exportTables = { wells: wellRows(), means: meanRows() };
     $("exportPanel").hidden = cur < 0;
   }
@@ -899,7 +902,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     });
   }
   var EXP = { plots: [{ svg: "plotW", legend: null, label: "Selected well trace (PNG)", file: "well" }],
-    tables: [{ key: "means", label: "Replicate means (CSV)", file: "replicate_means" }] };
+    tables: [{ key: "means", label: "Replicate means table (CSV, for Excel)", file: "replicate_means" }] };
   $("exportPng").innerHTML = EXP.plots.map(function (p, i) { return '<button type="button" class="btn" data-png="' + i + '">' + p.label + '</button>'; }).join("");
   $("exportCsv").innerHTML = EXP.tables.map(function (t, i) { return '<button type="button" class="btn" data-csv="' + i + '">' + t.label + '</button>'; }).join("");
   function prefix() { return cur >= 0 ? runs[cur].file.replace(/[^\w.-]+/g, "_") : "plate"; }
@@ -921,6 +924,7 @@ td .flag { color: var(--warn); font-family: var(--font); font-size: 11.5px; }
     var unchk = runs.reduce(function (a, r) { return a + uncheckedCount(r); }, 0), name = (runs.length > 1 ? runs[0].file + "_and_" + (runs.length - 1) + "_more" : runs[0].file).replace(/[^\w.-]+/g, "_") + "_rates.csv";
     saveFile(name, csvText(ratesRows())).then(function () { $("saveNote").textContent = "Saved " + name + (unchk ? ". " + unchk + " well" + (unchk > 1 ? "s are" : " is") + " not checked yet: the fitting tools ignore them until you check them here, reload, and save again." : "."); });
   });
+  $("saveRates2").addEventListener("click", function () { $("saveRates").click(); var n = $("saveNote").textContent; exportNote(n); });
   $("fileIn").addEventListener("change", function (e) { readFiles(e.target.files); e.target.value = ""; });
   var dropEl = $("drop");
   ["dragenter", "dragover"].forEach(function (ev) { dropEl.addEventListener(ev, function (e) { e.preventDefault(); dropEl.classList.add("over"); }); });

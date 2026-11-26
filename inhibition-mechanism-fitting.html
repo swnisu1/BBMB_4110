@@ -1164,6 +1164,7 @@ table.data tbody tr[data-pw]:hover { background: var(--accent-soft); }
       var r = new FileReader();
       r.onload = function () {
         var text = String(r.result), runs = PR.findRuns(PR.readText(text), f.name);
+        if (!runs.length && /mean rate/i.test(text.split(/\r?\n/)[0])) { plateMsg("That is the replicate-means table from Plate Reader Kinetics. Load the plate reader file itself here, or use the new apps (Plate Reader Slopes saves a rates file that the fitting tools read)."); done(); return; }
         if (runs.length) { loadPlate(runs, f.name.replace(/\.[^.]+$/, "")); done(); return; }   // a plate reader export saved as CSV
         var got = parseTable(text, f.name.replace(/\.[^.]+$/, "")); if (got.length) setSeries(got); done();
       };

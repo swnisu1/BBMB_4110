@@ -305,21 +305,39 @@ ul.try li { margin-bottom: 4px; }
     var vu0 = ix.v >= 0 ? head[ix.v].replace(/^rate_/, "") : "";
     return { wells: out, skipped: skipped, units: { S: un(ix.S), S2: un(ix.S2), I: un(ix.I), v: vu0 === "uM_per_min" ? "µM/min" : vu0 === "A340_per_min" ? "ΔA340/min" : vu0 } };
   }
+  // the "Replicate means" table from Plate Reader Slopes also works: one point per mean (the rates file, with every well, is better)
+  function isMeansFile(text) { var h = text.replace(/^﻿/, "").split(/\r?\n/)[0].toLowerCase(); return h.indexOf("mean rate") >= 0 && /(^|,)\s*"?s \(/.test(h); }
+  function readMeans(text, twoSub) {
+    var R = parseCSV(text), head = R[0].map(function (h) { return h.trim(); });
+    function col(re) { for (var i = 0; i < head.length; i++) if (re.test(head[i])) return i; return -1; }
+    function unit(i) { var m = i < 0 ? null : /\(([^)]*)\)/.exec(head[i]); return m ? m[1] : ""; }
+    var ix = { enz: col(/^enzyme$/i), E: col(/^E \(/), I: col(/^I \(/), S2: col(/^S2 \(/), S: col(/^S \(/), v: col(/^mean rate/i) };
+    var eFac = /µM|uM/.test(unit(ix.E)) ? 1000 : 1, out = [];
+    R.slice(1).forEach(function (r) {
+      var nv = function (i) { return i < 0 || r[i] === "" || r[i] === undefined ? NaN : Number(r[i]); };
+      var w = { enzyme: (r[ix.enz] || "").trim() || "Enzyme", E: nv(ix.E) * eFac, S: nv(ix.S), S2: nv(ix.S2), I: nv(ix.I), v: nv(ix.v), well: "mean" };
+      if (twoSub) { w.A = w.S; w.B = w.S2; }
+      if (isFinite(w.v)) out.push(w);
+    });
+    var vu = unit(ix.v);
+    return { wells: out, skipped: 0, means: true, units: twoSub ? { A: unit(ix.S), B: unit(ix.S2), v: vu } : { S: unit(ix.S), S2: unit(ix.S2), I: unit(ix.I), v: vu } };
+  }
+  var MEANS_NOTE = "These are replicate means, so each point is a mean and the fit cannot use the scatter between wells. For the full fit, use <b>Save rates file</b> (step 4) in Plate Reader Slopes and load that file instead.";
   function ratesToSets(text) {
-    var RF = readRates(text), groups = {}, list = [];
+    var RF = isMeansFile(text) ? readMeans(text) : readRates(text), groups = {}, list = [];
     RF.wells.forEach(function (w) { if (!isFinite(w.S)) return; var k = [w.enzyme, w.E, w.S2, w.I].join("|"); if (!groups[k]) { groups[k] = { enzyme: w.enzyme, E: w.E, S2: w.S2, I: w.I, S: [], v: [] }; list.push(groups[k]); } groups[k].S.push(w.S); groups[k].v.push(w.v); });
     function multi(key) { var e = {}; list.forEach(function (g) { (e[g.enzyme] = e[g.enzyme] || {})[String(g[key])] = 1; }); return Object.keys(e).some(function (k) { return Object.keys(e[k]).length > 1; }); }
     var mE = multi("E"), mS2 = multi("S2"), mI = multi("I");
     var out = list.map(function (g) { return { name: g.enzyme + (mE && isFinite(g.E) ? " · " + g.E + " nM" : "") + (mI && isFinite(g.I) ? " · [I] " + g.I + " " + RF.units.I : "") + (mS2 && isFinite(g.S2) ? " · [S₂] " + g.S2 + " " + RF.units.S2 : ""), E: g.E, S: g.S, v: g.v }; });
     // a series needs at least three different [S] to be fit
     out = out.filter(function (s) { var u = {}; s.S.forEach(function (x) { if (x > 0) u[x] = 1; }); return Object.keys(u).length >= 3; });
-    out.units = RF.units; out.skipped = RF.skipped;
+    out.units = RF.units; out.skipped = RF.skipped; out.means = RF.means;
     return out;
   }
   function isPlateExport(text) { var h = text.slice(0, 20000); return /(Cycle Nr\.|Time \[s\]|Kinetic)/i.test(h) && /(^|[,;\t])\s*A1\s*([,;\t]|$)/m.test(h); }
   function parseTable(text, fname) {
     if (isPlateExport(text)) { var mm = document.getElementById("msgs"); if (mm) mm.innerHTML = '<p class="msg warn">That is a plate reader file (absorbance time courses), not a rates file. Find the slopes in <a href="plate-reader-slopes.html">Plate Reader Slopes</a>, save the rates file, and load that here.</p>'; return []; }
-    if (isRatesFile(text)) return ratesToSets(text);
+    if (isRatesFile(text) || isMeansFile(text)) return ratesToSets(text);
     var delim = null, header = null, rows = [];
     text.split(/\r?\n/).forEach(function (ln) {
       if (!ln.trim()) return;
@@ -487,6 +505,7 @@ ul.try li { margin-bottom: 4px; }
       var rf = got.filter(function (g) { return g && g.units; }), skipped = rf.reduce(function (a, g) { return a + (g.skipped || 0); }, 0);
       if (rf.length) { if (rf[0].units.S) document.getElementById("cunit").value = rf[0].units.S; if (rf[0].units.v) document.getElementById("vunit").value = rf[0].units.v; }
       var all = [].concat.apply([], got.filter(Boolean).map(function (g) { return g.slice(); })); if (all.length) addSets(all);
+      if (rf.some(function (g) { return g.means; })) { var mm2 = document.getElementById("msgs"); if (mm2) mm2.insertAdjacentHTML("afterbegin", '<p class="msg warn">' + MEANS_NOTE + '</p>'); }
       if (skipped) { var m = document.getElementById("msgs"); if (m) m.insertAdjacentHTML("afterbegin", '<p class="msg warn">' + skipped + ' well' + (skipped > 1 ? "s were" : " was") + ' not checked in Plate Reader Slopes and ' + (skipped > 1 ? "are" : "is") + ' not used. Check ' + (skipped > 1 ? "them" : "it") + ' there, save the rates file again and reload it here.</p>'); }
     }
     list.forEach(function (f, k) { var r = new FileReader(); r.onload = function () { got[k] = parseTable(String(r.result), f.name.replace(/\.[^.]+$/, "")); done(); }; r.onerror = done; r.readAsText(f); });

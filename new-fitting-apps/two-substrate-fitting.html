@@ -310,6 +310,24 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     var vu0 = ix.v >= 0 ? head[ix.v].replace(/^rate_/, "") : "";
     return { wells: out, skipped: skipped, units: { A: un(ix.S), B: un(ix.S2), v: vu0 === "uM_per_min" ? "µM/min" : vu0 === "A340_per_min" ? "ΔA340/min" : vu0 } };
   }
+  // the "Replicate means" table from Plate Reader Slopes also works: one point per mean (the rates file, with every well, is better)
+  function isMeansFile(text) { var h = text.replace(/^﻿/, "").split(/\r?\n/)[0].toLowerCase(); return h.indexOf("mean rate") >= 0 && /(^|,)\s*"?s \(/.test(h); }
+  function readMeans(text, twoSub) {
+    var R = parseCSV(text), head = R[0].map(function (h) { return h.trim(); });
+    function col(re) { for (var i = 0; i < head.length; i++) if (re.test(head[i])) return i; return -1; }
+    function unit(i) { var m = i < 0 ? null : /\(([^)]*)\)/.exec(head[i]); return m ? m[1] : ""; }
+    var ix = { enz: col(/^enzyme$/i), E: col(/^E \(/), I: col(/^I \(/), S2: col(/^S2 \(/), S: col(/^S \(/), v: col(/^mean rate/i) };
+    var eFac = /µM|uM/.test(unit(ix.E)) ? 1000 : 1, out = [];
+    R.slice(1).forEach(function (r) {
+      var nv = function (i) { return i < 0 || r[i] === "" || r[i] === undefined ? NaN : Number(r[i]); };
+      var w = { enzyme: (r[ix.enz] || "").trim() || "Enzyme", E: nv(ix.E) * eFac, S: nv(ix.S), S2: nv(ix.S2), I: nv(ix.I), v: nv(ix.v), well: "mean" };
+      if (twoSub) { w.A = w.S; w.B = w.S2; }
+      if (isFinite(w.v)) out.push(w);
+    });
+    var vu = unit(ix.v);
+    return { wells: out, skipped: 0, means: true, units: twoSub ? { A: unit(ix.S), B: unit(ix.S2), v: vu } : { S: unit(ix.S), S2: unit(ix.S2), I: unit(ix.I), v: vu } };
+  }
+  var MEANS_NOTE = "These are replicate means, so each point is a mean and the fit cannot use the scatter between wells. For the full fit, use <b>Save rates file</b> (step 4) in Plate Reader Slopes and load that file instead.";
   function readTable(text) {
     var R = parseCSV(text).map(function (r) { return r.map(function (x) { return x.trim(); }); }), out = [];
     R.forEach(function (r) { var a = Number(r[0]), b = Number(r[1]), v = Number(r[2]); if (r.length >= 3 && r[0] !== "" && isFinite(a) && isFinite(b) && isFinite(v)) out.push({ enzyme: "Enzyme", E: NaN, A: a, B: b, v: v }); });
@@ -356,6 +374,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
     $("csvBtn").disabled = true;
     if (!rateFiles.length) { panels.forEach(function (id) { $(id).hidden = true; }); $("cards").innerHTML = ""; $("msgs").innerHTML = '<p class="msg">Load the rates file from Plate Reader Slopes (with [S] and [S₂] in the layout), or try <b>Load example</b>.</p>'; return; }
     var D = data(), msgs = [];
+    if (rateFiles.some(function (R) { return R.means; })) msgs.push(["warn", MEANS_NOTE]);
     if (D.skipped) msgs.push(["warn", D.skipped + " well" + (D.skipped > 1 ? "s were" : " was") + " not checked in Plate Reader Slopes and " + (D.skipped > 1 ? "are" : "is") + " not used."]);
     if (D.noB) msgs.push(["warn", D.noB + " well" + (D.noB > 1 ? "s have" : " has") + " no [S₂]. Fill in the [S₂] tab of the layout in Plate Reader Slopes."]);
     if (D.E.length === 1 && !$("eIn").value) $("eIn").value = D.E[0];
@@ -464,7 +483,7 @@ footer{font-size:12px;color:var(--muted);margin:20px 0 0}a{color:var(--accent)}
       r.onload = function () {
         var t = String(r.result);
         if (isPlateExport(t)) { $("status").textContent = "That is a plate reader file (absorbance time courses). Find the slopes in Plate Reader Slopes, save the rates file, and load that here."; return; }
-        var R = isRatesFile(t) ? readRates(t) : readTable(t);
+        var R = isRatesFile(t) ? readRates(t) : isMeansFile(t) ? readMeans(t, true) : readTable(t);
         if (!R) { $("status").textContent = "Could not read " + f.name + ": expected a rates file from Plate Reader Slopes or three columns [S], [S₂], rate."; return; }
         if (rateFiles.length && rateFiles[0].example) rateFiles = [];
         rateFiles.push(R); state.sel = null;
